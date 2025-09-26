@@ -1,52 +1,40 @@
 ---
+// src/pages/neighbourhoods/[slug].astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 
-/* Build-time paths (everything self-contained here) */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_SHEET_JSON;
-  if (!url) {
-    console.error("Missing PUBLIC_SHEET_JSON");
-    return [];
-  }
+  if (!url) return [];
 
-  // helper: map row -> {slug,title,summary,hero_img,status}
-  const normalize = (r) => {
-    const get = (k) =>
-      (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
-        .toString()
-        .trim();
-
-    const title = get("title");
-    const computedSlug = title
-      .toLowerCase()
-      .replace(/&/g, "-and-")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-    return {
-      slug: get("slug") || computedSlug,
-      title,
-      summary: get("summary"),
-      hero_img: get("hero_img"),
-      status: get("status"),
-    };
-  };
-
-  // helper: resolve hero path just like index
   const heroPath = (s = "") => {
     const v = s.trim();
     if (!v) return "";
-    if (v.startsWith("http")) return v;
-    if (v.startsWith("/")) return v;
+    if (v.startsWith("http") || v.startsWith("/")) return v;
     if (/^img\//i.test(v)) return `/${v}`;
     if (/^hero\//i.test(v)) return `/img/${v}`;
     return `/img/hero/${v}`;
   };
 
-  let rows = [];
+  const toMapEmbed = (input = "") => {
+    const v = input.trim();
+    if (!v) return "";
+    const m = v.match(/src="([^"]+)"/i);
+    if (m?.[1]) return m[1];
+    if (v.includes("google.com/maps") && v.includes("embed")) return v;
+    if (v.includes("google.com/maps")) {
+      try {
+        const u = new URL(v);
+        const q = u.search ? `${u.search}&output=embed` : "?output=embed";
+        return `https://www.google.com/maps${q}`;
+      } catch {}
+    }
+    return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
+  };
+
+  let rows: any[] = [];
   try {
-    const raw = await getJson(url);
+    const raw = await getJson<any>(url);
     rows = Array.isArray(raw)
       ? raw
       : Array.isArray(raw?.data)
@@ -60,56 +48,106 @@ export async function getStaticPaths() {
   }
 
   const items = rows
-    .map(normalize)
+    .map((r: any) => {
+      const get = (k: string) =>
+        (r?.[k] ?? r?.[k.toLowerCase?.()] ?? r?.[k.toUpperCase?.()] ?? "")
+          .toString()
+          .trim();
+
+      const title = get("title");
+      if (!title) return null;
+
+      const computedSlug = title
+        .toLowerCase()
+        .replace(/&/g, "-and-")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      return {
+        slug: get("slug") || computedSlug,
+        title,
+        summary: get("summary"),
+        hero_img: get("hero_img"),
+        status: get("status"),
+        card_1: get("card_1"),
+        card_2: get("card_2"),
+        card_3: get("card_3"),
+        map_embed: get("map_embed"),
+      };
+    })
     .filter(
-      (r) =>
+      (r: any) =>
+        r &&
         r.slug &&
         r.title &&
         r.slug.toLowerCase() !== "index" &&
         !/^draft$/i.test(r.status || "")
     );
 
-  return items.map((n) => ({
+  return items.map((n: any) => ({
     params: { slug: n.slug },
     props: {
       title: n.title || "",
       summary: n.summary || "",
       hero: heroPath(n.hero_img || ""),
+      card_1: n.card_1 || "",
+      card_2: n.card_2 || "",
+      card_3: n.card_3 || "",
+      map_embed: toMapEmbed(n.map_embed || ""),
     },
   }));
 }
 
-/* Page props: tiny surface */
-const { title, summary, hero } = Astro.props as {
-  title: string;
-  summary: string;
-  hero: string;
-};
+const { title, summary, hero, card_1, card_2, card_3, map_embed } =
+  Astro.props as {
+    title: string;
+    summary: string;
+    hero: string;
+    card_1: string;
+    card_2: string;
+    card_3: string;
+    map_embed: string;
+  };
 ---
 
 <Site showHeader={true} title={title}>
-  <!-- HERO: identical bleed treatment to index -->
+  <!-- HERO -->
   <section
     class="hero-bleed"
-    style={`${
-      hero
-        ? `background:url('${hero}') center/cover no-repeat`
-        : "background:#f6f6f6"
-    }`}
+    style={`${hero ? `background:url('${hero}') center/cover no-repeat` : "background:#f6f6f6"}`}
   ></section>
 
-  <!-- H1 + intro copy BELOW hero, same 1200px container -->
   <div class="container intro">
     <h1>{title}</h1>
     {summary && <p>{summary}</p>}
+
+    {(card_1 || card_2 || card_3) && (
+      <div class="feature-cards">
+        {card_1 && <div class="feature-card">{card_1}</div>}
+        {card_2 && <div class="feature-card">{card_2}</div>}
+        {card_3 && <div class="feature-card">{card_3}</div>}
+      </div>
+    )}
+
+    {map_embed && (
+      <>
+        <h2 class="map-heading">Explore on the Map</h2>
+        <div class="map-card">
+          <iframe
+            src={map_embed}
+            loading="lazy"
+            allowfullscreen
+            referrerpolicy="no-referrer-when-downgrade"
+          ></iframe>
+        </div>
+      </>
+    )}
   </div>
 
   <style>
-    /* EXACTLY the same framework as index. */
     .container {
       max-width: 1200px;
-      margin-left: auto;
-      margin-right: auto;
+      margin: 0 auto;
       padding: 0 1rem;
     }
 
@@ -117,27 +155,55 @@ const { title, summary, hero } = Astro.props as {
       width: 100vw;
       margin-left: calc(50% - 50vw);
       margin-right: calc(50% - 50vw);
-      min-height: 48vh; /* same as index */
+      min-height: 48vh; /* reference for map height */
       border-bottom: 1px solid #eee;
       padding-top: var(--header-h);
     }
 
-    .intro {
-      margin-top: 24px;
-      margin-bottom: 20px;
-      text-align: left;
+    .intro { margin-top: 24px; margin-bottom: 20px; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color: #111827; }
+    .intro p { font-size: 1rem; line-height: 1.6; color: #1f2937; }
+
+    .feature-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin: 16px 0 28px;
     }
-    .intro h1 {
-      font-size: 2.25rem;
-      font-weight: 700;
-      margin: 0 0 8px 0;
+    .feature-card {
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+      font-weight: 500;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .map-heading {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 8px 0 12px;
       color: #111827;
     }
-    .intro p {
-      font-size: 1rem;
-      line-height: 1.6;
-      margin: 0;
-      color: #1f2937; /* gray-800 */
+
+    /* ✅ Map height matches hero section height */
+    .map-card {
+      width: 100%;
+      border: 1px solid #eee;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      height: 48vh; /* matches hero min-height */
+      max-height: 420px; /* optional: cap it slightly for huge screens */
+      margin: 0 0 40px;
+    }
+
+    .map-card iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
     }
   </style>
 </Site>
