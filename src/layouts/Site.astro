@@ -5,6 +5,7 @@ const {
   class: bodyClass = "",
 } = Astro.props;
 ---
+
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -13,11 +14,11 @@ const {
     <style>
       :root {
         --header-h: 52px;
-        --bg: #fafaf9;            /* Tailwind stone-50 */
-        --ink: #111827;           /* neutral-900 */
-        --ink-muted: #1f2937;     /* ✅ darker gray-800 for nav links */
-        --hover-bg: rgba(243,244,246,.9); /* gray-100 */
-        --focus-ring: rgba(37,99,235,.35);
+        --bg: #fafaf9;
+        --ink: #111827;
+        --ink-muted: #1f2937;
+        --hover-bg: rgba(243, 244, 246, 0.9);
+        --focus-ring: rgba(37, 99, 235, 0.35);
       }
 
       html, body { height: 100%; }
@@ -36,7 +37,6 @@ const {
         background: rgba(255,255,255,0.84);
         backdrop-filter: blur(10px);
         border-bottom: 1px solid #e5e7eb;
-        transition: background .3s ease;
       }
 
       .nav-inner {
@@ -46,7 +46,6 @@ const {
         padding: 0 12px;
         display: flex;
         align-items: center;
-        flex-wrap: wrap; /* ✅ allow nav to wrap but not brand */
       }
 
       .brand {
@@ -56,9 +55,7 @@ const {
         color: var(--ink);
         padding: 4px 6px;
         border-radius: 6px;
-        transition: background .25s ease, color .25s ease;
-        white-space: nowrap; /* ✅ prevent text logo from stacking */
-        flex-shrink: 0; /* ✅ don't let it get squished */
+        transition: background .25s ease;
       }
       .brand:hover { background: var(--hover-bg); }
 
@@ -68,17 +65,14 @@ const {
         display: flex;
         align-items: center;
         gap: 12px;
-        flex-wrap: wrap; /* ✅ allow links to wrap under logo if space is tight */
       }
 
       nav a {
-        display: inline-block;
         color: var(--ink-muted);
         padding: 4px 6px;
         text-decoration: none;
         border-radius: 6px;
         transition: color .25s ease, background .25s ease;
-        outline: none;
       }
 
       nav a:hover,
@@ -87,16 +81,50 @@ const {
         background: var(--hover-bg);
       }
 
-      nav a:focus-visible {
-        box-shadow: 0 0 0 3px var(--focus-ring);
+      /* Hide hamburger by default */
+      .hamburger {
+        display: none;
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--ink-muted);
       }
 
-      @media (prefers-reduced-motion: reduce) {
-        * { transition: none !important; }
+      @media (max-width: 768px) {
+        /* Hide nav on mobile and show hamburger */
+        nav {
+          position: absolute;
+          top: var(--header-h);
+          right: 0;
+          background: white;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0;
+          padding: 8px 12px;
+          display: none;
+          box-shadow: 0 2px 8px rgba(0,0,0,.1);
+        }
+        nav.open {
+          display: flex;
+        }
+        nav a {
+          display: block;
+          width: 100%;
+          padding: 8px 0;
+        }
+        .hamburger {
+          display: block; /* only visible on small screens */
+        }
       }
 
       main { margin: 0; padding: 0; }
     </style>
+    <script is:inline>
+      function toggleNav() {
+        document.querySelector("nav").classList.toggle("open");
+      }
+    </script>
   </head>
   <body class={bodyClass}>
     {showHeader && (
@@ -104,6 +132,7 @@ const {
         <div class="nav-inner">
           <a class="brand" href="/">Fernie Real Estate</a>
           <span class="spacer"></span>
+          <button class="hamburger" onclick="toggleNav()">☰</button>
           <nav>
             <a href="/neighbourhoods">Neighbourhoods</a>
             <a href="/types">Types</a>

@@ -3,7 +3,6 @@
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 
-/* Build-time paths */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_SHEET_JSON;
   if (!url) return [];
@@ -30,23 +29,7 @@ export async function getStaticPaths() {
           .toString()
           .trim();
 
-      const getAny = (...keys: string[]) => {
-        for (const k of keys) {
-          const v = get(k);
-          if (v) return v;
-        }
-        return "";
-      };
-
-      const normalizeUrl = (v: string) => {
-        const s = (v || "").trim();
-        if (!s) return "";
-        if (s.startsWith("/") || s.startsWith("#")) return s;   // internal
-        if (/^https?:\/\//i.test(s)) return s;                  // absolute
-        return `https://${s}`;                                  // bare domain/path
-      };
-
-      const title = getAny("title", "Title");
+      const title = get("title");
       if (!title) return null;
 
       const computedSlug = title
@@ -56,27 +39,17 @@ export async function getStaticPaths() {
         .replace(/^-+|-+$/g, "");
 
       return {
-        slug: getAny("slug", "Slug") || computedSlug,
+        slug: get("slug") || computedSlug,
         title,
-        summary: getAny("summary", "intro", "desc", "description"),
-        hero_img: getAny("hero_img", "hero", "image", "heroImage"),
-
-        card_1: getAny("card_1", "card1", "tag_1", "tag1"),
-        card_2: getAny("card_2", "card2", "tag_2", "tag2"),
-        card_3: getAny("card_3", "card3", "tag_3", "tag3"),
-
-        map_embed: getAny("map_embed", "map", "map_url"),
-        long_copy: getAny("long_copy", "body", "content"),
-
-        // 👇 Prefer `cta1`, but accept common fallbacks too
-        cta_1: normalizeUrl(
-          getAny(
-            "cta1", "cta_1", "cta", "cta_url",
-            "listings_url", "listings", "mls_url", "mls", "realtor_link"
-          )
-        ),
-
-        status: getAny("status"),
+        summary: get("summary"),
+        hero_img: get("hero_img"),
+        card_1: get("card_1"),
+        card_2: get("card_2"),
+        card_3: get("card_3"),
+        map_embed: get("map_embed"),
+        long_copy: get("long_copy"),
+        cta1: get("cta1"),
+        status: get("status"),
       };
     })
     .filter(
@@ -93,7 +66,6 @@ export async function getStaticPaths() {
     props: {
       title: n.title,
       summary: n.summary || "",
-      // inline hero path
       hero: (() => {
         const s = (n.hero_img || "").trim();
         if (!s) return "";
@@ -105,13 +77,13 @@ export async function getStaticPaths() {
       card_1: n.card_1 || "",
       card_2: n.card_2 || "",
       card_3: n.card_3 || "",
-      // inline Google Maps embed conversion
+      cta1: n.cta1 || "",
       map_embed: (() => {
         const v = (n.map_embed || "").trim();
         if (!v) return "";
-        const m = v.match(/src="([^"]+)"/i); // pasted full iframe
+        const m = v.match(/src="([^"]+)"/i);
         if (m?.[1]) return m[1];
-        if (v.includes("google.com/maps") && v.includes("embed")) return v; // embed URL
+        if (v.includes("google.com/maps") && v.includes("embed")) return v;
         if (v.includes("google.com/maps")) {
           try {
             const u = new URL(v);
@@ -119,39 +91,25 @@ export async function getStaticPaths() {
             return `https://www.google.com/maps${q}`;
           } catch {}
         }
-        // plain address -> embed
         return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
       })(),
       long_copy: n.long_copy || "",
-      cta_1: n.cta_1 || "",
     },
   }));
 }
 
-/* Page props */
-const {
-  title,
-  summary,
-  hero,
-  card_1,
-  card_2,
-  card_3,
-  map_embed,
-  long_copy,
-  cta_1,
-} = Astro.props as {
-  title: string;
-  summary: string;
-  hero: string;
-  card_1: string;
-  card_2: string;
-  card_3: string;
-  map_embed: string;
-  long_copy: string;
-  cta_1: string;
-};
-
-const ctaHref = (cta_1 || "").trim() || "/contact";
+const { title, summary, hero, card_1, card_2, card_3, map_embed, long_copy, cta1 } =
+  Astro.props as {
+    title: string;
+    summary: string;
+    hero: string;
+    card_1: string;
+    card_2: string;
+    card_3: string;
+    map_embed: string;
+    long_copy: string;
+    cta1: string;
+  };
 ---
 
 <Site showHeader={true} title={title}>
@@ -183,6 +141,7 @@ const ctaHref = (cta_1 || "").trim() || "/contact";
       <div class="map-card">
         <iframe
           src={map_embed}
+          title={`Map of ${title}`}
           loading="lazy"
           allowfullscreen
           referrerpolicy="no-referrer-when-downgrade"
@@ -191,34 +150,37 @@ const ctaHref = (cta_1 || "").trim() || "/contact";
     </div>
   )}
 
-  <!-- CTA (uses cta1 / cta_1) -->
-  <div class="container">
-    <div class="cta-card cta-boost">
-      <div class="cta-text">
-        <h2>See all {title} listings</h2>
-        <p>Live inventory with photos, prices, and updates as they happen.</p>
+  <!-- CTA -->
+  {cta1 && (
+    <div class="container">
+      <div class="cta-card">
+        <h2>Ready to explore {title} listings?</h2>
+        <p>Browse every property and get instant alerts for price changes.</p>
+        <a href={cta1} class="cta-btn"><span class="cta-text">🔎 View Listings</span></a>
       </div>
-      <a href={ctaHref} class="cta-btn" rel="noopener">
-        Browse current listings →
-      </a>
     </div>
-  </div>
+  )}
 
   <!-- LONG COPY -->
   {long_copy && (
     <div class="container">
-      <article class="prose" set:html={long_copy}></article>
+      <article class="long-copy" set:html={long_copy}></article>
     </div>
   )}
 
   <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { width: 100%; max-width: 100%; overflow-x: hidden; }
+    img, svg, video, canvas, audio, iframe, embed, object { display: block; max-width: 100%; height: auto; }
+
     .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
 
+    :root { --section-h: 42vh; }
+
     .hero-bleed {
-      width: 100vw;
-      margin-left: calc(50% - 50vw);
-      margin-right: calc(50% - 50vw);
-      min-height: 42vh;
+      width: 100%;
+      margin: 0;
+      min-height: var(--section-h);
       border-bottom: 1px solid #eee;
       padding-top: var(--header-h);
     }
@@ -244,62 +206,91 @@ const ctaHref = (cta_1 || "").trim() || "/contact";
       font-weight: 600;
     }
 
+    /* Map fills container, matches hero height */
     .map-wrap h2 { font-size: 1.25rem; margin: 8px 0 12px; color: #111827; }
     .map-card {
+      position: relative;
       width: 100%;
+      height: var(--section-h);
+      max-height: 720px;
       border: 1px solid #eee;
       border-radius: 12px;
       overflow: hidden;
       box-shadow: 0 1px 6px rgba(0,0,0,0.1);
-      aspect-ratio: 2 / 1;
-      max-height: 420px;
     }
-    .map-card iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .map-card iframe {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
 
     /* CTA */
     .cta-card {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 20px;
-      border-radius: 16px;
-      border: 1px solid rgba(255,255,255,0.25);
-      box-shadow: 0 6px 18px rgba(0,0,0,0.10);
-      margin: 28px 0;
-    }
-    .cta-boost {
-      background: linear-gradient(135deg, #0ea5e9, #6366f1);
-      color: #fff;
-    }
-    .cta-text h2 { margin: 0 0 4px; font-size: 1.4rem; font-weight: 800; letter-spacing: .2px; }
-    .cta-text p { margin: 0; opacity: .95; line-height: 1.5; }
-    .cta-btn {
-      white-space: nowrap;
       background: #fff;
-      color: #0f172a;
-      text-decoration: none;
-      padding: 10px 16px;
-      border-radius: 10px;
-      font-weight: 700;
-      border: 1px solid rgba(0,0,0,0.06);
-      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+      color: #111827;
+      border: 2px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 28px 20px;
+      margin: 36px 0;
+      text-align: center;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
     }
-    .cta-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(0,0,0,0.15); background: #f8fafc; }
-    @media (max-width: 720px) {
-      .cta-card { flex-direction: column; align-items: stretch; text-align: center; }
-      .cta-btn { align-self: center; }
+    .cta-card h2 { margin: 0 0 10px; font-size: 1.75rem; font-weight: 700; }
+    .cta-card p { font-size: 1rem; color: #374151; margin-bottom: 18px; }
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #0a7bff;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1.125rem;
+      padding: 12px 28px;
+      border-radius: 999px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      transition: background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .cta-btn .cta-text { text-decoration: none; }
+    .cta-btn:hover {
+      background: #065aa3;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.25);
     }
 
-    /* Long copy */
-    .prose { margin: 24px auto 40px; line-height: 1.7; color: #1f2937; }
-    .prose h2, .prose h3 { margin: 1.25rem 0 .5rem; line-height: 1.2; color: #111827; }
-    .prose p { margin: .75rem 0; }
-    .prose ul, .prose ol { padding-left: 1.25rem; }
-    .prose li { margin: .4rem 0; }
-    .prose img, .prose iframe, .prose video { max-width: 100%; height: auto; display: block; border: 0; border-radius: 8px; }
-    .prose > *:first-child { margin-top: 0; }
-    .prose > *:last-child { margin-bottom: 0; }
+    /* Long copy aligned to container width */
+    .long-copy {
+      margin: 40px 0 48px;
+      font-size: 1.05rem;
+      line-height: 1.8;
+      color: #1f2937;
+    }
+    .long-copy p { margin: 0 0 1.25em; }
+    .long-copy h2,
+    .long-copy h3 {
+      font-weight: 700;
+      color: #111827;
+      line-height: 1.3;
+      margin: 2em 0 0.75em;
+    }
+    .long-copy h2 {
+      font-size: 1.5rem;
+      border-left: 4px solid #0a7bff;
+      padding-left: 0.5rem;
+    }
+    .long-copy h3 { font-size: 1.25rem; }
+    .long-copy ul, .long-copy ol {
+      margin: 1em 0;
+      padding-left: 1.5rem;
+    }
+    .long-copy li { margin-bottom: 0.5em; }
+    .long-copy strong { font-weight: 600; color: #0a7bff; }
+    .long-copy img {
+      margin: 1.5em 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
   </style>
 </Site>
