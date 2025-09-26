@@ -1,11 +1,21 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import Site from "../layouts/Site.astro";
+const heroTitle = "Fernie Neighbourhoods";
+const heroSubtitle = "Explore communities, lifestyle, and homes.";
 ---
+<Site title="Fernie Real Estate">
+  <section class="hero">
+    <div style="text-align:center; padding:24px">
+      <h1 style="margin:0 0 8px 0">{heroTitle}</h1>
+      <p style="margin:0">{heroSubtitle}</p>
+    </div>
+  </section>
 
-<Layout>
-	<Welcome />
-</Layout>
+  <section style="margin-top:24px">
+    <h2 style="margin:0 0 12px 0">Getting started</h2>
+    <ul>
+      <li><a href="/neighbourhoods">Neighbourhoods (add later)</a></li>
+      <li><a href="/types">Types (add later)</a></li>
+    </ul>
+  </section>
+</Site>
