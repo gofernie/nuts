@@ -16,7 +16,6 @@ type Row = {
 let items: Row[] = [];
 let header: Row | null = null;
 let error: string | null = null;
-let rowCount = -1;
 
 try {
   if (!url) throw new Error("Missing PUBLIC_SHEET_JSON in .env (restart dev after editing).");
@@ -27,8 +26,6 @@ try {
     Array.isArray(raw?.data) ? raw.data :
     Array.isArray(raw?.rows) ? raw.rows :
     [];
-
-  rowCount = rows.length;
 
   const normalize = (r: any): Row => {
     const get = (k: string) =>
@@ -54,10 +51,8 @@ try {
 
   const normalized = rows.map(normalize);
 
-  // pick up the special header row (slug === "index")
   header = normalized.find((r) => (r.slug ?? "").toLowerCase() === "index") ?? null;
 
-  // real items: exclude drafts and "index"
   items = normalized.filter(
     (r) =>
       r.slug &&
@@ -69,7 +64,6 @@ try {
   error = e?.message || String(e);
 }
 
-// image path helper (forces hero_img under /images/hero/)
 const heroPath = (s?: string) => {
   const v = (s ?? "").trim();
   if (!v) return "";
@@ -80,66 +74,147 @@ const heroPath = (s?: string) => {
   return `/img/hero/${v}`;
 };
 
-// choose hero image: prefer header row's hero_img, otherwise first item
-const heroImage = header?.hero_img ? heroPath(header.hero_img) : (items[0]?.hero_img ? heroPath(items[0].hero_img) : "");
+const wordClip = (s?: string, limit = 10) => {
+  const txt = (s ?? "").replace(/\s+/g, " ").trim();
+  if (!txt) return "";
+  const parts = txt.split(" ");
+  return parts.length <= limit ? txt : parts.slice(0, limit).join(" ") + "…";
+};
+
+const heroImage = header?.hero_img ? heroPath(header.hero_img) : "";
 ---
-<Site title="Fernie Real Estate — Neighbourhoods">
+<Site showHeader={true}>
+  <!-- HERO WITH NO TEXT -->
   <section
-    class="hero"
+    class="hero-bleed"
     style={`${
       heroImage
         ? `background:url('${heroImage}') center/cover no-repeat`
         : "background:#f6f6f6"
-    }; border-radius:16px; min-height:42vh; display:grid; place-items:center;`}
-  >
-    <div style="text-align:center; padding:24px; background:rgba(255,255,255,0.75); border-radius:12px;">
-      <h1 style="margin:0 0 8px 0">Fernie Neighbourhoods</h1>
-      <p style="margin:0">Explore communities, lifestyle, and homes.</p>
-      {import.meta.env.DEV && (
-        <p style="margin-top:8px; font-size:.9rem; opacity:.65">
-          Debug · url set: {String(!!import.meta.env.PUBLIC_SHEET_JSON)} · rows seen: {rowCount}
-        </p>
-      )}
-    </div>
-  </section>
+    }`}
+  ></section>
 
-  <section style="margin-top:24px">
-    {error ? (
-      <p style="color:#b00">Error: {error}</p>
-    ) : items.length === 0 ? (
-      <p>No neighbourhoods yet. Check your <code>PUBLIC_SHEET_JSON</code> URL or add rows to your sheet.</p>
-    ) : (
-      <div class="grid">
-        {items.map((n) => {
-          const thumb = n.hero_img ? heroPath(n.hero_img) : "";
-          return (
-            <a class="card" href={`/neighbourhoods/${n.slug}`}>
-              <div class="thumb">
-                {thumb ? (
-                  <img src={thumb} alt={n.title} loading="lazy" />
-                ) : (
-                  <div class="ph" aria-hidden="true">No image</div>
-                )}
-              </div>
-              <div class="body">
-                <strong>{n.title}</strong>
-                {n.summary && <p>{n.summary}</p>}
-              </div>
-            </a>
-          );
-        })}
-      </div>
-    )}
-  </section>
+  <!-- H1 + intro copy BELOW hero -->
+  <div class="container intro">
+    <h1>Fernie Neighbourhoods</h1>
+    {header?.summary && <p>{header.summary}</p>}
+  </div>
+
+  <div class="container">
+    <section class="grid-wrap">
+      {error ? (
+        <p class="error">Error: {error}</p>
+      ) : items.length === 0 ? (
+        <p>No neighbourhoods yet. Check your <code>PUBLIC_SHEET_JSON</code> URL or add rows to your sheet.</p>
+      ) : (
+        <div class="grid">
+          {items.map((n) => {
+            const thumb = n.hero_img ? heroPath(n.hero_img) : "";
+            return (
+              <a class="card" href={`/neighbourhoods/${n.slug}`}>
+                <div class="thumb">
+                  {thumb ? (
+                    <img src={thumb} alt={n.title} loading="lazy" />
+                  ) : (
+                    <div class="ph" aria-hidden="true">No image</div>
+                  )}
+                </div>
+                <div class="body">
+                  <strong>{n.title}</strong>
+                  {n.summary && <p>{wordClip(n.summary, 10)}</p>}
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  </div>
 
   <style>
-    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap:16px }
-    .card { display:flex; flex-direction:column; border:1px solid #eee; border-radius:12px; overflow:hidden; background:#fff; text-decoration:none; color:inherit }
-    .thumb { aspect-ratio:16/9; background:#f6f6f6; display:grid; place-items:center }
-    .thumb img { width:100%; height:100%; object-fit:cover; display:block }
-    .ph { font-size:12px; color:#999 }
-    .body { padding:12px }
-    .body p { margin:.4rem 0 0 0; color:#555; font-size:.95rem; line-height:1.35 }
-    .card:hover { transform: translateY(-2px); transition: transform .15s ease }
+    .container {
+      max-width: 1200px;
+      margin-left: auto;
+      margin-right: auto;
+      padding: 0 1rem;
+    }
+
+    .hero-bleed {
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      min-height: 48vh; /* slightly taller hero */
+      border-bottom: 1px solid #eee;
+      padding-top: var(--header-h);
+    }
+
+    .intro {
+      margin-top: 24px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+
+    .intro h1 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      color: #111827;
+    }
+
+    /* ✅ Body copy updated to gray-800 */
+    .intro p {
+      font-size: 1rem;
+      line-height: 1.6;
+      margin: 0;
+      color: #1f2937; /* Tailwind gray-800 */
+    }
+
+    .grid-wrap { margin-top: 24px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #eee;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      transform: translateY(0);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    }
+
+    .thumb {
+      aspect-ratio: 16/9;
+      background: #f6f6f6;
+      display: grid;
+      place-items: center;
+    }
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .ph { font-size: 12px; color: #999 }
+    .body { padding: 12px }
+    .body p {
+      margin: .4rem 0 0 0;
+      color: #555;
+      font-size: .95rem;
+      line-height: 1.35;
+    }
+    .error { color: #b00 }
   </style>
 </Site>
