@@ -1,0 +1,145 @@
+---
+// src/pages/neighbourhoods/index.astro
+import Site from "../../layouts/Site.astro";
+import { getJson } from "../../lib/fetchJson";
+
+const url = import.meta.env.PUBLIC_SHEET_JSON;
+
+type Row = {
+  slug?: string;
+  title?: string;
+  summary?: string;
+  hero_img?: string;
+  status?: string;
+};
+
+let items: Row[] = [];
+let header: Row | null = null;
+let error: string | null = null;
+let rowCount = -1;
+
+try {
+  if (!url) throw new Error("Missing PUBLIC_SHEET_JSON in .env (restart dev after editing).");
+  const raw = await getJson<any>(url);
+
+  const rows: any[] =
+    Array.isArray(raw) ? raw :
+    Array.isArray(raw?.data) ? raw.data :
+    Array.isArray(raw?.rows) ? raw.rows :
+    [];
+
+  rowCount = rows.length;
+
+  const normalize = (r: any): Row => {
+    const get = (k: string) =>
+      (r?.[k] ?? r?.[k.toLowerCase()] ?? r?.[k.toUpperCase()] ?? "")
+        .toString()
+        .trim();
+
+    const title = get("title");
+    const computedSlug = title
+      .toLowerCase()
+      .replace(/&/g, "-and-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    return {
+      slug: get("slug") || computedSlug,
+      title,
+      summary: get("summary"),
+      hero_img: get("hero_img"),
+      status: get("status"),
+    };
+  };
+
+  const normalized = rows.map(normalize);
+
+  // pick up the special header row (slug === "index")
+  header = normalized.find((r) => (r.slug ?? "").toLowerCase() === "index") ?? null;
+
+  // real items: exclude drafts and "index"
+  items = normalized.filter(
+    (r) =>
+      r.slug &&
+      r.title &&
+      (r.slug ?? "").toLowerCase() !== "index" &&
+      !/^draft$/i.test(r.status ?? "")
+  );
+} catch (e: any) {
+  error = e?.message || String(e);
+}
+
+// image path helper (forces hero_img under /images/hero/)
+const heroPath = (s?: string) => {
+  const v = (s ?? "").trim();
+  if (!v) return "";
+  if (v.startsWith("http")) return v;
+  if (v.startsWith("/")) return v;
+  if (/^img\//i.test(v)) return `/${v}`;
+  if (/^hero\//i.test(v)) return `/img/${v}`;
+  return `/img/hero/${v}`;
+};
+
+// choose hero image: prefer header row's hero_img, otherwise first item
+const heroImage = header?.hero_img ? heroPath(header.hero_img) : (items[0]?.hero_img ? heroPath(items[0].hero_img) : "");
+---
+<Site title="Fernie Real Estate — Neighbourhoods">
+  <section
+    class="hero"
+    style={`${
+      heroImage
+        ? `background:url('${heroImage}') center/cover no-repeat`
+        : "background:#f6f6f6"
+    }; border-radius:16px; min-height:42vh; display:grid; place-items:center;`}
+  >
+    <div style="text-align:center; padding:24px; background:rgba(255,255,255,0.75); border-radius:12px;">
+      <h1 style="margin:0 0 8px 0">Fernie Neighbourhoods</h1>
+      <p style="margin:0">Explore communities, lifestyle, and homes.</p>
+      {import.meta.env.DEV && (
+        <p style="margin-top:8px; font-size:.9rem; opacity:.65">
+          Debug · url set: {String(!!import.meta.env.PUBLIC_SHEET_JSON)} · rows seen: {rowCount}
+        </p>
+      )}
+    </div>
+  </section>
+
+  <section style="margin-top:24px">
+    {error ? (
+      <p style="color:#b00">Error: {error}</p>
+    ) : items.length === 0 ? (
+      <p>No neighbourhoods yet. Check your <code>PUBLIC_SHEET_JSON</code> URL or add rows to your sheet.</p>
+    ) : (
+      <div class="grid">
+        {items.map((n) => {
+          const thumb = n.hero_img ? heroPath(n.hero_img) : "";
+          return (
+            <a class="card" href={`/neighbourhoods/${n.slug}`}>
+              <div class="thumb">
+                {thumb ? (
+                  <img src={thumb} alt={n.title} loading="lazy" />
+                ) : (
+                  <div class="ph" aria-hidden="true">No image</div>
+                )}
+              </div>
+              <div class="body">
+                <strong>{n.title}</strong>
+                {n.summary && <p>{n.summary}</p>}
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    )}
+  </section>
+
+  <style>
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap:16px }
+    .card { display:flex; flex-direction:column; border:1px solid #eee; border-radius:12px; overflow:hidden; background:#fff; text-decoration:none; color:inherit }
+    .thumb { aspect-ratio:16/9; background:#f6f6f6; display:grid; place-items:center }
+    .thumb img { width:100%; height:100%; object-fit:cover; display:block }
+    .ph { font-size:12px; color:#999 }
+    .body { padding:12px }
+    .body p { margin:.4rem 0 0 0; color:#555; font-size:.95rem; line-height:1.35 }
+    .card:hover { transform: translateY(-2px); transition: transform .15s ease }
+  </style>
+</Site>
