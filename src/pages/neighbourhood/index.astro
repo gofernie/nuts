@@ -1,0 +1,81 @@
+---
+import Site from "../../layouts/Site.astro";
+import { getJson } from "../../lib/fetchJson";
+
+const url = import.meta.env.PUBLIC_NEIGHBOURHOODS_JSON;
+let items: any[] = [];
+
+if (url) {
+  const raw = await getJson<any[]>(url);
+  items = (raw ?? [])
+    .map((r) => {
+      const get = (k: string) => (r?.[k] ?? r?.[k.toLowerCase()] ?? "").toString().trim();
+      const title = get("title");
+      const computedSlug = title
+        .toLowerCase()
+        .replace(/&/g, "-and-")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      return {
+        slug: get("slug") || computedSlug,
+        title,
+        summary: get("summary"),
+        image_1: get("image_1"),
+        card_1: get("card_1"),
+        status: get("status"),
+      };
+    })
+    .filter((r) => r.slug && r.title && !/^draft$/i.test(r.status ?? ""));
+}
+
+const imgPath = (s?: string) => {
+  const v = (s ?? "").trim();
+  if (!v) return "";
+  if (v.startsWith("http")) return v;
+  if (v.startsWith("/")) return v;
+  return `/images/${v}`;
+};
+---
+<Site title="Fernie Real Estate — Neighbourhoods">
+  <section class="hero">
+    <div style="text-align:center; padding:24px">
+      <h1 style="margin:0 0 8px 0">Fernie Neighbourhoods</h1>
+      <p style="margin:0">Explore communities, lifestyle, and homes.</p>
+    </div>
+  </section>
+
+  <section style="margin-top:24px">
+    {items.length === 0 ? (
+      <p>No neighbourhoods yet. Check your .env URL or add rows to your sheet.</p>
+    ) : (
+      <div class="grid">
+        {items.map((n) => (
+          <a class="card" href={`/neighbourhoods/${n.slug}`}>
+            <div class="thumb">
+              {imgPath(n.card_1 || n.image_1) ? (
+                <img src={imgPath(n.card_1 || n.image_1)} alt={n.title} loading="lazy" />
+              ) : (
+                <div class="ph">No image</div>
+              )}
+            </div>
+            <div class="body">
+              <strong>{n.title}</strong>
+              {n.summary && <p>{n.summary}</p>}
+            </div>
+          </a>
+        ))}
+      </div>
+    )}
+  </section>
+
+  <style>
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:16px }
+    .card { display:flex; flex-direction:column; border:1px solid #eee; border-radius:12px; overflow:hidden; background:#fff; text-decoration:none; color:inherit }
+    .thumb { aspect-ratio: 16/9; background:#f6f6f6; display:grid; place-items:center }
+    .thumb img { width:100%; height:100%; object-fit:cover; display:block }
+    .ph { font-size:12px; color:#999 }
+    .body { padding:12px }
+    .body p { margin:.4rem 0 0 0; color:#555; font-size:.95rem; line-height:1.35 }
+    .card:hover { transform: translateY(-2px); transition: transform .15s ease; }
+  </style>
+</Site>
