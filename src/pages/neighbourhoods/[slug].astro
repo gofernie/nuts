@@ -30,7 +30,23 @@ export async function getStaticPaths() {
           .toString()
           .trim();
 
-      const title = get("title");
+      const getAny = (...keys: string[]) => {
+        for (const k of keys) {
+          const v = get(k);
+          if (v) return v;
+        }
+        return "";
+      };
+
+      const normalizeUrl = (v: string) => {
+        const s = (v || "").trim();
+        if (!s) return "";
+        if (s.startsWith("/") || s.startsWith("#")) return s;   // internal
+        if (/^https?:\/\//i.test(s)) return s;                  // absolute
+        return `https://${s}`;                                  // bare domain/path
+      };
+
+      const title = getAny("title", "Title");
       if (!title) return null;
 
       const computedSlug = title
@@ -40,17 +56,27 @@ export async function getStaticPaths() {
         .replace(/^-+|-+$/g, "");
 
       return {
-        slug: get("slug") || computedSlug,
+        slug: getAny("slug", "Slug") || computedSlug,
         title,
-        summary: get("summary"),
-        hero_img: get("hero_img"),
-        card_1: get("card_1"),
-        card_2: get("card_2"),
-        card_3: get("card_3"),
-        map_embed: get("map_embed"),
-        long_copy: get("long_copy"),
-        cta_1: get("cta_1"),          // ✅ new
-        status: get("status"),
+        summary: getAny("summary", "intro", "desc", "description"),
+        hero_img: getAny("hero_img", "hero", "image", "heroImage"),
+
+        card_1: getAny("card_1", "card1", "tag_1", "tag1"),
+        card_2: getAny("card_2", "card2", "tag_2", "tag2"),
+        card_3: getAny("card_3", "card3", "tag_3", "tag3"),
+
+        map_embed: getAny("map_embed", "map", "map_url"),
+        long_copy: getAny("long_copy", "body", "content"),
+
+        // 👇 Prefer `cta1`, but accept common fallbacks too
+        cta_1: normalizeUrl(
+          getAny(
+            "cta1", "cta_1", "cta", "cta_url",
+            "listings_url", "listings", "mls_url", "mls", "realtor_link"
+          )
+        ),
+
+        status: getAny("status"),
       };
     })
     .filter(
@@ -67,7 +93,7 @@ export async function getStaticPaths() {
     props: {
       title: n.title,
       summary: n.summary || "",
-      // Inline hero path logic
+      // inline hero path
       hero: (() => {
         const s = (n.hero_img || "").trim();
         if (!s) return "";
@@ -79,7 +105,7 @@ export async function getStaticPaths() {
       card_1: n.card_1 || "",
       card_2: n.card_2 || "",
       card_3: n.card_3 || "",
-      // Inline Google Maps embed conversion
+      // inline Google Maps embed conversion
       map_embed: (() => {
         const v = (n.map_embed || "").trim();
         if (!v) return "";
@@ -97,7 +123,7 @@ export async function getStaticPaths() {
         return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
       })(),
       long_copy: n.long_copy || "",
-      cta_1: n.cta_1 || "",          // ✅ pass through
+      cta_1: n.cta_1 || "",
     },
   }));
 }
@@ -165,7 +191,7 @@ const ctaHref = (cta_1 || "").trim() || "/contact";
     </div>
   )}
 
-  <!-- CTA (punchier) -->
+  <!-- CTA (uses cta1 / cta_1) -->
   <div class="container">
     <div class="cta-card cta-boost">
       <div class="cta-text">
@@ -230,7 +256,7 @@ const ctaHref = (cta_1 || "").trim() || "/contact";
     }
     .map-card iframe { width: 100%; height: 100%; border: 0; display: block; }
 
-    /* Punchier CTA */
+    /* CTA */
     .cta-card {
       display: flex;
       align-items: center;
@@ -243,24 +269,15 @@ const ctaHref = (cta_1 || "").trim() || "/contact";
       margin: 28px 0;
     }
     .cta-boost {
-      background: linear-gradient(135deg, #0ea5e9, #6366f1); /* sky-500 -> indigo-500 */
+      background: linear-gradient(135deg, #0ea5e9, #6366f1);
       color: #fff;
     }
-    .cta-text h2 {
-      margin: 0 0 4px;
-      font-size: 1.4rem;
-      font-weight: 800;
-      letter-spacing: .2px;
-    }
-    .cta-text p {
-      margin: 0;
-      opacity: .95;
-      line-height: 1.5;
-    }
+    .cta-text h2 { margin: 0 0 4px; font-size: 1.4rem; font-weight: 800; letter-spacing: .2px; }
+    .cta-text p { margin: 0; opacity: .95; line-height: 1.5; }
     .cta-btn {
       white-space: nowrap;
       background: #fff;
-      color: #0f172a; /* slate-900 */
+      color: #0f172a;
       text-decoration: none;
       padding: 10px 16px;
       border-radius: 10px;
@@ -269,37 +286,19 @@ const ctaHref = (cta_1 || "").trim() || "/contact";
       box-shadow: 0 1px 2px rgba(0,0,0,0.06);
       transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
     }
-    .cta-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 14px rgba(0,0,0,0.15);
-      background: #f8fafc; /* slate-50 */
-    }
+    .cta-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(0,0,0,0.15); background: #f8fafc; }
     @media (max-width: 720px) {
       .cta-card { flex-direction: column; align-items: stretch; text-align: center; }
       .cta-btn { align-self: center; }
     }
 
     /* Long copy */
-    .prose {
-      margin: 24px auto 40px;
-      line-height: 1.7;
-      color: #1f2937;
-    }
-    .prose h2, .prose h3 {
-      margin: 1.25rem 0 .5rem;
-      line-height: 1.2;
-      color: #111827;
-    }
+    .prose { margin: 24px auto 40px; line-height: 1.7; color: #1f2937; }
+    .prose h2, .prose h3 { margin: 1.25rem 0 .5rem; line-height: 1.2; color: #111827; }
     .prose p { margin: .75rem 0; }
     .prose ul, .prose ol { padding-left: 1.25rem; }
     .prose li { margin: .4rem 0; }
-    .prose img, .prose iframe, .prose video {
-      max-width: 100%;
-      height: auto;
-      display: block;
-      border: 0;
-      border-radius: 8px;
-    }
+    .prose img, .prose iframe, .prose video { max-width: 100%; height: auto; display: block; border: 0; border-radius: 8px; }
     .prose > *:first-child { margin-top: 0; }
     .prose > *:last-child { margin-bottom: 0; }
   </style>
