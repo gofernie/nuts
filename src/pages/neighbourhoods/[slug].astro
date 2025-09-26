@@ -1,0 +1,143 @@
+---
+import Site from "../../layouts/Site.astro";
+import { getJson } from "../../lib/fetchJson";
+
+/* Build-time paths (everything self-contained here) */
+export async function getStaticPaths() {
+  const url = import.meta.env.PUBLIC_SHEET_JSON;
+  if (!url) {
+    console.error("Missing PUBLIC_SHEET_JSON");
+    return [];
+  }
+
+  // helper: map row -> {slug,title,summary,hero_img,status}
+  const normalize = (r) => {
+    const get = (k) =>
+      (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+        .toString()
+        .trim();
+
+    const title = get("title");
+    const computedSlug = title
+      .toLowerCase()
+      .replace(/&/g, "-and-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    return {
+      slug: get("slug") || computedSlug,
+      title,
+      summary: get("summary"),
+      hero_img: get("hero_img"),
+      status: get("status"),
+    };
+  };
+
+  // helper: resolve hero path just like index
+  const heroPath = (s = "") => {
+    const v = s.trim();
+    if (!v) return "";
+    if (v.startsWith("http")) return v;
+    if (v.startsWith("/")) return v;
+    if (/^img\//i.test(v)) return `/${v}`;
+    if (/^hero\//i.test(v)) return `/img/${v}`;
+    return `/img/hero/${v}`;
+  };
+
+  let rows = [];
+  try {
+    const raw = await getJson(url);
+    rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
+  } catch (e) {
+    console.error("Failed to fetch sheet JSON:", e);
+    return [];
+  }
+
+  const items = rows
+    .map(normalize)
+    .filter(
+      (r) =>
+        r.slug &&
+        r.title &&
+        r.slug.toLowerCase() !== "index" &&
+        !/^draft$/i.test(r.status || "")
+    );
+
+  return items.map((n) => ({
+    params: { slug: n.slug },
+    props: {
+      title: n.title || "",
+      summary: n.summary || "",
+      hero: heroPath(n.hero_img || ""),
+    },
+  }));
+}
+
+/* Page props: tiny surface */
+const { title, summary, hero } = Astro.props as {
+  title: string;
+  summary: string;
+  hero: string;
+};
+---
+
+<Site showHeader={true} title={title}>
+  <!-- HERO: identical bleed treatment to index -->
+  <section
+    class="hero-bleed"
+    style={`${
+      hero
+        ? `background:url('${hero}') center/cover no-repeat`
+        : "background:#f6f6f6"
+    }`}
+  ></section>
+
+  <!-- H1 + intro copy BELOW hero, same 1200px container -->
+  <div class="container intro">
+    <h1>{title}</h1>
+    {summary && <p>{summary}</p>}
+  </div>
+
+  <style>
+    /* EXACTLY the same framework as index. */
+    .container {
+      max-width: 1200px;
+      margin-left: auto;
+      margin-right: auto;
+      padding: 0 1rem;
+    }
+
+    .hero-bleed {
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      min-height: 48vh; /* same as index */
+      border-bottom: 1px solid #eee;
+      padding-top: var(--header-h);
+    }
+
+    .intro {
+      margin-top: 24px;
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .intro h1 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      color: #111827;
+    }
+    .intro p {
+      font-size: 1rem;
+      line-height: 1.6;
+      margin: 0;
+      color: #1f2937; /* gray-800 */
+    }
+  </style>
+</Site>
