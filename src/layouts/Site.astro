@@ -33,7 +33,7 @@ const {
         top: 0; left: 0; right: 0;
         height: var(--header-h);
         z-index: 100;
-        background: rgba(255,255,255,0.84); /* ✅ slightly more see-through */
+        background: rgba(255,255,255,0.84);
         backdrop-filter: blur(10px);
         border-bottom: 1px solid #e5e7eb;
         transition: background .3s ease;
@@ -46,6 +46,7 @@ const {
         padding: 0 12px;
         display: flex;
         align-items: center;
+        flex-wrap: wrap; /* ✅ allow nav to wrap but not brand */
       }
 
       .brand {
@@ -56,6 +57,8 @@ const {
         padding: 4px 6px;
         border-radius: 6px;
         transition: background .25s ease, color .25s ease;
+        white-space: nowrap; /* ✅ prevent text logo from stacking */
+        flex-shrink: 0; /* ✅ don't let it get squished */
       }
       .brand:hover { background: var(--hover-bg); }
 
@@ -65,11 +68,12 @@ const {
         display: flex;
         align-items: center;
         gap: 12px;
+        flex-wrap: wrap; /* ✅ allow links to wrap under logo if space is tight */
       }
 
       nav a {
         display: inline-block;
-        color: var(--ink-muted); /* ✅ darker than before */
+        color: var(--ink-muted);
         padding: 4px 6px;
         text-decoration: none;
         border-radius: 6px;
