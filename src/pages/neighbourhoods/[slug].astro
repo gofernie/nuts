@@ -3,34 +3,10 @@
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 
+/* Build-time paths */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_SHEET_JSON;
   if (!url) return [];
-
-  const heroPath = (s = "") => {
-    const v = s.trim();
-    if (!v) return "";
-    if (v.startsWith("http") || v.startsWith("/")) return v;
-    if (/^img\//i.test(v)) return `/${v}`;
-    if (/^hero\//i.test(v)) return `/img/${v}`;
-    return `/img/hero/${v}`;
-  };
-
-  const toMapEmbed = (input = "") => {
-    const v = input.trim();
-    if (!v) return "";
-    const m = v.match(/src="([^"]+)"/i);
-    if (m?.[1]) return m[1];
-    if (v.includes("google.com/maps") && v.includes("embed")) return v;
-    if (v.includes("google.com/maps")) {
-      try {
-        const u = new URL(v);
-        const q = u.search ? `${u.search}&output=embed` : "?output=embed";
-        return `https://www.google.com/maps${q}`;
-      } catch {}
-    }
-    return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
-  };
 
   let rows: any[] = [];
   try {
@@ -50,7 +26,7 @@ export async function getStaticPaths() {
   const items = rows
     .map((r: any) => {
       const get = (k: string) =>
-        (r?.[k] ?? r?.[k.toLowerCase?.()] ?? r?.[k.toUpperCase?.()] ?? "")
+        (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
           .toString()
           .trim();
 
@@ -68,15 +44,17 @@ export async function getStaticPaths() {
         title,
         summary: get("summary"),
         hero_img: get("hero_img"),
-        status: get("status"),
         card_1: get("card_1"),
         card_2: get("card_2"),
         card_3: get("card_3"),
         map_embed: get("map_embed"),
+        long_copy: get("long_copy"),
+        cta_1: get("cta_1"),          // ✅ new
+        status: get("status"),
       };
     })
     .filter(
-      (r: any) =>
+      (r) =>
         r &&
         r.slug &&
         r.title &&
@@ -87,27 +65,67 @@ export async function getStaticPaths() {
   return items.map((n: any) => ({
     params: { slug: n.slug },
     props: {
-      title: n.title || "",
+      title: n.title,
       summary: n.summary || "",
-      hero: heroPath(n.hero_img || ""),
+      // Inline hero path logic
+      hero: (() => {
+        const s = (n.hero_img || "").trim();
+        if (!s) return "";
+        if (s.startsWith("http") || s.startsWith("/")) return s;
+        if (/^img\//i.test(s)) return `/${s}`;
+        if (/^hero\//i.test(s)) return `/img/${s}`;
+        return `/img/hero/${s}`;
+      })(),
       card_1: n.card_1 || "",
       card_2: n.card_2 || "",
       card_3: n.card_3 || "",
-      map_embed: toMapEmbed(n.map_embed || ""),
+      // Inline Google Maps embed conversion
+      map_embed: (() => {
+        const v = (n.map_embed || "").trim();
+        if (!v) return "";
+        const m = v.match(/src="([^"]+)"/i); // pasted full iframe
+        if (m?.[1]) return m[1];
+        if (v.includes("google.com/maps") && v.includes("embed")) return v; // embed URL
+        if (v.includes("google.com/maps")) {
+          try {
+            const u = new URL(v);
+            const q = u.search ? `${u.search}&output=embed` : "?output=embed";
+            return `https://www.google.com/maps${q}`;
+          } catch {}
+        }
+        // plain address -> embed
+        return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
+      })(),
+      long_copy: n.long_copy || "",
+      cta_1: n.cta_1 || "",          // ✅ pass through
     },
   }));
 }
 
-const { title, summary, hero, card_1, card_2, card_3, map_embed } =
-  Astro.props as {
-    title: string;
-    summary: string;
-    hero: string;
-    card_1: string;
-    card_2: string;
-    card_3: string;
-    map_embed: string;
-  };
+/* Page props */
+const {
+  title,
+  summary,
+  hero,
+  card_1,
+  card_2,
+  card_3,
+  map_embed,
+  long_copy,
+  cta_1,
+} = Astro.props as {
+  title: string;
+  summary: string;
+  hero: string;
+  card_1: string;
+  card_2: string;
+  card_3: string;
+  map_embed: string;
+  long_copy: string;
+  cta_1: string;
+};
+
+const ctaHref = (cta_1 || "").trim() || "/contact";
 ---
 
 <Site showHeader={true} title={title}>
@@ -117,45 +135,64 @@ const { title, summary, hero, card_1, card_2, card_3, map_embed } =
     style={`${hero ? `background:url('${hero}') center/cover no-repeat` : "background:#f6f6f6"}`}
   ></section>
 
+  <!-- TITLE + SUMMARY -->
   <div class="container intro">
     <h1>{title}</h1>
     {summary && <p>{summary}</p>}
-
-    {(card_1 || card_2 || card_3) && (
-      <div class="feature-cards">
-        {card_1 && <div class="feature-card">{card_1}</div>}
-        {card_2 && <div class="feature-card">{card_2}</div>}
-        {card_3 && <div class="feature-card">{card_3}</div>}
-      </div>
-    )}
-
-    {map_embed && (
-      <>
-        <h2 class="map-heading">Explore on the Map</h2>
-        <div class="map-card">
-          <iframe
-            src={map_embed}
-            loading="lazy"
-            allowfullscreen
-            referrerpolicy="no-referrer-when-downgrade"
-          ></iframe>
-        </div>
-      </>
-    )}
   </div>
 
+  <!-- FEATURE CARDS -->
+  {(card_1 || card_2 || card_3) && (
+    <div class="container features">
+      {[card_1, card_2, card_3].filter(Boolean).map((c) => (
+        <div class="feature">{c}</div>
+      ))}
+    </div>
+  )}
+
+  <!-- MAP -->
+  {map_embed && (
+    <div class="container map-wrap">
+      <h2>Explore on the Map</h2>
+      <div class="map-card">
+        <iframe
+          src={map_embed}
+          loading="lazy"
+          allowfullscreen
+          referrerpolicy="no-referrer-when-downgrade"
+        ></iframe>
+      </div>
+    </div>
+  )}
+
+  <!-- CTA (punchier) -->
+  <div class="container">
+    <div class="cta-card cta-boost">
+      <div class="cta-text">
+        <h2>See all {title} listings</h2>
+        <p>Live inventory with photos, prices, and updates as they happen.</p>
+      </div>
+      <a href={ctaHref} class="cta-btn" rel="noopener">
+        Browse current listings →
+      </a>
+    </div>
+  </div>
+
+  <!-- LONG COPY -->
+  {long_copy && (
+    <div class="container">
+      <article class="prose" set:html={long_copy}></article>
+    </div>
+  )}
+
   <style>
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 1rem;
-    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
 
     .hero-bleed {
       width: 100vw;
       margin-left: calc(50% - 50vw);
       margin-right: calc(50% - 50vw);
-      min-height: 48vh; /* reference for map height */
+      min-height: 42vh;
       border-bottom: 1px solid #eee;
       padding-top: var(--header-h);
     }
@@ -164,46 +201,106 @@ const { title, summary, hero, card_1, card_2, card_3, map_embed } =
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color: #111827; }
     .intro p { font-size: 1rem; line-height: 1.6; color: #1f2937; }
 
-    .feature-cards {
+    .features {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
-      margin: 16px 0 28px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
     }
-    .feature-card {
+    @media (max-width: 860px) { .features { grid-template-columns: 1fr; } }
+    .feature {
       background: #fff;
-      border: 1px solid #eee;
       border-radius: 12px;
-      padding: 1rem;
+      padding: 12px;
       text-align: center;
-      font-weight: 500;
+      border: 1px solid #eee;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-
-    .map-heading {
-      font-size: 1.25rem;
       font-weight: 600;
-      margin: 8px 0 12px;
-      color: #111827;
     }
 
-    /* ✅ Map height matches hero section height */
+    .map-wrap h2 { font-size: 1.25rem; margin: 8px 0 12px; color: #111827; }
     .map-card {
       width: 100%;
       border: 1px solid #eee;
       border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      height: 48vh; /* matches hero min-height */
-      max-height: 420px; /* optional: cap it slightly for huge screens */
-      margin: 0 0 40px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+      aspect-ratio: 2 / 1;
+      max-height: 420px;
+    }
+    .map-card iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+    /* Punchier CTA */
+    .cta-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 20px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.25);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.10);
+      margin: 28px 0;
+    }
+    .cta-boost {
+      background: linear-gradient(135deg, #0ea5e9, #6366f1); /* sky-500 -> indigo-500 */
+      color: #fff;
+    }
+    .cta-text h2 {
+      margin: 0 0 4px;
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: .2px;
+    }
+    .cta-text p {
+      margin: 0;
+      opacity: .95;
+      line-height: 1.5;
+    }
+    .cta-btn {
+      white-space: nowrap;
+      background: #fff;
+      color: #0f172a; /* slate-900 */
+      text-decoration: none;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: 700;
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+    .cta-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.15);
+      background: #f8fafc; /* slate-50 */
+    }
+    @media (max-width: 720px) {
+      .cta-card { flex-direction: column; align-items: stretch; text-align: center; }
+      .cta-btn { align-self: center; }
     }
 
-    .map-card iframe {
-      width: 100%;
-      height: 100%;
-      border: 0;
-      display: block;
+    /* Long copy */
+    .prose {
+      margin: 24px auto 40px;
+      line-height: 1.7;
+      color: #1f2937;
     }
+    .prose h2, .prose h3 {
+      margin: 1.25rem 0 .5rem;
+      line-height: 1.2;
+      color: #111827;
+    }
+    .prose p { margin: .75rem 0; }
+    .prose ul, .prose ol { padding-left: 1.25rem; }
+    .prose li { margin: .4rem 0; }
+    .prose img, .prose iframe, .prose video {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      border: 0;
+      border-radius: 8px;
+    }
+    .prose > *:first-child { margin-top: 0; }
+    .prose > *:last-child { margin-bottom: 0; }
   </style>
 </Site>
