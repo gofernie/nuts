@@ -95,7 +95,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
       header{
         position:fixed; top:0; left:0; right:0; height:var(--header-h); z-index:100;
         background: rgba(255,255,255,.84); backdrop-filter: blur(10px); border-bottom:1px solid #e5e7eb;
-        overflow: visible; /* make sure dropdowns can overflow */
+        overflow: visible;
       }
       .nav-inner{ max-width: var(--container-w); margin:0 auto; height:100%; padding:0 var(--container-pad); display:flex; align-items:center; }
       .brand{ font-weight:700; font-size:1rem; color:var(--ink); text-decoration:none; padding:4px 6px; border-radius:6px; }
@@ -107,23 +107,20 @@ const metaDescription = (seo_description || summary || "").toString().trim();
       nav a:hover, nav a:focus-visible{ color:var(--ink); background: var(--hover-bg); }
       .hamburger{ display:none; background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--ink-muted); }
 
-      /* Dropdown + buffer */
+      /* Dropdown + buffer (desktop) */
       .menu-group{ position:relative; }
-      .menu-group > a::after{ content:" ▾"; opacity:.8; }
-
+      .menu-group > .menu-link::after{ content:" ▾"; opacity:.8; }
       .dropdown{
-        position:absolute; left:0; top:calc(100% + 21px); /* a bit tighter gap */
+        position:absolute; left:0; top:calc(100% + 21px);
         background: rgba(255,255,255,0.85); backdrop-filter: blur(6px);
         border:1px solid rgba(229,231,235,.7); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.08);
         padding:8px; min-width:240px; opacity:0; visibility:hidden; transform: translateY(-6px);
         transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s; z-index:300;
       }
       .menu-group::before{
-        content:""; position:absolute; top:100%; left:0; right:0; height:22px; /* taller buffer */
+        content:""; position:absolute; top:100%; left:0; right:0; height:22px;
         pointer-events:auto; z-index:301;
       }
-
-      /* Show dropdown when hovered, focused, or JS "hovering" class is present */
       .menu-group.hovering > .dropdown,
       .menu-group:hover > .dropdown,
       .menu-group:focus-within > .dropdown{
@@ -139,12 +136,35 @@ const metaDescription = (seo_description || summary || "").toString().trim();
           position:absolute; top:var(--header-h); right:0; background:#fff;
           flex-direction:column; gap:0; padding:8px 12px; display:none;
           box-shadow:0 2px 8px rgba(0,0,0,.1);
+          width:min(92vw, 420px);
         }
         header nav.open{ display:flex; }
         header nav a{ display:block; width:100%; padding:10px; }
         .hamburger{ display:block; }
+
+        /* Hide dropdowns by default on mobile */
+        .menu-group { width:100%; }
+        .menu-group .menu-row{
+          display:flex; align-items:center; justify-content:space-between; width:100%;
+          padding:4px 6px; border-radius:6px;
+        }
+        .submenu-toggle{
+          margin-left:6px; border:none; background:none; font-size:1.1rem; line-height:1;
+          padding:8px; cursor:pointer; color:var(--ink-muted);
+        }
+        .submenu-toggle[aria-expanded="true"] { transform: rotate(180deg); }
+
+        .menu-group > .dropdown{
+          position:static; background:#fff; backdrop-filter:none; box-shadow:none; padding:4px 0;
+          opacity:1; visibility:visible; transform:none;
+          display:none;                 /* <-- key: hidden by default */
+        }
+        .menu-group.expanded > .dropdown{
+          display:block;                /* <-- only when expanded */
+        }
+
+        /* Remove desktop-only affordances */
         .menu-group::before{ display:none; }
-        .menu-group > .dropdown{ position:static; background:#fff; backdrop-filter:none; box-shadow:none; padding:4px 0; opacity:1; visibility:visible; transform:none; }
       }
 
       main{ margin:0; padding:0; }
@@ -170,10 +190,18 @@ const metaDescription = (seo_description || summary || "").toString().trim();
         if(!nav || !btn) return;
         const isOpen = nav.classList.toggle("open");
         btn.setAttribute("aria-expanded", String(isOpen));
+        if (!isOpen) {
+          // Collapse any open submenus when main menu closes
+          nav.querySelectorAll(".menu-group.expanded").forEach(g=>{
+            g.classList.remove("expanded");
+            const t = g.querySelector(".submenu-toggle");
+            if (t) t.setAttribute("aria-expanded","false");
+          });
+        }
       }
       window.toggleNav = toggleNav;
 
-      // Ensure closed on initial load
+      // Ensure main menu is closed on load
       document.addEventListener("DOMContentLoaded", () => {
         const nav = document.querySelector("header nav");
         const btn = document.querySelector(".hamburger");
@@ -181,33 +209,31 @@ const metaDescription = (seo_description || summary || "").toString().trim();
           nav.classList.remove("open");
           if (btn) btn.setAttribute("aria-expanded","false");
         }
+
+        // Submenu toggles (mobile-only, harmless on desktop)
+        document.querySelectorAll(".submenu-toggle").forEach((btn:any)=>{
+          btn.addEventListener("click", (e:any)=>{
+            const group = btn.closest(".menu-group");
+            if (!group) return;
+            const expanded = group.classList.toggle("expanded");
+            btn.setAttribute("aria-expanded", String(expanded));
+          });
+        });
       });
 
-      // ===== Option B: tiny hover-intent for desktop dropdowns =====
+      // Desktop hover intent (unchanged)
       (function(){
         const isTouch = matchMedia("(max-width: 768px)").matches;
-        if (isTouch) return; // skip on mobile
-
+        if (isTouch) return;
         const groups = document.querySelectorAll(".menu-group");
-        const OPEN_MS = 0;     // open immediately
-        const CLOSE_MS = 140;  // brief forgiveness window
+        const CLOSE_MS = 140;
 
         groups.forEach(g => {
-          let closeT = null;
-
-          const openNow = () => {
-            clearTimeout(closeT);
-            g.classList.add("hovering");
-          };
-          const scheduleClose = () => {
-            clearTimeout(closeT);
-            closeT = setTimeout(() => g.classList.remove("hovering"), CLOSE_MS);
-          };
-
+          let closeT:any = null;
+          const openNow = () => { clearTimeout(closeT); g.classList.add("hovering"); };
+          const scheduleClose = () => { clearTimeout(closeT); closeT = setTimeout(() => g.classList.remove("hovering"), CLOSE_MS); };
           g.addEventListener("mouseenter", openNow);
           g.addEventListener("mouseleave", scheduleClose);
-
-          // keyboard support
           g.addEventListener("focusin", openNow);
           g.addEventListener("focusout", scheduleClose);
         });
@@ -229,8 +255,12 @@ const metaDescription = (seo_description || summary || "").toString().trim();
           >☰</button>
 
           <nav>
+            <!-- Neighbourhoods -->
             <div class="menu-group">
-              <a href="/neighbourhoods">Neighbourhoods</a>
+              <div class="menu-row">
+                <a class="menu-link" href="/neighbourhoods">Neighbourhoods</a>
+                <button class="submenu-toggle" aria-expanded="false" aria-label="Toggle neighbourhoods">▾</button>
+              </div>
               <div class="dropdown" role="menu" aria-label="Neighbourhoods menu">
                 {neighbourhoods.map(n => <a href={`/neighbourhoods/${n.slug}`}>{n.title}</a>)}
                 <div class="sep"></div>
@@ -238,8 +268,12 @@ const metaDescription = (seo_description || summary || "").toString().trim();
               </div>
             </div>
 
+            <!-- Types -->
             <div class="menu-group">
-              <a href="/types">Types</a>
+              <div class="menu-row">
+                <a class="menu-link" href="/types">Types</a>
+                <button class="submenu-toggle" aria-expanded="false" aria-label="Toggle types">▾</button>
+              </div>
               <div class="dropdown" role="menu" aria-label="Types menu">
                 {typesMenu.map(t => <a href={`/types/${t.slug}`}>{t.title}</a>)}
                 <div class="sep"></div>
@@ -257,4 +291,3 @@ const metaDescription = (seo_description || summary || "").toString().trim();
     </main>
   </body>
 </html>
-
