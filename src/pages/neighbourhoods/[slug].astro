@@ -16,7 +16,12 @@ export async function getStaticPaths() {
   const items = rows.map((r:any) => {
     const get=(k:string)=>(r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
     const title = get("title"); if (!title) return null;
-    const computedSlug = title.toLowerCase().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+
+    const computedSlug = title.toLowerCase()
+      .replace(/&/g,"-and-")
+      .replace(/[^a-z0-9]+/g,"-")
+      .replace(/^-+|-+$/g,"");
+
     return {
       slug: get("slug") || computedSlug,
       title,
@@ -26,6 +31,9 @@ export async function getStaticPaths() {
       long_copy: get("long_copy"),
       cta1: get("cta1"),
       status: get("status"),
+      // 🔑 SEO fields from sheet
+      seo_title: get("seo_title"),
+      seo_description: get("seo_description"),
     };
   }).filter((r)=> r && r.slug && r.title && r.slug.toLowerCase()!=="index" && !/^draft$/i.test(r.status||""));
 
@@ -36,6 +44,9 @@ export async function getStaticPaths() {
       summary: n.summary || "",
       hero: heroPath(n.hero_img),
       cta1: n.cta1 || "",
+      // 🔑 pass SEO through as props
+      seo_title: n.seo_title || "",
+      seo_description: n.seo_description || "",
       map_embed: (() => {
         const v = (n.map_embed || "").trim();
         if (!v) return "";
@@ -56,10 +67,19 @@ export async function getStaticPaths() {
   }));
 }
 
-const { title, summary, hero, map_embed, long_copy, cta1 } = Astro.props as any;
+const { title, summary, hero, map_embed, long_copy, cta1, seo_title, seo_description } = Astro.props as any;
+
+// Page-level SEO fallbacks (sheet → human title/summary)
+const pageSeoTitle = seo_title || title || "Neighbourhood";
+const pageSeoDesc  = seo_description || summary || "";
 ---
 
-<Site showHeader={true} title={title}>
+<Site
+  showHeader={true}
+  title={title}
+  seo_title={pageSeoTitle}
+  seo_description={pageSeoDesc}
+>
 
   {hero && (
     <Fragment slot="head">

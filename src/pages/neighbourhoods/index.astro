@@ -12,6 +12,8 @@ type Row = {
   summary?: string;
   hero_img?: string;
   status?: string;
+  seo_title?: string;
+  seo_description?: string;
 };
 
 let items: Row[] = [];
@@ -28,7 +30,8 @@ try {
     Array.isArray(raw?.rows) ? raw.rows :
     [];
 
-  const get = (r:any,k:string)=> (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+  const get = (r:any,k:string)=>
+    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
   const normalize = (r:any): Row => {
     const title = get(r,"title");
@@ -40,23 +43,38 @@ try {
       summary: get(r,"summary"),
       hero_img: get(r,"hero_img"),
       status: get(r,"status"),
+      seo_title: get(r,"seo_title"),
+      seo_description: get(r,"seo_description"),
     };
   };
 
   const normalized = rows.map(normalize);
+
+  // Use the special "index" row for page-level meta & hero
   header = normalized.find((r)=> (r.slug ?? "").toLowerCase()==="index") ?? null;
 
+  // Visible cards (exclude drafts/hidden/inactive & the index row)
   items = normalized.filter(
-    (r) => r.slug && r.title && (r.slug ?? "").toLowerCase()!=="index" && !/^draft$/i.test(r.status ?? "")
+    (r) =>
+      r.slug &&
+      r.title &&
+      (r.slug ?? "").toLowerCase()!=="index" &&
+      !/^draft$/i.test(r.status ?? "") &&
+      !/^hidden$/i.test(r.status ?? "") &&
+      !/^inactive$/i.test(r.status ?? "")
   );
 } catch (e:any) {
   error = e?.message || String(e);
 }
 
 const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
+
+// SEO from sheet
+const pageSeoTitle = header?.seo_title || header?.title || "Fernie Neighbourhoods";
+const pageSeoDesc  = header?.seo_description || header?.summary || "";
 ---
 
-<Site showHeader={true}>
+<Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
 
   {heroSrc && (
     <Fragment slot="head">
@@ -79,10 +97,10 @@ const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
     )}
   </section>
 
-  <!-- H1 + intro copy -->
+  <!-- H1 + intro copy (keep H1 human-facing; SEO title stays in <title>) -->
   <div class="container intro">
-    <h1>Fernie Neighbourhoods</h1>
-    {header?.summary && <p>{header.summary}</p>}
+    <h1>{header?.title || pageSeoTitle}</h1>
+    {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
 
   <div class="container">
