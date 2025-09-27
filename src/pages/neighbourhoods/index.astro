@@ -1,11 +1,18 @@
 ---
+/* src/pages/neighbourhoods/index.astro */
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
 const url = import.meta.env.PUBLIC_SHEET_JSON;
 
-type Row = { slug?: string; title?: string; summary?: string; hero_img?: string; status?: string; };
+type Row = {
+  slug?: string;
+  title?: string;
+  summary?: string;
+  hero_img?: string;
+  status?: string;
+};
 
 let items: Row[] = [];
 let header: Row | null = null;
@@ -14,18 +21,34 @@ let error: string | null = null;
 try {
   if (!url) throw new Error("Missing PUBLIC_SHEET_JSON in .env (restart dev).");
   const raw = await getJson<any>(url);
-  const rows: any[] = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
 
-  const get = (r:any,k:string)=> (r?.[k] ?? r?.[k.toLowerCase?.()] ?? r?.[k.toUpperCase?.()] ?? "").toString().trim();
-  const normalize = (r:any):Row => {
+  const rows: any[] =
+    Array.isArray(raw) ? raw :
+    Array.isArray(raw?.data) ? raw.data :
+    Array.isArray(raw?.rows) ? raw.rows :
+    [];
+
+  const get = (r:any,k:string)=> (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+
+  const normalize = (r:any): Row => {
     const title = get(r,"title");
-    const computedSlug = (title||"").toLowerCase().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
-    return { slug: get(r,"slug") || computedSlug, title, summary: get(r,"summary"), hero_img: get(r,"hero_img"), status: get(r,"status") };
+    const computedSlug = (title||"").toLowerCase()
+      .replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+    return {
+      slug: get(r,"slug") || computedSlug,
+      title,
+      summary: get(r,"summary"),
+      hero_img: get(r,"hero_img"),
+      status: get(r,"status"),
+    };
   };
 
   const normalized = rows.map(normalize);
-  header = normalized.find((r)=> (r.slug ?? "").toLowerCase() === "index") ?? null;
-  items = normalized.filter((r)=> r.slug && r.title && (r.slug ?? "").toLowerCase() !== "index" && !/^draft$/i.test(r.status ?? ""));
+  header = normalized.find((r)=> (r.slug ?? "").toLowerCase()==="index") ?? null;
+
+  items = normalized.filter(
+    (r) => r.slug && r.title && (r.slug ?? "").toLowerCase()!=="index" && !/^draft$/i.test(r.status ?? "")
+  );
 } catch (e:any) {
   error = e?.message || String(e);
 }
@@ -35,14 +58,13 @@ const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
 
 <Site showHeader={true}>
 
-  <!-- ✅ Preload the LCP image with high priority -->
   {heroSrc && (
     <Fragment slot="head">
       <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
     </Fragment>
   )}
 
-  <!-- ✅ LCP image is a real <img>, not a CSS background -->
+  <!-- HERO as real <img> for good LCP -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -51,12 +73,13 @@ const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
         fetchpriority="high"
         loading="eager"
         decoding="async"
-        width="2400"
-        height="1200"
+        width="2000"
+        height="1000"
       />
     )}
   </section>
 
+  <!-- H1 + intro copy -->
   <div class="container intro">
     <h1>Fernie Neighbourhoods</h1>
     {header?.summary && <p>{header.summary}</p>}
@@ -71,15 +94,47 @@ const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
       ) : (
         <div class="grid">
           {items.map((n) => {
-            const thumb = n.hero_img ? heroPath(n.hero_img) : "";
+            // Primary source uses the same resolver as hero (most reliable)
+            const primary = n.hero_img ? heroPath(n.hero_img) : "";
+            // Fallback A: swap /img/ <-> /images/
+            const altBase = primary.includes("/images/")
+              ? primary.replace("/images/", "/img/")
+              : primary.replace("/img/", "/images/");
+            // Fallback B: try dropping filename into /img/hero/
+            const filename = (primary.split("/").pop() || "").trim();
+            const finalFallback = filename ? `/img/hero/${filename}` : "";
+
             return (
               <a class="card" href={`/neighbourhoods/${n.slug}`}>
                 <div class="thumb">
-                  {thumb ? <img src={thumb} alt={n.title} loading="lazy" decoding="async" /> : <div class="ph" aria-hidden="true">No image</div>}
+                  {primary ? (
+                    <img
+                      src={primary}
+                      alt={n.title}
+                      loading="lazy"
+                      decoding="async"
+                      onerror={`
+                        // step 1: swap base between /img and /images
+                        if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
+                        // step 2: try /img/hero/<filename>
+                        else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
+                        // step 3: graceful placeholder
+                        else {
+                          const ph = document.createElement('div');
+                          ph.className = 'ph';
+                          ph.setAttribute('aria-hidden','true');
+                          ph.textContent = 'No image';
+                          this.replaceWith(ph);
+                        }
+                      `}
+                    />
+                  ) : (
+                    <div class="ph" aria-hidden="true">No image</div>
+                  )}
                 </div>
                 <div class="body">
                   <strong>{n.title}</strong>
-                  {n.summary && <p>{(n.summary).split(/\s+/).slice(0,10).join(" ") + (n.summary.split(/\s+/).length>10?"…":"")}</p>}
+                  {n.summary && <p>{(n.summary).split(/\s+/).slice(0,10).join(" ") + ((n.summary).split(/\s+/).length>10 ? "…" : "")}</p>}
                 </div>
               </a>
             );
@@ -90,23 +145,35 @@ const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
   </div>
 
   <style>
-    .intro { margin: 24px auto 20px; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color: #111827; }
+    .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 1rem; }
+
+    .intro { margin-top: 24px; margin-bottom: 20px; text-align: left; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px 0; color: #111827; }
     .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
 
-    .grid-wrap{ margin-top:24px; }
-    .grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap:16px; }
+    .grid-wrap { margin-top: 24px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
 
-    .card{ display:flex; flex-direction:column; background:#fff; border-radius:12px; overflow:hidden; border:1px solid #eee; text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,.05); transition: transform .25s ease, box-shadow .25s ease; }
-    .card:hover{ transform: translateY(-6px); box-shadow:0 6px 16px rgba(0,0,0,.12); }
+    .card {
+      display: flex; flex-direction: column;
+      background: #fff; border-radius: 12px; overflow: hidden;
+      border: 1px solid #eee; text-decoration: none; color: inherit;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      transform: translateY(0);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 
-    .thumb{ aspect-ratio:16/9; background:#f6f6f6; display:grid; place-items:center; }
-    .thumb img{ width:100%; height:100%; object-fit:cover; }
+    .thumb { aspect-ratio: 16/9; background: #f6f6f6; display: grid; place-items: center; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-    .ph{ font-size:12px; color:#999; }
-    .body{ padding:12px; }
-    .body p{ margin:.4rem 0 0; color:#555; font-size:.95rem; line-height:1.35; }
-
-    .error{ color:#b00; }
+    .ph { font-size: 12px; color: #999; }
+    .body { padding: 12px; }
+    .body p { margin: .4rem 0 0 0; color: #555; font-size: .95rem; line-height: 1.35; }
+    .error { color: #b00; }
   </style>
 </Site>
