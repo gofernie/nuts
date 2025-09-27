@@ -1,14 +1,17 @@
 ---
+/* src/layouts/Site.astro */
 const {
   title = "Fernie Real Estate",
   seo_title = title,          // <title>
   seo_description = "",       // <meta name="description">
+  summary = "",               // NEW: allows pages to pass summary as fallback
   showHeader = true,
   class: bodyClass = ""
 } = Astro.props;
 
 import { getJson } from "../lib/fetchJson";
 
+// helper utilities
 const getField = (r:any, k:string) =>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
@@ -50,6 +53,9 @@ try {
       .sort((a:any,b:any) => a.title.localeCompare(b.title)).slice(0, 8) as any;
   }
 } catch (e) { console.warn("Types menu fetch failed:", e); }
+
+// ✅ robust description fallback (sheet SEO → page summary)
+const metaDescription = (seo_description || summary || "").toString().trim();
 ---
 
 <html lang="en">
@@ -58,7 +64,11 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>{seo_title}</title>
-    {seo_description && <meta name="description" content={seo_description} />}
+    {metaDescription && <meta name="description" content={metaDescription} />}
+
+    {/* 🔎 TEMP DEBUG — remove when happy */}
+    <meta name="x-debug-seo-title" content={seo_title} />
+    <meta name="x-debug-seo-desc" content={metaDescription} />
 
     <slot name="head" />
 
