@@ -1,0 +1,22 @@
+* [33md3f1234[m[33m ([m[1;32mbackup-WIP[m[33m)[m Update
+* [33m964f14c[m Switch slug pages to client-fetch live data
+* [33m2d6a3f2[m Update
+* [33m923e175[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;33mtag: [m[1;33mm-2025-09-26-types-slug-hero-parity[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/feat/types-slug-hero-parity[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mfeat/types-slug-hero-parity[m[33m)[m Milestone: types slug — hero matches neighbourhoods, summary typography parity
+* [33m78b300c[m[33m ([m[1;33mtag: [m[1;33m%TAG%[m[33m)[m Update
+* [33mca102ba[m Update
+* [33m1ae6a19[m Update
+[31m|[m * [33ma2d7b8d[m[33m ([m[1;32mfeat/mobile-nav-hamburger[m[33m)[m WIP before rollback
+[31m|[m * [33m07f080c[m Update
+[31m|[m[31m/[m  
+* [33m78a5192[m[33m ([m[1;33mtag: [m[1;33mm-2025-09-26-nav-hamburger[m[33m, [m[1;31morigin/feat/mobile-nav-hamburger[m[33m)[m Update
+* [33mc10ec82[m Update
+* [33m3f0436d[m Update
+* [33md3289e8[m Update
+* [33m758f095[m[33m ([m[1;33mtag: [m[1;33mv0.2-slug-page[m[33m, [m[1;33mtag: [m[1;33mmilestone-neighbourhood-slug[m[33m, [m[1;32mrestore/milestone-neighbourhood-slug[m[33m)[m Milestone: neighbourhood [slug] page with hero, cards, and map (matching hero height)
+* [33md49148a[m Update
+* [33me42cae4[m Remove slug page to fix Netlify build
+* [33m9b31380[m[33m ([m[1;33mtag: [m[1;33mcheckpoint-20250926-0134[m[33m, [m[1;32mmaster[m[33m)[m Snapshot before fixing URL error
+* [33mc83136b[m feat: neighbourhoods index uses hero_img for hero + cards
+* [33m9d2b124[m feat: neighbourhood index wired to Google Sheets
+* [33mbd80651[m milestone: layout + homepage working
+* [33m7f5db1c[m Initial commit from Astro

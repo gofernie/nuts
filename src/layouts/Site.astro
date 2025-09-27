@@ -1,5 +1,51 @@
 ---
 const { title = "Fernie Real Estate", showHeader = true, class: bodyClass = "" } = Astro.props;
+
+import { getJson } from "../lib/fetchJson";
+
+const getField = (r:any, k:string) =>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+
+const visible = (r:any) => {
+  const s = getField(r, "status").toLowerCase();
+  const slug = getField(r, "slug").toLowerCase();
+  return s !== "hidden" && s !== "inactive" && slug !== "index";
+};
+
+const toItem = (r:any) => {
+  const title = getField(r, "title");
+  const slug  = getField(r, "slug");
+  return (title && slug) ? { title, slug } : null;
+};
+
+let neighbourhoods: {title:string; slug:string}[] = [];
+let typesMenu: {title:string; slug:string}[] = [];
+
+try {
+  const urlN = import.meta.env.PUBLIC_SHEET_JSON;
+  if (urlN) {
+    const rawN = await getJson<any>(urlN);
+    const rowsN: any[] = Array.isArray(rawN) ? rawN :
+                         Array.isArray(rawN?.data) ? rawN.data :
+                         Array.isArray(rawN?.rows) ? rawN.rows : [];
+    neighbourhoods = rowsN.filter(visible).map(toItem).filter(Boolean)
+      .sort((a:any,b:any) => a.title.localeCompare(b.title))
+      .slice(0, 8) as any;
+  }
+} catch (e) { console.warn("Neighbourhoods menu fetch failed:", e); }
+
+try {
+  const urlT = import.meta.env.PUBLIC_TYPES_JSON;
+  if (urlT) {
+    const rawT = await getJson<any>(urlT);
+    const rowsT: any[] = Array.isArray(rawT) ? rawT :
+                         Array.isArray(rawT?.data) ? rawT.data :
+                         Array.isArray(rawT?.rows) ? rawT.rows : [];
+    typesMenu = rowsT.filter(visible).map(toItem).filter(Boolean)
+      .sort((a:any,b:any) => a.title.localeCompare(b.title))
+      .slice(0, 8) as any;
+  }
+} catch (e) { console.warn("Types menu fetch failed:", e); }
 ---
 
 <html lang="en">
@@ -7,10 +53,10 @@ const { title = "Fernie Real Estate", showHeader = true, class: bodyClass = "" }
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
-    <slot name="head" /> <!-- pages can inject <link rel="preload"> here -->
+    <slot name="head" />
 
     <style>
-      :root{
+      :root {
         --header-h: 52px;
         --bg: #fafaf9;
         --ink: #111827;
@@ -19,53 +65,144 @@ const { title = "Fernie Real Estate", showHeader = true, class: bodyClass = "" }
         --hero-h: 48vh;
         --container-w: 1200px;
         --container-pad: 12px;
-        --bleed-fix: 2px; /* overdraw to kill hairlines */
+        --bleed-fix: 2px;
       }
 
-      *,*::before,*::after{ box-sizing:border-box; }
-      @supports (scrollbar-gutter: stable){ html{ scrollbar-gutter: stable; } }
-      html,body{ height:100%; overflow-x: clip; }
+      *,*::before,*::after { box-sizing: border-box; }
+      html, body { height: 100%; overflow-x: clip; }
 
-      body{
-        margin:0;
+      body {
+        margin: 0;
         font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
         background: var(--bg);
         color: var(--ink);
       }
 
-      header{
-        position:fixed; top:0; left:0; right:0;
-        height:var(--header-h); z-index:100;
+      header {
+        position: fixed; top: 0; left: 0; right: 0;
+        height: var(--header-h); z-index: 100;
         background: rgba(255,255,255,.84);
         backdrop-filter: blur(10px);
-        border-bottom:1px solid #e5e7eb;
-      }
-      .nav-inner{
-        max-width: var(--container-w);
-        margin:0 auto; height:100%;
-        padding:0 var(--container-pad);
-        display:flex; align-items:center;
-      }
-      .brand{ font-weight:700; font-size:1rem; color:var(--ink); text-decoration:none; padding:4px 6px; border-radius:6px; }
-      .brand:hover{ background: var(--hover-bg); }
-      .spacer{ flex:1; }
-      nav{ display:flex; align-items:center; gap:12px; }
-      nav a{ color:var(--ink-muted); padding:4px 6px; text-decoration:none; border-radius:6px; font-weight:500; line-height:1; }
-      nav a:hover, nav a:focus-visible{ color:var(--ink); background: var(--hover-bg); }
-      .hamburger{ display:none; background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--ink-muted); }
-      @media (max-width:768px){
-        nav{ position:absolute; top:var(--header-h); right:0; background:#fff; flex-direction:column; gap:0; padding:8px 12px; display:none; box-shadow:0 2px 8px rgba(0,0,0,.1); }
-        nav.open{ display:flex; }
-        nav a{ display:block; width:100%; padding:8px 0; }
-        .hamburger{ display:block; }
+        border-bottom: 1px solid #e5e7eb;
       }
 
-      main{ margin:0; padding:0; }
+      .nav-inner {
+        max-width: var(--container-w);
+        margin: 0 auto;
+        height: 100%;
+        padding: 0 var(--container-pad);
+        display: flex; align-items: center;
+      }
+
+      .brand {
+        font-weight: 700; font-size: 1rem; color: var(--ink);
+        text-decoration: none; padding: 4px 6px; border-radius: 6px;
+      }
+      .brand:hover { background: var(--hover-bg); }
+
+      .spacer { flex: 1; }
+
+      nav { display: flex; align-items: center; gap: 12px; }
+
+      nav a {
+        color: var(--ink-muted);
+        padding: 4px 6px;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: 500;
+        line-height: 1;
+      }
+      nav a:hover, nav a:focus-visible {
+        color: var(--ink);
+        background: var(--hover-bg);
+      }
+
+      .hamburger {
+        display: none; background: none; border: none;
+        font-size: 1.5rem; cursor: pointer; color: var(--ink-muted);
+      }
+
+      /* ===== Frosted dropdown box ===== */
+      .menu-group { position: relative; }
+      .menu-group > a::after { content: " ▾"; opacity: .8; }
+
+      .dropdown {
+        position: absolute;
+        left: 0;
+        top: calc(100% + 14px);
+        background: rgba(255, 255, 255, 0.85); /* semi-transparent white */
+        backdrop-filter: blur(6px);             /* frosted glass effect */
+        border: 1px solid rgba(229,231,235,.7);
+        border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(0,0,0,.08);
+        padding: 8px;
+        min-width: 240px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-6px);
+        transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
+        z-index: 300;
+      }
+
+      .menu-group::before {
+        content: "";
+        position: absolute;
+        top: 100%; left: 0; right: 0;
+        height: 18px;
+        pointer-events: auto;
+      }
+
+      .menu-group:hover > .dropdown,
+      .menu-group:focus-within > .dropdown {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+        transition: opacity .18s ease, transform .18s ease, visibility 0s;
+      }
+
+      .dropdown a {
+        display: block;
+        padding: 8px 10px;
+        border-radius: 6px;
+        color: var(--ink-muted);
+        text-decoration: none;
+      }
+      .dropdown a:hover {
+        background: var(--hover-bg);
+        color: var(--ink);
+      }
+
+      .dropdown .sep {
+        margin: 6px 0 4px;
+        border-top: 1px solid rgba(0,0,0,0.08);
+      }
+
+      @media (max-width: 768px) {
+        nav {
+          position: absolute; top: var(--header-h); right: 0;
+          background: #fff; flex-direction: column;
+          gap: 0; padding: 8px 12px; display: none;
+          box-shadow: 0 2px 8px rgba(0,0,0,.1);
+        }
+        nav.open { display: flex; }
+        nav a { display: block; width: 100%; padding: 10px; }
+        .hamburger { display: block; }
+        .menu-group::before { display: none; }
+        .menu-group > .dropdown {
+          position: static;
+          background: rgba(255,255,255,1);
+          backdrop-filter: none;
+          box-shadow: none;
+          padding: 4px 0;
+          opacity: 1; visibility: visible; transform: none; transition: none;
+        }
+      }
+
+      main { margin: 0; padding: 0; }
     </style>
 
     <style is:global>
-      /* Full-bleed hero container for a real <img> */
-      .hero-bleed{
+      .hero-bleed {
         position: relative;
         left: 50%; right: 50%;
         width: calc(100vw + var(--bleed-fix) * 2);
@@ -73,31 +210,21 @@ const { title = "Fernie Real Estate", showHeader = true, class: bodyClass = "" }
         margin-right: calc(-50vw - var(--bleed-fix));
         min-height: var(--hero-h);
         padding-top: var(--header-h);
-        background-color:#e5e7eb; /* visible if img missing */
-        border-bottom:1px solid #eee;
+        background-color: #e5e7eb;
+        border-bottom: 1px solid #eee;
         transform: translateZ(0);
         overflow: hidden;
       }
-      @supports (width: 100svw) {
-        .hero-bleed{
-          width: calc(100svw + var(--bleed-fix) * 2);
-          margin-left: calc(-50svw - var(--bleed-fix));
-          margin-right: calc(-50svw - var(--bleed-fix));
-        }
+      .hero-bleed > img {
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        object-fit: cover; object-position: center;
       }
-      .hero-bleed > img{
-        position:absolute; inset:0; width:100%; height:100%;
-        object-fit:cover; object-position:center;
-        display:block; border:0;
-      }
-
-      .container{
+      .container {
         max-width: var(--container-w);
-        margin-inline:auto;
+        margin-inline: auto;
         padding-inline: var(--container-pad);
       }
-
-      img{ display:block; max-width:100%; height:auto; }
+      img { display: block; max-width: 100%; height: auto; }
     </style>
 
     <script is:inline>
@@ -111,10 +238,28 @@ const { title = "Fernie Real Estate", showHeader = true, class: bodyClass = "" }
         <div class="nav-inner">
           <a class="brand" href="/">Fernie Real Estate</a>
           <span class="spacer"></span>
-          <button class="hamburger" onclick="toggleNav()">☰</button>
+
+          <button class="hamburger" onclick="toggleNav()" aria-label="Open menu">☰</button>
+
           <nav>
-            <a href="/neighbourhoods">Neighbourhoods</a>
-            <a href="/types">Types</a>
+            <div class="menu-group">
+              <a href="/neighbourhoods">Neighbourhoods</a>
+              <div class="dropdown">
+                {neighbourhoods.map(n => <a href={`/neighbourhoods/${n.slug}`}>{n.title}</a>)}
+                <div class="sep"></div>
+                <a href="/neighbourhoods">View all neighbourhoods</a>
+              </div>
+            </div>
+
+            <div class="menu-group">
+              <a href="/types">Types</a>
+              <div class="dropdown">
+                {typesMenu.map(t => <a href={`/types/${t.slug}`}>{t.title}</a>)}
+                <div class="sep"></div>
+                <a href="/types">View all property types</a>
+              </div>
+            </div>
+
             <a href="/contact">Contact</a>
           </nav>
         </div>
