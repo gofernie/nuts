@@ -1,0 +1,197 @@
+---
+// src/pages/types/[slug].astro
+import Site from "../../layouts/Site.astro";
+import { getJson } from "../../lib/fetchJson";
+import { heroPath } from "../../lib/paths";
+
+export async function getStaticPaths() {
+  const url = import.meta.env.PUBLIC_TYPES_JSON;
+  if (!url) return [];
+
+  let rows:any[] = [];
+  try {
+    const raw = await getJson<any>(url);
+    rows = Array.isArray(raw) ? raw
+      : Array.isArray(raw?.data) ? raw.data
+      : Array.isArray(raw?.rows) ? raw.rows
+      : [];
+  } catch { return []; }
+
+  const items = rows.map((r:any) => {
+    const get=(k:string)=>(r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+    const title = get("title"); if (!title) return null;
+    const computedSlug = title
+      .toLowerCase()
+      .replace(/&/g,"-and-")
+      .replace(/[^a-z0-9]+/g,"-")
+      .replace(/^-+|-+$/g,"");
+    return {
+      slug: get("slug") || computedSlug,
+      title,
+      summary: get("summary"),
+      hero_img: get("hero_img"),
+      map_embed: get("map_embed"),
+      long_copy: get("long_copy"),
+      cta1: get("cta1"),
+      status: get("status"),
+    };
+  }).filter((r)=> r && r.slug && r.title && r.slug.toLowerCase()!=="index" && !/^draft$/i.test(r.status||""));
+
+  return items.map((n:any)=>({
+    params:{ slug:n.slug },
+    props:{
+      title: n.title,
+      summary: n.summary || "",
+      hero: heroPath(n.hero_img),
+      cta1: n.cta1 || "",
+      map_embed: (() => {
+        const v = (n.map_embed || "").trim();
+        if (!v) return "";
+        const m = v.match(/src="([^"]+)"/i);
+        if (m?.[1]) return m[1];
+        if (v.includes("google.com/maps") && v.includes("embed")) return v;
+        if (v.includes("google.com/maps")) {
+          try {
+            const u = new URL(v);
+            const q = u.search ? `${u.search}&output=embed` : "?output=embed";
+            return `https://www.google.com/maps${q}`;
+          } catch {}
+        }
+        return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
+      })(),
+      long_copy: n.long_copy || "",
+    }
+  }));
+}
+
+const { title, summary, hero, map_embed, long_copy, cta1 } = Astro.props as any;
+---
+
+<Site showHeader={true} title={title}>
+
+  {hero && (
+    <Fragment slot="head">
+      <link rel="preload" as="image" href={hero} fetchpriority="high" />
+    </Fragment>
+  )}
+
+  <!-- LCP hero as a real <img> (mirrors neighbourhood slug) -->
+  <section class="hero-bleed">
+    {hero && (
+      <img
+        src={hero}
+        alt=""
+        fetchpriority="high"
+        loading="eager"
+        decoding="async"
+        width="2000" height="1000"
+      />
+    )}
+  </section>
+
+  <div class="container intro">
+    <h1>{title}</h1>
+    {summary && <p class="copy-base">{summary}</p>}
+  </div>
+
+  {map_embed && (
+    <div class="container map-wrap">
+      <h2>Explore on the Map</h2>
+      <div class="map-card">
+        <iframe
+          src={map_embed}
+          title={`Map of ${title}`}
+          loading="lazy"
+          allowfullscreen
+          referrerpolicy="no-referrer-when-downgrade"
+          style="width:100%; height: min(720px, var(--hero-h)); border:0; display:block;"
+        ></iframe>
+      </div>
+    </div>
+  )}
+
+  {cta1 && (
+    <div class="container">
+      <div class="cta-card">
+        <h2>Ready to explore {title} listings?</h2>
+        <p>Browse every property and get instant alerts for price changes.</p>
+        <a href={cta1} class="cta-btn"><span class="cta-text">🔎 View Listings</span></a>
+      </div>
+    </div>
+  )}
+
+  {long_copy && (
+    <div class="container">
+      <!-- apply the same copy-base here too so both match 1:1 -->
+      <article class="copy-base long-copy" set:html={long_copy}></article>
+    </div>
+  )}
+
+  <style>
+    :root { --hero-h: clamp(300px, 38vw, 520px); }
+
+    .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
+
+    /* Shared text system so summary and long copy are identical */
+    .copy-base {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-weight: 400;
+      letter-spacing: 0;
+      font-size: 1.05rem;
+      line-height: 1.8;
+      color: #1f2937;
+    }
+    .copy-base p { margin: 0 0 1.25em; }
+    .copy-base h2, .copy-base h3 {
+      font-weight: 700; color:#111827; line-height:1.3; margin:2em 0 .75em;
+    }
+    .copy-base h2 { font-size:1.5rem; border-left:4px solid #0a7bff; padding-left:.5rem; }
+    .copy-base h3 { font-size:1.25rem; }
+
+    /* Intro */
+    .intro { margin: 24px auto 20px; }
+    .intro h1 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      margin: 0 0 8px;
+      color:#111827;
+    }
+
+    /* Map */
+    .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
+    .map-card{ border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
+
+    /* CTA */
+    .cta-card{ background:#fff; color:#111827; border:2px solid #e5e7eb; border-radius:16px; padding:28px 20px; margin:36px 0; text-align:center; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
+    .cta-card h2{ margin:0 0 10px; font-size:1.75rem; font-weight:700; }
+    .cta-card p{ font-size:1rem; color:#374151; margin-bottom:18px; }
+    .cta-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; background:#0a7bff; color:#fff; text-decoration:none; font-weight:700; font-size:1.125rem; padding:12px 28px; border-radius:999px; box-shadow:0 4px 10px rgba(0,0,0,0.15); transition: background .15s ease, box-shadow .15s ease; }
+    .cta-btn .cta-text{ text-decoration:none; }
+    .cta-btn:hover{ background:#065aa3; box-shadow:0 6px 14px rgba(0,0,0,0.25); }
+
+    /* Full-bleed hero (matches neighbourhood slug) */
+    .hero-bleed {
+      position: relative;
+      left: 50%;
+      right: 50%;
+      margin-left: -50vw;
+      margin-right: -50vw;
+      width: 100vw;
+      max-width: 100vw;
+      height: var(--hero-h);
+      overflow: hidden;
+      background: #e5e7eb;
+      display: block;
+    }
+    .hero-bleed img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: center;
+    }
+
+    /* Keep long-copy only layout margins; typography is from .copy-base */
+    .long-copy { margin:40px 0 48px; }
+  </style>
+</Site>
