@@ -1,5 +1,4 @@
 ---
-/* src/pages/neighbourhoods/index.astro */
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -50,15 +49,14 @@ try {
 
   const normalized = rows.map(normalize);
 
-  // Use the special "index" row for page-level meta & hero
+  // Page-level meta/hero row: prefer slug === "index"
   header = normalized.find((r)=> (r.slug ?? "").toLowerCase()==="index") ?? null;
 
-  // Visible cards (exclude drafts/hidden/inactive & the index row)
+  // Visible cards (exclude index + draft/hidden/inactive)
   items = normalized.filter(
     (r) =>
-      r.slug &&
-      r.title &&
-      (r.slug ?? "").toLowerCase()!=="index" &&
+      r.slug && r.title &&
+      r.slug.toLowerCase()!=="index" &&
       !/^draft$/i.test(r.status ?? "") &&
       !/^hidden$/i.test(r.status ?? "") &&
       !/^inactive$/i.test(r.status ?? "")
@@ -69,7 +67,7 @@ try {
 
 const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
 
-// SEO from sheet
+// ✅ SEO from sheet
 const pageSeoTitle = header?.seo_title || header?.title || "Fernie Neighbourhoods";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
 ---
@@ -82,7 +80,7 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     </Fragment>
   )}
 
-  <!-- HERO as real <img> for good LCP -->
+  <!-- HERO -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -97,7 +95,7 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     )}
   </section>
 
-  <!-- H1 + intro copy (keep H1 human-facing; SEO title stays in <title>) -->
+  <!-- H1 + intro (keep H1 human-facing) -->
   <div class="container intro">
     <h1>{header?.title || pageSeoTitle}</h1>
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
@@ -112,13 +110,10 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
       ) : (
         <div class="grid">
           {items.map((n) => {
-            // Primary source uses the same resolver as hero (most reliable)
             const primary = n.hero_img ? heroPath(n.hero_img) : "";
-            // Fallback A: swap /img/ <-> /images/
             const altBase = primary.includes("/images/")
               ? primary.replace("/images/", "/img/")
               : primary.replace("/img/", "/images/");
-            // Fallback B: try dropping filename into /img/hero/
             const filename = (primary.split("/").pop() || "").trim();
             const finalFallback = filename ? `/img/hero/${filename}` : "";
 
@@ -132,11 +127,8 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
                       loading="lazy"
                       decoding="async"
                       onerror={`
-                        // step 1: swap base between /img and /images
                         if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
-                        // step 2: try /img/hero/<filename>
                         else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
-                        // step 3: graceful placeholder
                         else {
                           const ph = document.createElement('div');
                           ph.className = 'ph';
