@@ -6,38 +6,79 @@ import { heroPath } from "../../lib/paths";
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_SHEET_JSON;
   if (!url) return [];
-  let rows:any[]=[]; try{
+  let rows:any[] = [];
+  try {
     const raw = await getJson<any>(url);
     rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
-  }catch{ return []; }
+  } catch { return []; }
 
-  const items = rows.map((r:any)=>{
+  const items = rows.map((r:any) => {
     const get=(k:string)=>(r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-    const title=get("title"); if(!title) return null;
-    const computedSlug=(title||"").toLowerCase().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
-    return { slug:get("slug")||computedSlug, title, summary:get("summary"), hero_img:get("hero_img"), map_embed:get("map_embed"), long_copy:get("long_copy"), cta1:get("cta1"), status:get("status") };
-  }).filter((r)=>r && r.slug && r.title && r.slug.toLowerCase()!=="index" && !/^draft$/i.test(r.status||""));
+    const title = get("title"); if (!title) return null;
+    const computedSlug = title.toLowerCase().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+    return {
+      slug: get("slug") || computedSlug,
+      title,
+      summary: get("summary"),
+      hero_img: get("hero_img"),
+      map_embed: get("map_embed"),
+      long_copy: get("long_copy"),
+      cta1: get("cta1"),
+      status: get("status"),
+    };
+  }).filter((r)=> r && r.slug && r.title && r.slug.toLowerCase()!=="index" && !/^draft$/i.test(r.status||""));
 
-  return items.map((n:any)=>({ params:{ slug:n.slug }, props:{
-    title:n.title, summary:n.summary||"", hero: heroPath(n.hero_img),
-    cta1:n.cta1||"", map_embed:(()=>{
-      const v=(n.map_embed||"").trim(); if(!v) return "";
-      const m=v.match(/src="([^"]+)"/i); if(m?.[1]) return m[1];
-      if(v.includes("google.com/maps") && v.includes("embed")) return v;
-      if(v.includes("google.com/maps")){ try{ const u=new URL(v); const q=u.search?`${u.search}&output=embed`:"?output=embed"; return `https://www.google.com/maps${q}`;}catch{} }
-      return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
-    })(), long_copy:n.long_copy||""
-  }}));
+  return items.map((n:any)=>({
+    params:{ slug:n.slug },
+    props:{
+      title: n.title,
+      summary: n.summary || "",
+      hero: heroPath(n.hero_img),
+      cta1: n.cta1 || "",
+      map_embed: (() => {
+        const v = (n.map_embed || "").trim();
+        if (!v) return "";
+        const m = v.match(/src="([^"]+)"/i);
+        if (m?.[1]) return m[1];
+        if (v.includes("google.com/maps") && v.includes("embed")) return v;
+        if (v.includes("google.com/maps")) {
+          try {
+            const u = new URL(v);
+            const q = u.search ? `${u.search}&output=embed` : "?output=embed";
+            return `https://www.google.com/maps${q}`;
+          } catch {}
+        }
+        return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
+      })(),
+      long_copy: n.long_copy || "",
+    }
+  }));
 }
 
 const { title, summary, hero, map_embed, long_copy, cta1 } = Astro.props as any;
-const altHero = (hero || "").replace(/^\/images\//,"/img/").replace(/^\/img\//,"/images/");
 ---
 
 <Site showHeader={true} title={title}>
 
-  <!-- same hero + auto-fallback -->
-  <section class="hero-bleed" data-src={hero} data-alt={altHero}></section>
+  {hero && (
+    <Fragment slot="head">
+      <link rel="preload" as="image" href={hero} fetchpriority="high" />
+    </Fragment>
+  )}
+
+  <section class="hero-bleed">
+    {hero && (
+      <img
+        src={hero}
+        alt=""
+        fetchpriority="high"
+        loading="eager"
+        decoding="async"
+        width="2400"
+        height="1200"
+      />
+    )}
+  </section>
 
   <div class="container intro">
     <h1>{title}</h1>

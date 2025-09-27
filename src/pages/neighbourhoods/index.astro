@@ -1,7 +1,7 @@
 ---
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
-import { heroPath, imgPath } from "../../lib/paths";
+import { heroPath } from "../../lib/paths";
 
 const url = import.meta.env.PUBLIC_SHEET_JSON;
 
@@ -24,18 +24,38 @@ try {
   };
 
   const normalized = rows.map(normalize);
-  header = normalized.find((r)=> (r.slug??"").toLowerCase()==="index") ?? null;
-  items = normalized.filter((r)=> r.slug && r.title && (r.slug??"").toLowerCase()!=="index" && !/^draft$/i.test(r.status??""));
-} catch(e:any){ error = e?.message || String(e); }
+  header = normalized.find((r)=> (r.slug ?? "").toLowerCase() === "index") ?? null;
+  items = normalized.filter((r)=> r.slug && r.title && (r.slug ?? "").toLowerCase() !== "index" && !/^draft$/i.test(r.status ?? ""));
+} catch (e:any) {
+  error = e?.message || String(e);
+}
 
-const primaryHero = header?.hero_img ? heroPath(header.hero_img) : "";
-const altHero = primaryHero.replace(/^\/images\//, "/img/").replace(/^\/img\//, "/images/");
+const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
 ---
 
 <Site showHeader={true}>
 
-  <!-- Same hero everywhere; JS sets background using data-src (or data-alt fallback) -->
-  <section class="hero-bleed" data-src={primaryHero} data-alt={altHero}></section>
+  <!-- ✅ Preload the LCP image with high priority -->
+  {heroSrc && (
+    <Fragment slot="head">
+      <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
+    </Fragment>
+  )}
+
+  <!-- ✅ LCP image is a real <img>, not a CSS background -->
+  <section class="hero-bleed">
+    {heroSrc && (
+      <img
+        src={heroSrc}
+        alt=""
+        fetchpriority="high"
+        loading="eager"
+        decoding="async"
+        width="2400"
+        height="1200"
+      />
+    )}
+  </section>
 
   <div class="container intro">
     <h1>Fernie Neighbourhoods</h1>
@@ -51,26 +71,15 @@ const altHero = primaryHero.replace(/^\/images\//, "/img/").replace(/^\/img\//, 
       ) : (
         <div class="grid">
           {items.map((n) => {
-            const src = n.hero_img ? heroPath(n.hero_img) : "";
-            const fallback = src.replace(/^\/images\//, "/img/").replace(/^\/img\//, "/images/");
+            const thumb = n.hero_img ? heroPath(n.hero_img) : "";
             return (
               <a class="card" href={`/neighbourhoods/${n.slug}`}>
                 <div class="thumb">
-                  {src ? (
-                    <img
-                      src={src}
-                      alt={n.title}
-                      loading="lazy"
-                      data-fallback={fallback}
-                      onerror="this.onerror=null; this.src=this.dataset.fallback;"
-                    />
-                  ) : (
-                    <div class="ph" aria-hidden="true">No image</div>
-                  )}
+                  {thumb ? <img src={thumb} alt={n.title} loading="lazy" decoding="async" /> : <div class="ph" aria-hidden="true">No image</div>}
                 </div>
                 <div class="body">
                   <strong>{n.title}</strong>
-                  {n.summary && <p>{(n.summary).split(/\s+/).slice(0,10).join(" ")+(n.summary.split(/\s+/).length>10?"…":"")}</p>}
+                  {n.summary && <p>{(n.summary).split(/\s+/).slice(0,10).join(" ") + (n.summary.split(/\s+/).length>10?"…":"")}</p>}
                 </div>
               </a>
             );
