@@ -5,6 +5,7 @@ import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
 const url = import.meta.env.PUBLIC_TODO_JSON;
+const PATH_BASE = "/to_do"; // <- detail pages live under /to_do
 
 type Row = {
   slug?: string;
@@ -119,7 +120,7 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
             const finalFallback = filename ? `/img/hero/${filename}` : "";
 
             return (
-              <a class="card" href={`/todo/${n.slug}`}>
+              <a class="card" href={`${PATH_BASE}/${n.slug}`}>
                 <div class="thumb">
                   {primary ? (
                     <img
