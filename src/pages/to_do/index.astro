@@ -1,10 +1,10 @@
 ---
-// File: src/pages/xtraarea/index.astro
+// File: src/pages/todo/index.astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-const url = import.meta.env.PUBLIC_XTRAAREA_JSON;
+const url = import.meta.env.PUBLIC_TODO_JSON;
 
 type Row = {
   slug?: string;
@@ -21,7 +21,7 @@ let header: Row | null = null;
 let error: string | null = null;
 
 try {
-  if (!url) throw new Error("Missing PUBLIC_XTRAAREA_JSON in .env (restart dev).");
+  if (!url) throw new Error("Missing PUBLIC_TODO_JSON in .env (restart dev).");
   const raw = await getJson<any>(url);
 
   const rows: any[] =
@@ -69,7 +69,7 @@ try {
 const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
 
 // ✅ SEO from sheet
-const pageSeoTitle = header?.seo_title || header?.title || "Extra Areas";
+const pageSeoTitle = header?.seo_title || header?.title || "Things To Do in Fernie";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
 ---
 
@@ -107,7 +107,7 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
       {error ? (
         <p class="error">Error: {error}</p>
       ) : items.length === 0 ? (
-        <p>No areas yet. Check <code>PUBLIC_XTRAAREA_JSON</code> or add rows to your sheet.</p>
+        <p>No activities yet. Check <code>PUBLIC_TODO_JSON</code> or add rows to your sheet.</p>
       ) : (
         <div class="grid">
           {items.map((n) => {
@@ -119,7 +119,7 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
             const finalFallback = filename ? `/img/hero/${filename}` : "";
 
             return (
-              <a class="card" href={`/xtraarea/${n.slug}`}>
+              <a class="card" href={`/todo/${n.slug}`}>
                 <div class="thumb">
                   {primary ? (
                     <img
