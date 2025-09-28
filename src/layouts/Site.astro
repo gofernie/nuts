@@ -10,7 +10,7 @@ const {
 
 import { getJson } from "../lib/fetchJson";
 
-/** ---------- tiny utils ---------- */
+/** ---------- shared helpers (nav + pages) ---------- */
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
 const slugify = (v:any) =>
   (v ?? "")
@@ -26,43 +26,39 @@ const getField = (r:any, k:string) =>
 
 const visible = (r:any) => {
   const s = getField(r, "status").toLowerCase();
-  const rawSlug = getField(r, "slug");
-  const cleaned = slugify(rawSlug);
-  // hide “index” and “page” (and friends) to avoid route collisions like /to_do/page
+  const cleaned = slugify(getField(r, "slug"));
   return s !== "hidden" && s !== "inactive" && cleaned !== "index" && !RESERVED.has(cleaned);
 };
 
-const toItem = (r:any) => {
-  const t = getField(r, "title");
-  const s = slugify(getField(r, "slug") || t);
-  if (!t || !s) return null;
-  if (RESERVED.has(s)) {
-    console.warn("[MENU] filtered reserved slug:", s, "for title:", t);
-    return null;
-  }
-  return { title: t, slug: s };
-};
+type MenuItem = { title:string; slug:string; sort:number };
 
-async function safeRows(url?: string) {
+async function fetchMenu(url?: string): Promise<MenuItem[]> {
   if (!url) return [];
   try {
     const raw = await getJson<any>(url);
-    const rows =
+    const rows: any[] =
       Array.isArray(raw) ? raw :
       Array.isArray(raw?.data) ? raw.data :
       Array.isArray(raw?.rows) ? raw.rows : [];
-    // de-dupe by slug after cleaning
+
     const seen = new Set<string>();
-    const out:any[] = [];
+    const out: MenuItem[] = [];
+
     for (const r of rows) {
       if (!visible(r)) continue;
-      const item = toItem(r);
-      if (!item) continue;
-      if (seen.has(item.slug)) continue;
-      seen.add(item.slug);
-      out.push(item);
+
+      const title = getField(r, "title");
+      const s = slugify(getField(r, "slug") || title);
+      if (!title || !s || RESERVED.has(s) || seen.has(s)) continue;
+
+      const sort = Number.isFinite(+r?.sort) ? +r.sort : Number.MAX_SAFE_INTEGER;
+      out.push({ title, slug: s, sort });
+      seen.add(s);
     }
-    return out.sort((a,b)=>a.title.localeCompare(b.title)).slice(0,8);
+
+    // Sort deterministically: numeric sort asc, then title asc
+    out.sort((a,b) => (a.sort - b.sort) || a.title.localeCompare(b.title));
+    return out;
   } catch (e) {
     console.warn("Menu fetch failed for", url, e);
     return [];
@@ -70,15 +66,17 @@ async function safeRows(url?: string) {
 }
 
 /** ---------- build menus ---------- */
-let neighbourhoods:any[] = [];
-let typesMenu:any[] = [];
-let xtraMenu:any[] = [];
-let todoMenu:any[] = [];
+let neighbourhoods:MenuItem[] = [];
+let typesMenu:MenuItem[] = [];
+let xtraMenu:MenuItem[] = [];
+let todoMenu:MenuItem[] = [];
 
-neighbourhoods = await safeRows(import.meta.env.PUBLIC_SHEET_JSON);
-typesMenu      = await safeRows(import.meta.env.PUBLIC_TYPES_JSON);
-xtraMenu       = await safeRows(import.meta.env.PUBLIC_XTRAAREA_JSON);
-todoMenu       = await safeRows(import.meta.env.PUBLIC_TODO_JSON); // data source can stay the same
+neighbourhoods = (await fetchMenu(import.meta.env.PUBLIC_SHEET_JSON)).slice(0, 8);
+typesMenu      = (await fetchMenu(import.meta.env.PUBLIC_TYPES_JSON)).slice(0, 8);
+xtraMenu       = (await fetchMenu(import.meta.env.PUBLIC_XTRAAREA_JSON)).slice(0, 8);
+
+// ✅ To Do uses same ordering as pages
+todoMenu       = (await fetchMenu(import.meta.env.PUBLIC_TODO_JSON)).slice(0, 8);
 
 const metaDescription = (seo_description || summary || "").toString().trim();
 ---
