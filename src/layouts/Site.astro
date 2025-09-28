@@ -25,9 +25,12 @@ const toItem = (r:any) => {
   return (t && s) ? { title: t, slug: s } : null;
 };
 
-let neighbourhoods = [];
-let typesMenu = [];
+let neighbourhoods:any[] = [];
+let typesMenu:any[] = [];
+let xtraMenu:any[] = [];
+let todoMenu:any[] = []; // ✅ NEW
 
+// Neighbourhoods
 try {
   const urlN = import.meta.env.PUBLIC_SHEET_JSON;
   if (urlN) {
@@ -40,6 +43,7 @@ try {
   }
 } catch (e) { console.warn("Neighbourhoods menu fetch failed:", e); }
 
+// Types
 try {
   const urlT = import.meta.env.PUBLIC_TYPES_JSON;
   if (urlT) {
@@ -51,6 +55,32 @@ try {
       .sort((a:any,b:any)=>a.title.localeCompare(b.title)).slice(0,8);
   }
 } catch (e) { console.warn("Types menu fetch failed:", e); }
+
+// Other Areas (xtraarea)
+try {
+  const urlX = import.meta.env.PUBLIC_XTRAAREA_JSON;
+  if (urlX) {
+    const rawX = await getJson<any>(urlX);
+    const rowsX = Array.isArray(rawX) ? rawX :
+                  Array.isArray(rawX?.data) ? rawX.data :
+                  Array.isArray(rawX?.rows) ? rawX.rows : [];
+    xtraMenu = rowsX.filter(visible).map(toItem).filter(Boolean)
+      .sort((a:any,b:any)=>a.title.localeCompare(b.title)).slice(0,8);
+  }
+} catch (e) { console.warn("Other Areas menu fetch failed:", e); }
+
+// ✅ To Do
+try {
+  const urlTodo = import.meta.env.PUBLIC_TODO_JSON;
+  if (urlTodo) {
+    const rawTodo = await getJson<any>(urlTodo);
+    const rowsTodo = Array.isArray(rawTodo) ? rawTodo :
+                     Array.isArray(rawTodo?.data) ? rawTodo.data :
+                     Array.isArray(rawTodo?.rows) ? rawTodo.rows : [];
+    todoMenu = rowsTodo.filter(visible).map(toItem).filter(Boolean)
+      .sort((a:any,b:any)=>a.title.localeCompare(b.title)).slice(0,8);
+  }
+} catch (e) { console.warn("To Do menu fetch failed:", e); }
 
 const metaDescription = (seo_description || summary || "").toString().trim();
 ---
@@ -264,6 +294,23 @@ const metaDescription = (seo_description || summary || "").toString().trim();
               <div class="dropdown">
                 {typesMenu.map(t => <a href={`/types/${t.slug}`}>{t.title}</a>)}
                 <a class="view-all" href="/types">ALL PROPERTY TYPES</a>
+              </div>
+            </div>
+
+            <div class="menu-group">
+              <a class="menu-link has-sub" href="/xtraarea">Other Areas</a>
+              <div class="dropdown">
+                {xtraMenu.map(x => <a href={`/xtraarea/${x.slug}`}>{x.title}</a>)}
+                <a class="view-all" href="/xtraarea">ALL OTHER AREAS</a>
+              </div>
+            </div>
+
+            <!-- ✅ To Do -->
+            <div class="menu-group">
+              <a class="menu-link has-sub" href="/todo">To Do</a>
+              <div class="dropdown">
+                {todoMenu.map(t => <a href={`/todo/${t.slug}`}>{t.title}</a>)}
+                <a class="view-all" href="/todo">ALL THINGS TO DO</a>
               </div>
             </div>
 
