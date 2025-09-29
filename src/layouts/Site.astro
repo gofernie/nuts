@@ -12,22 +12,15 @@ import { getJson } from "../lib/fetchJson";
 
 /** ---------- shared helpers (nav + pages) ---------- */
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
-const slugify = (v:any) =>
-  (v ?? "")
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/&/g,"-and-")
-    .replace(/[^a-z0-9]+/g,"-")
-    .replace(/^-+|-+$/g,"");
 
 const getField = (r:any, k:string) =>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
+/** Minimal filtering */
 const visible = (r:any) => {
   const s = getField(r, "status").toLowerCase();
-  const cleaned = slugify(getField(r, "slug"));
-  return s !== "hidden" && s !== "inactive" && cleaned !== "index" && !RESERVED.has(cleaned);
+  const rawSlug = getField(r, "slug").toLowerCase();
+  return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
 
 type MenuItem = { title:string; slug:string; sort:number };
@@ -41,22 +34,16 @@ async function fetchMenu(url?: string): Promise<MenuItem[]> {
       Array.isArray(raw?.data) ? raw.data :
       Array.isArray(raw?.rows) ? raw.rows : [];
 
-    const seen = new Set<string>();
     const out: MenuItem[] = [];
-
     for (const r of rows) {
       if (!visible(r)) continue;
-
       const title = getField(r, "title");
-      const s = slugify(getField(r, "slug") || title);
-      if (!title || !s || RESERVED.has(s) || seen.has(s)) continue;
-
+      const s = getField(r, "slug"); // trust sheet slug directly
+      if (!title || !s) continue;
       const sort = Number.isFinite(+r?.sort) ? +r.sort : Number.MAX_SAFE_INTEGER;
       out.push({ title, slug: s, sort });
-      seen.add(s);
     }
 
-    // Sort deterministically: numeric sort asc, then title asc
     out.sort((a,b) => (a.sort - b.sort) || a.title.localeCompare(b.title));
     return out;
   } catch (e) {
@@ -72,8 +59,8 @@ let xtraMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_XTRAAREA_
 let todoMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_TODO_JSON);
 
 /** ---------- helpers ---------- */
-// columns = ceil(count / 8), clamped to max 6 columns
-const colsFor = (n:number) => Math.min(6, Math.max(1, Math.ceil(n / 8)));
+const ROWS_PER_COL = 7; // match CSS
+const colsFor = (n:number) => Math.min(6, Math.max(1, Math.ceil(n / ROWS_PER_COL)));
 
 const metaDescription = (seo_description || summary || "").toString().trim();
 ---
@@ -116,8 +103,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
         display:flex; align-items:center; gap:12px;
       }
       .brand{
-        margin-right:auto; /* push nav to the right */
-        font-weight:700; font-size:1rem; color:var(--ink);
+        margin-right:auto; font-weight:700; font-size:1rem; color:var(--ink);
         text-decoration:none; padding:4px 6px; border-radius:6px;
       }
       .brand:hover{ background:var(--hover-bg); }
@@ -131,25 +117,24 @@ const metaDescription = (seo_description || summary || "").toString().trim();
       .menu-group{ position:relative; margin:0 2px; }
       .menu-link.has-sub::after{ content:" ▾"; opacity:.8; }
 
-      /* === Multi-column dropdown: max 8 per column, no vertical scroll === */
+      /* === Multi-column dropdown: 7 rows per column (no vertical clipping) === */
       .dropdown{
         position:absolute; left:0; top:calc(100% + 21px);
         background:rgba(255,255,255,0.9); backdrop-filter:blur(6px);
         border:1px solid rgba(229,231,235,.7); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.08);
 
         display:grid;
-        grid-auto-flow: column;              /* fill rows top→bottom, then new column */
-        grid-template-rows: repeat(7, auto); /* cap at 8 rows per column */
-        grid-auto-columns: 220px;            /* column width */
+        grid-auto-flow: column;
+        grid-template-rows: repeat(7, auto); /* <-- keep in sync with ROWS_PER_COL */
+        grid-auto-columns: 220px;
         gap: 6px 12px;
         padding: 10px;
 
         width: max-content;
-        max-width: calc(min(92vw, var(--cols, 1) * 240px)); /* soft width by computed columns */
+        max-width: calc(min(92vw, var(--cols, 1) * 240px));
 
-        /* hide vertical scroll & only show horizontal scroll when multi-column */
-        overflow-y: hidden !important;
-        overflow-x: hidden;                  /* default: no horiz scrollbar */
+        overflow-y: visible !important;
+        overflow-x: hidden;
         max-height: none !important;
 
         opacity:0; transform:translateY(-12px); pointer-events:none; visibility:visible;
@@ -157,26 +142,20 @@ const metaDescription = (seo_description || summary || "").toString().trim();
         z-index:1100;
       }
       .dropdown.wide{ overflow-x:auto; }
-      /* hide scrollbars when not wide */
       .dropdown:not(.wide){ scrollbar-width: none; }
       .dropdown:not(.wide)::-webkit-scrollbar{ height:0; }
 
       .menu-group .dropdown.align-right{ left:auto; right:0; }
 
-      /* ▼▼ UPDATED: add smooth transition + white pop on hover ▼▼ */
       .dropdown > a{
         display:block; width:100%; padding:8px 10px; line-height:1.35;
         white-space:normal; text-decoration:none; border-radius:6px; color:var(--ink-muted);
         transition: background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease, font-weight .15s ease;
       }
       .dropdown > a:hover{
-        background:#fff;             /* full white background */
-        color:var(--ink);            /* full dark text */
-        font-weight:600;             /* bolder text */
-        box-shadow:0 1px 3px rgba(0,0,0,0.08); /* subtle pop shadow */
-        transform:translateY(-1px);  /* tiny lift */
+        background:#fff; color:var(--ink); font-weight:600;
+        box-shadow:0 1px 3px rgba(0,0,0,0.08); transform:translateY(-1px);
       }
-      /* ▲▲ UPDATED END ▲▲ */
 
       .dropdown > a.view-all {
         margin-top:6px;
@@ -213,8 +192,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
         .menu-link.has-sub::after{ content:" ▾"; }
         .menu-group > .dropdown{
           position:static; background:#fff; box-shadow:none; border:0; padding:0 0 4px 0;
-          display:block; /* stack items */
-          overflow:hidden; max-height:0; transition:max-height .28s ease;
+          display:block; overflow:hidden; max-height:0; transition:max-height .28s ease;
           opacity:1; transform:none; pointer-events:auto;
         }
         .menu-group.expanded > .dropdown{ max-height:480px; overflow:auto; }
@@ -225,6 +203,39 @@ const metaDescription = (seo_description || summary || "").toString().trim();
       }
 
       main{ margin:0; padding:0; }
+
+      /* ---------- Simple full-width footer ---------- */
+      footer.site-footer {
+        width: 100%;
+        background: rgba(255,255,255,0.9);
+        backdrop-filter: blur(6px);
+        border-top: 1px solid #e5e7eb;
+        padding: 1rem 0;
+        margin-top: 3rem;
+        text-align: center;
+        font-size: 0.875rem;
+        color: #4b5563;
+      }
+      footer.site-footer .container {
+        max-width: 1200px;
+        margin-inline: auto;
+        padding-inline: var(--container-pad);
+      }
+      footer.site-footer .footer-links {
+        margin-top: 0.5rem;
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        font-size: 0.8rem;
+      }
+      footer.site-footer .footer-links a {
+        color: #4b5563;
+        text-decoration: none;
+      }
+      footer.site-footer .footer-links a:hover {
+        text-decoration: underline;
+      }
     </style>
 
     <style is:global>
@@ -261,7 +272,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
         // Mobile: first tap opens; second tap navigates
         document.querySelectorAll("a.menu-link.has-sub").forEach(link=>{
           link.addEventListener("click",function(e){
-            if(isDesktop()) return; // desktop: let it navigate
+            if(isDesktop()) return;
             const group=link.closest(".menu-group");
             if(!group) return;
             if(!group.classList.contains("expanded")){
@@ -310,11 +321,12 @@ const metaDescription = (seo_description || summary || "").toString().trim();
             <div class="menu-group">
               <a class="menu-link has-sub" href="/neighbourhoods">Neighbourhoods</a>
               {(() => {
-                const cols = colsFor(neighbourhoods.length);
+                // +1 accounts for the "ALL NEIGHBOURHOODS" link cell
+                const cols = colsFor(neighbourhoods.length + 1);
                 const wide = cols > 1 ? "wide" : "";
                 return (
                   <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {neighbourhoods.map(n => <a href={`/neighbourhoods/${n.slug}`}>{n.title}</a>)}
+                    {neighbourhoods.map(n => <a href={`/neighbourhoods/{n.slug}`}>{n.title}</a>)}
                     <a class="view-all" href="/neighbourhoods">ALL NEIGHBOURHOODS</a>
                   </div>
                 );
@@ -324,11 +336,11 @@ const metaDescription = (seo_description || summary || "").toString().trim();
             <div class="menu-group">
               <a class="menu-link has-sub" href="/types">Types</a>
               {(() => {
-                const cols = colsFor(typesMenu.length);
+                const cols = colsFor(typesMenu.length + 1);
                 const wide = cols > 1 ? "wide" : "";
                 return (
                   <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {typesMenu.map(t => <a href={`/types/${t.slug}`}>{t.title}</a>)}
+                    {typesMenu.map(t => <a href={`/types/{t.slug}`}>{t.title}</a>)}
                     <a class="view-all" href="/types">ALL PROPERTY TYPES</a>
                   </div>
                 );
@@ -338,26 +350,25 @@ const metaDescription = (seo_description || summary || "").toString().trim();
             <div class="menu-group">
               <a class="menu-link has-sub" href="/xtraarea">Other Areas</a>
               {(() => {
-                const cols = colsFor(xtraMenu.length);
+                const cols = colsFor(xtraMenu.length + 1);
                 const wide = cols > 1 ? "wide" : "";
                 return (
                   <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {xtraMenu.map(x => <a href={`/xtraarea/${x.slug}`}>{x.title}</a>)}
+                    {xtraMenu.map(x => <a href={`/xtraarea/{x.slug}`}>{x.title}</a>)}
                     <a class="view-all" href="/xtraarea">ALL OTHER AREAS</a>
                   </div>
                 );
               })()}
             </div>
 
-            {/* ✅ To Do → to_do */}
             <div class="menu-group">
               <a class="menu-link has-sub" href="/to_do">To Do</a>
               {(() => {
-                const cols = colsFor(todoMenu.length);
+                const cols = colsFor(todoMenu.length + 1);
                 const wide = cols > 1 ? "wide" : "";
                 return (
                   <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {todoMenu.map(t => <a href={`/to_do/${t.slug}`}>{t.title}</a>)}
+                    {todoMenu.map(t => <a href={`/to_do/{t.slug}`}>{t.title}</a>)}
                     <a class="view-all" href="/to_do">ALL THINGS TO DO</a>
                   </div>
                 );
@@ -369,6 +380,19 @@ const metaDescription = (seo_description || summary || "").toString().trim();
         </div>
       </header>
     )}
+
     <main><slot /></main>
+
+    <!-- New footer -->
+    <footer class="site-footer">
+      <div class="container">
+        <p>&copy; {new Date().getFullYear()} Fernie Real Estate. All rights reserved.</p>
+        <div class="footer-links">
+          <a href="/privacy">Privacy Policy</a>
+          <a href="/terms">Terms of Use</a>
+          <a href="/contact">Contact</a>
+        </div>
+      </div>
+    </footer>
   </body>
 </html>
