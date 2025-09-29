@@ -13,6 +13,10 @@ type Row = {
   status?: string;
   seo_title?: string;
   seo_description?: string;
+  // CTA-related (sheet columns)
+  cta1?: string; // image path
+  cta2?: string; // optional heading (not used here)
+  cta3?: string; // optional copy (not used here)
 };
 
 let items: Row[] = [];
@@ -44,6 +48,9 @@ try {
       status: get(r,"status"),
       seo_title: get(r,"seo_title"),
       seo_description: get(r,"seo_description"),
+      cta1: get(r,"cta1"),
+      cta2: get(r,"cta2"),
+      cta3: get(r,"cta3"),
     };
   };
 
@@ -70,6 +77,27 @@ const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
 // ✅ SEO from sheet
 const pageSeoTitle = header?.seo_title || header?.title || "Fernie Neighbourhoods";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
+
+/* === CTA CONFIG + INSERTION (image-only, never first) =================== */
+type CtaCard = { _kind:"cta"; src:string; alt:string; href?:string };
+const ctaSrc = header?.cta1 ? heroPath(header.cta1) : "/img/hero/puppy.webp";
+
+const CTA: CtaCard = {
+  _kind: "cta",
+  src: ctaSrc,
+  alt: "Fernie real estate consultation",
+  href: "/contact"
+};
+
+function withRandomCTA(list: Row[]): (Row | CtaCard)[] {
+  if (!Array.isArray(list) || list.length === 0) return list; // never first if empty
+  const insertAt = 1 + Math.floor(Math.random() * list.length); // 1..length
+  const out = list.slice();
+  out.splice(insertAt, 0, CTA);
+  return out;
+}
+
+const cards = withRandomCTA(items);
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
@@ -95,7 +123,7 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     )}
   </section>
 
-  <!-- H1 + intro (keep H1 human-facing) -->
+  <!-- H1 + intro -->
   <div class="container intro">
     <h1>{header?.title || pageSeoTitle}</h1>
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
@@ -109,7 +137,26 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
         <p>No neighbourhoods yet. Check your <code>PUBLIC_SHEET_JSON</code> URL or add rows to your sheet.</p>
       ) : (
         <div class="grid">
-          {items.map((n) => {
+          {cards.map((n) => {
+            // CTA image-only branch
+            if ((n as any)._kind === "cta") {
+              const c = n as CtaCard;
+              return c.href ? (
+                <a class="card cta" href={c.href} aria-label={c.alt}>
+                  <div class="thumb">
+                    <img src={c.src} alt={c.alt} loading="lazy" decoding="async" />
+                  </div>
+                </a>
+              ) : (
+                <div class="card cta">
+                  <div class="thumb">
+                    <img src={c.src} alt={c.alt} loading="lazy" decoding="async" />
+                  </div>
+                </div>
+              );
+            }
+
+            // Normal neighbourhood card
             const primary = n.hero_img ? heroPath(n.hero_img) : "";
             const altBase = primary.includes("/images/")
               ? primary.replace("/images/", "/img/")
@@ -178,6 +225,8 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 
+    /* CTA card uses same thumb (16:9) so height matches the rest */
+    .card.cta { border: none; box-shadow: none; background: transparent; }
     .thumb { aspect-ratio: 16/9; background: #f6f6f6; display: grid; place-items: center; }
     .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
