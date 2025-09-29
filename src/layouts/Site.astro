@@ -326,7 +326,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
                 const wide = cols > 1 ? "wide" : "";
                 return (
                   <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {neighbourhoods.map(n => <a href={`/neighbourhoods/{n.slug}`}>{n.title}</a>)}
+                    {neighbourhoods.map(n => <a href={`/neighbourhoods/${n.slug}`}>{n.title}</a>)}
                     <a class="view-all" href="/neighbourhoods">ALL NEIGHBOURHOODS</a>
                   </div>
                 );
@@ -340,7 +340,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
                 const wide = cols > 1 ? "wide" : "";
                 return (
                   <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {typesMenu.map(t => <a href={`/types/{t.slug}`}>{t.title}</a>)}
+                    {typesMenu.map(t => <a href={`/types/${t.slug}`}>{t.title}</a>)}
                     <a class="view-all" href="/types">ALL PROPERTY TYPES</a>
                   </div>
                 );
@@ -354,7 +354,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
                 const wide = cols > 1 ? "wide" : "";
                 return (
                   <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {xtraMenu.map(x => <a href={`/xtraarea/{x.slug}`}>{x.title}</a>)}
+                    {xtraMenu.map(x => <a href={`/xtraarea/${x.slug}`}>{x.title}</a>)}
                     <a class="view-all" href="/xtraarea">ALL OTHER AREAS</a>
                   </div>
                 );
@@ -368,7 +368,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
                 const wide = cols > 1 ? "wide" : "";
                 return (
                   <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {todoMenu.map(t => <a href={`/to_do/{t.slug}`}>{t.title}</a>)}
+                    {todoMenu.map(t => <a href={`/to_do/${t.slug}`}>{t.title}</a>)}
                     <a class="view-all" href="/to_do">ALL THINGS TO DO</a>
                   </div>
                 );
