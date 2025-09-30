@@ -10,13 +10,12 @@ const {
 
 import { getJson } from "../lib/fetchJson";
 
-/** ---------- shared helpers (nav + pages) ---------- */
+/** ---------- shared helpers ---------- */
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
 
 const getField = (r:any, k:string) =>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
-/** Minimal filtering */
 const visible = (r:any) => {
   const s = getField(r, "status").toLowerCase();
   const rawSlug = getField(r, "slug").toLowerCase();
@@ -38,7 +37,7 @@ async function fetchMenu(url?: string): Promise<MenuItem[]> {
     for (const r of rows) {
       if (!visible(r)) continue;
       const title = getField(r, "title");
-      const s = getField(r, "slug"); // trust sheet slug directly
+      const s = getField(r, "slug");
       if (!title || !s) continue;
       const sort = Number.isFinite(+r?.sort) ? +r.sort : Number.MAX_SAFE_INTEGER;
       out.push({ title, slug: s, sort });
@@ -52,18 +51,27 @@ async function fetchMenu(url?: string): Promise<MenuItem[]> {
   }
 }
 
-/** ---------- build menus (ALL items) ---------- */
+/** ---------- build menus ---------- */
 let neighbourhoods:MenuItem[] = await fetchMenu(import.meta.env.PUBLIC_SHEET_JSON);
 let typesMenu:MenuItem[]      = await fetchMenu(import.meta.env.PUBLIC_TYPES_JSON);
 let xtraMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_XTRAAREA_JSON);
 let todoMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_TODO_JSON);
-let stayMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_STAY_JSON); // ⬅ NEW
 
 /** ---------- helpers ---------- */
-const ROWS_PER_COL = 7; // match CSS
+const ROWS_PER_COL = 7;
 const colsFor = (n:number) => Math.min(6, Math.max(1, Math.ceil(n / ROWS_PER_COL)));
 
 const metaDescription = (seo_description || summary || "").toString().trim();
+
+/** ---------- Nav order ---------- */
+const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> = [
+  "neighbourhoods",
+  "types",
+  "xtra",
+  "todo",
+  "stay",
+  "contact",
+];
 ---
 
 <html lang="en">
@@ -92,161 +100,85 @@ const metaDescription = (seo_description || summary || "").toString().trim();
       html, body { height:100%; overflow-x:clip; }
       body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); }
 
-      /* ---------- Full-width header ---------- */
       header{
         position:fixed; top:0; left:0; right:0; height:var(--header-h); z-index:1000;
         background:rgba(255,255,255,.84); backdrop-filter:blur(10px); border-bottom:1px solid #e5e7eb;
       }
       .nav-inner{
-        width:100%;
-        height:100%;
+        width:100%; height:100%;
         padding:0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-        display:flex; align-items:center; gap:1px;
+        display:flex; align-items:center; gap:10px;
       }
-      .brand{
-        margin-right:auto; font-weight:700; font-size:1rem; color:var(--ink);
-        text-decoration:none; padding:4px 6px; border-radius:6px;
-      }
+      .brand{ margin-right:auto; font-weight:700; font-size:1rem; color:var(--ink);
+        text-decoration:none; padding:4px 6px; border-radius:6px; }
       .brand:hover{ background:var(--hover-bg); }
 
-      nav{ margin-left:auto; display:flex; align-items:center; gap:0px; }
+      nav{ margin-left:auto; display:flex; align-items:center; gap:8px; }
       nav a{ color:var(--ink-muted); padding:6px 8px; text-decoration:none; border-radius:8px; font-weight:500; }
       nav a:hover, nav a:focus-visible{ color:var(--ink); background:var(--hover-bg); }
       .hamburger{ display:none; background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--ink-muted); }
 
-      /* Desktop dropdown */
       .menu-group{ position:relative; margin:0 2px; }
       .menu-link.has-sub::after{ content:" ▾"; opacity:.8; }
 
-      /* === Multi-column dropdown: 7 rows per column (no vertical clipping) === */
       .dropdown{
         position:absolute; left:0; top:calc(100% + 21px);
         background:rgba(255,255,255,0.9); backdrop-filter:blur(6px);
         border:1px solid rgba(229,231,235,.7); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.08);
-
-        display:grid;
-        grid-auto-flow: column;
-        grid-template-rows: repeat(7, auto); /* <-- keep in sync with ROWS_PER_COL */
-        grid-auto-columns: 220px;
-        gap: 6px 12px;
-        padding: 10px;
-
-        width: max-content;
-        max-width: calc(min(92vw, var(--cols, 1) * 240px));
-
-        overflow-y: visible !important;
-        overflow-x: hidden;
-        max-height: none !important;
-
+        display:grid; grid-auto-flow: column;
+        grid-template-rows: repeat(7, auto);
+        grid-auto-columns: 220px; gap: 6px 12px; padding: 10px;
+        width: max-content; max-width: calc(min(92vw, var(--cols, 1) * 240px));
         opacity:0; transform:translateY(-12px); pointer-events:none; visibility:visible;
         transition:transform .28s cubic-bezier(.2,.7,.2,1), opacity .22s ease-out;
         z-index:1100;
       }
       .dropdown.wide{ overflow-x:auto; }
-      .dropdown:not(.wide){ scrollbar-width: none; }
-      .dropdown:not(.wide)::-webkit-scrollbar{ height:0; }
+      .dropdown.align-right{ left:auto; right:0; }
 
-      .menu-group .dropdown.align-right{ left:auto; right:0; }
-
-      .dropdown > a{
-        display:block; width:100%; padding:8px 10px; line-height:1.35;
-        white-space:normal; text-decoration:none; border-radius:6px; color:var(--ink-muted);
-        transition: background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease, font-weight .15s ease;
-      }
-      .dropdown > a:hover{
-        background:#fff; color:var(--ink); font-weight:600;
-        box-shadow:0 1px 3px rgba(0,0,0,0.08); transform:translateY(-1px);
-      }
-
-      .dropdown > a.view-all {
-        margin-top:6px;
-        font-size:0.8rem;
-        font-weight:700;
-        text-transform:uppercase;
-        letter-spacing:0.5px;
-        opacity:0.9;
-        grid-column: 1 / -1; /* span all columns */
-      }
+      .dropdown > a{ display:block; padding:8px 10px; line-height:1.35; white-space:normal;
+        text-decoration:none; border-radius:6px; color:var(--ink-muted);
+        transition: background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease, font-weight .15s ease; }
+      .dropdown > a:hover{ background:#fff; color:var(--ink); font-weight:600;
+        box-shadow:0 1px 3px rgba(0,0,0,0.08); transform:translateY(-1px); }
 
       @media (min-width:769px){
-        .menu-group::before{
-          content:""; position:absolute; top:100%; left:-12px; right:-12px; height:40px; pointer-events:auto;
-        }
+        .menu-group::before{ content:""; position:absolute; top:100%; left:-12px; right:-12px; height:40px; pointer-events:auto; }
         .menu-group.hovering > .dropdown,
         .menu-group:hover > .dropdown,
-        .menu-group:focus-within > .dropdown{
-          opacity:1; transform:translateY(0); pointer-events:auto;
-        }
+        .menu-group:focus-within > .dropdown{ opacity:1; transform:translateY(0); pointer-events:auto; }
       }
 
-      /* Mobile */
       @media (max-width:768px){
-        header nav{
-          position:absolute; top:var(--header-h); right:0; background:#fff;
+        header nav{ position:absolute; top:var(--header-h); right:0; background:#fff;
           flex-direction:column; gap:0; padding:8px 12px; box-shadow:0 2px 8px rgba(0,0,0,.1);
-          width:auto; max-width:92vw; min-width:220px;
-        }
+          width:auto; max-width:92vw; min-width:220px; }
         header nav a{ display:block; width:100%; padding:10px; }
         .hamburger{ display:block; margin-left:auto; }
-
         .menu-group{ width:100%; }
-        .menu-link.has-sub::after{ content:" ▾"; }
-        .menu-group > .dropdown{
-          position:static; background:#fff; box-shadow:none; border:0; padding:0 0 4px 0;
+        .menu-group > .dropdown{ position:static; background:#fff; box-shadow:none; border:0; padding:0 0 4px 0;
           display:block; overflow:hidden; max-height:0; transition:max-height .28s ease;
-          opacity:1; transform:none; pointer-events:auto;
-        }
+          opacity:1; transform:none; pointer-events:auto; }
         .menu-group.expanded > .dropdown{ max-height:480px; overflow:auto; }
-      }
-
-      @media (prefers-reduced-motion: reduce){
-        .dropdown, .menu-group > .dropdown{ transition:none !important; }
       }
 
       main{ margin:0; padding:0; }
 
-      /* ---------- Simple full-width footer ---------- */
-      footer.site-footer {
-        width: 100%;
-        background: rgba(255,255,255,0.9);
-        backdrop-filter: blur(6px);
-        border-top: 1px solid #e5e7eb;
-        padding: 1rem 0;
-        margin-top: 3rem;
-        text-align: center;
-        font-size: 0.875rem;
-        color: #4b5563;
-      }
-      footer.site-footer .container {
-        max-width: 1200px;
-        margin-inline: auto;
-        padding-inline: var(--container-pad);
-      }
-      footer.site-footer .footer-links {
-        margin-top: 0.5rem;
-        display: flex;
-        justify-content: center;
-        gap: 1rem;
-        flex-wrap: wrap;
-        font-size: 0.8rem;
-      }
-      footer.site-footer .footer-links a {
-        color: #4b5563;
-        text-decoration: none;
-      }
-      footer.site-footer .footer-links a:hover {
-        text-decoration: underline;
-      }
+      footer.site-footer{ width:100%; background:rgba(255,255,255,0.9); backdrop-filter:blur(6px);
+        border-top:1px solid #e5e7eb; padding:1rem 0; margin-top:3rem; text-align:center; font-size:.875rem; color:#4b5563; }
+      footer.site-footer .container{ max-width:1200px; margin-inline:auto; padding-inline:var(--container-pad); }
+      footer.site-footer .footer-links{ margin-top:.5rem; display:flex; justify-content:center; gap:1rem; flex-wrap:wrap; font-size:.8rem; }
+      footer.site-footer .footer-links a{ color:#4b5563; text-decoration:none; }
+      footer.site-footer .footer-links a:hover{ text-decoration:underline; }
     </style>
 
     <style is:global>
-      .hero-bleed{
-        position:relative; left:50%; right:50%;
-        width:calc(100vw + var(--bleed-fix)*2);
+      html { scroll-behavior: smooth; }
+      :target { scroll-margin-top: calc(var(--header-h) + 12px); }
+      .hero-bleed{ position:relative; left:50%; right:50%; width:calc(100vw + var(--bleed-fix)*2);
         margin-left:calc(-50vw - var(--bleed-fix)); margin-right:calc(-50vw - var(--bleed-fix));
         min-height:var(--hero-h); padding-top:var(--header-h);
-        background-color:#e5e7eb; border-bottom:1px solid #eee; transform:translateZ(0); overflow:hidden;
-      }
+        background-color:#e5e7eb; border-bottom:1px solid #eee; overflow:hidden; }
       .hero-bleed>img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
       .container{ max-width:1200px; margin-inline:auto; padding-inline:var(--container-pad); }
     </style>
@@ -261,16 +193,12 @@ const metaDescription = (seo_description || summary || "").toString().trim();
         if(!isOpen){ nav.querySelectorAll(".menu-group.expanded").forEach(g=>g.classList.remove("expanded")); }
       }
       window.toggleNav=toggleNav;
-
-      const isDesktop = () => window.matchMedia("(min-width: 769px)").matches;
+      const isDesktop=()=>window.matchMedia("(min-width:769px)").matches;
 
       document.addEventListener("DOMContentLoaded",function(){
         const nav=document.querySelector("header nav");
-        const btn=document.querySelector(".hamburger");
         if(nav)nav.classList.remove("open");
-        if(btn)btn.setAttribute("aria-expanded","false");
 
-        // Mobile: first tap opens; second tap navigates
         document.querySelectorAll("a.menu-link.has-sub").forEach(link=>{
           link.addEventListener("click",function(e){
             if(isDesktop()) return;
@@ -281,30 +209,26 @@ const metaDescription = (seo_description || summary || "").toString().trim();
               nav.querySelectorAll(".menu-group.expanded").forEach(g=>{ if(g!==group) g.classList.remove("expanded"); });
               group.classList.add("expanded");
             }
-          }, {passive:false});
+          },{passive:false});
         });
 
-        if (isDesktop()){
+        if(isDesktop()){
           const groups=document.querySelectorAll(".menu-group");
-          const CLOSE_MS=160;
           groups.forEach(g=>{
             const dd=g.querySelector(".dropdown");
             let t=null;
-
             function alignToViewport(){
               if(!dd) return;
               dd.classList.remove("align-right");
               const rect=dd.getBoundingClientRect();
-              if (rect.right > (window.innerWidth - 12)) dd.classList.add("align-right");
+              if(rect.right > (window.innerWidth - 12)) dd.classList.add("align-right");
             }
-
             function openNow(){ clearTimeout(t); g.classList.add("hovering"); alignToViewport(); }
-            function scheduleClose(){ clearTimeout(t); t=setTimeout(()=>g.classList.remove("hovering"), CLOSE_MS); }
-
-            g.addEventListener("mouseenter", openNow);
-            g.addEventListener("mouseleave", scheduleClose);
-            g.addEventListener("focusin", openNow);
-            g.addEventListener("focusout", scheduleClose);
+            function scheduleClose(){ clearTimeout(t); t=setTimeout(()=>g.classList.remove("hovering"),160); }
+            g.addEventListener("mouseenter",openNow);
+            g.addEventListener("mouseleave",scheduleClose);
+            g.addEventListener("focusin",openNow);
+            g.addEventListener("focusout",scheduleClose);
           });
         }
       });
@@ -315,91 +239,86 @@ const metaDescription = (seo_description || summary || "").toString().trim();
       <header>
         <div class="nav-inner">
           <a class="brand" href="/">Fernie Real Estate</a>
-
           <button class="hamburger" onclick="toggleNav()" aria-label="Open menu" aria-expanded="false">☰</button>
-
           <nav>
-            <div class="menu-group">
-              <a class="menu-link has-sub" href="/neighbourhoods">Neighbourhoods</a>
-              {(() => {
-                // +1 accounts for the "ALL NEIGHBOURHOODS" link cell
-                const cols = colsFor(neighbourhoods.length + 1);
-                const wide = cols > 1 ? "wide" : "";
-                return (
-                  <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {neighbourhoods.map(n => <a href={`/neighbourhoods/${n.slug}`}>{n.title}</a>)}
-                    <a class="view-all" href="/neighbourhoods">ALL NEIGHBOURHOODS</a>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div class="menu-group">
-              <a class="menu-link has-sub" href="/types">Types</a>
-              {(() => {
-                const cols = colsFor(typesMenu.length + 1);
-                const wide = cols > 1 ? "wide" : "";
-                return (
-                  <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {typesMenu.map(t => <a href={`/types/${t.slug}`}>{t.title}</a>)}
-                    <a class="view-all" href="/types">ALL PROPERTY TYPES</a>
-                  </div>
-                );
-              })()}
-            </div>
-
-        
-
-            <div class="menu-group">
-              <a class="menu-link has-sub" href="/xtraarea">Other Areas</a>
-              {(() => {
-                const cols = colsFor(xtraMenu.length + 1);
-                const wide = cols > 1 ? "wide" : "";
-                return (
-                  <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {xtraMenu.map(x => <a href={`/xtraarea/${x.slug}`}>{x.title}</a>)}
-                    <a class="view-all" href="/xtraarea">ALL OTHER AREAS</a>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div class="menu-group">
-              <a class="menu-link has-sub" href="/to_do">To Do</a>
-              {(() => {
-                const cols = colsFor(todoMenu.length + 1);
-                const wide = cols > 1 ? "wide" : "";
-                return (
-                  <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {todoMenu.map(t => <a href={`/to_do/${t.slug}`}>{t.title}</a>)}
-                    <a class="view-all" href="/to_do">ALL THINGS TO DO</a>
-                  </div>
-                );
-              })()}
-            </div>
-    <div class="menu-group">
-              <a class="menu-link has-sub" href="/stay">Stay</a>
-              {(() => {
-                const cols = colsFor(stayMenu.length + 1);
-                const wide = cols > 1 ? "wide" : "";
-                return (
-                  <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {stayMenu.map(s => <a href={`/stay/${s.slug}`}>{s.title}</a>)}
-                    <a class="view-all" href="/stay">ALL STAYS</a>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <a class="menu-link" href="/contact">Contact</a>
+            {
+              NAV_ORDER.map((key)=>{
+                switch(key){
+                  case "neighbourhoods": return (
+                    <div class="menu-group">
+                      <a class="menu-link has-sub" href="/neighbourhoods">Neighbourhoods</a>
+                      {(() => {
+                        const cols=colsFor(neighbourhoods.length+1); const wide=cols>1?"wide":"";
+                        return (
+                          <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
+                            <a class="view-all" href="/neighbourhoods">ALL NEIGHBOURHOODS</a>
+                            {neighbourhoods.map(n=><a href={`/neighbourhoods/${n.slug}`}>{n.title}</a>)}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                  case "stay": return (
+                    <div class="menu-group">
+                      <a class="menu-link has-sub" href="/stay">Stay</a>
+                      <div class="dropdown" style="--cols:1;">
+                        <a class="view-all" href="/stay">ALL STAYS</a>
+                        <a href="/stay#hotels">Hotels</a>
+                        <a href="/stay#airbnb">Airbnb</a>
+                      </div>
+                    </div>
+                  );
+                  case "types": return (
+                    <div class="menu-group">
+                      <a class="menu-link has-sub" href="/types">Types</a>
+                      {(() => {
+                        const cols=colsFor(typesMenu.length+1); const wide=cols>1?"wide":"";
+                        return (
+                          <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
+                            <a class="view-all" href="/types">ALL PROPERTY TYPES</a>
+                            {typesMenu.map(t=><a href={`/types/${t.slug}`}>{t.title}</a>)}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                  case "xtra": return (
+                    <div class="menu-group">
+                      <a class="menu-link has-sub" href="/xtraarea">Other Areas</a>
+                      {(() => {
+                        const cols=colsFor(xtraMenu.length+1); const wide=cols>1?"wide":"";
+                        return (
+                          <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
+                            <a class="view-all" href="/xtraarea">ALL OTHER AREAS</a>
+                            {xtraMenu.map(x=><a href={`/xtraarea/${x.slug}`}>{x.title}</a>)}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                  case "todo": return (
+                    <div class="menu-group">
+                      <a class="menu-link has-sub" href="/to_do">To Do</a>
+                      {(() => {
+                        const cols=colsFor(todoMenu.length+1); const wide=cols>1?"wide":"";
+                        return (
+                          <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
+                            <a class="view-all" href="/to_do">ALL THINGS TO DO</a>
+                            {todoMenu.map(t=><a href={`/to_do/${t.slug}`}>{t.title}</a>)}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  );
+                  case "contact": return <a class="menu-link" href="/contact">Contact</a>;
+                }
+              })
+            }
           </nav>
         </div>
       </header>
     )}
-
     <main><slot /></main>
-
-    <!-- New footer -->
     <footer class="site-footer">
       <div class="container">
         <p>&copy; {new Date().getFullYear()} Fernie Real Estate. All rights reserved.</p>
