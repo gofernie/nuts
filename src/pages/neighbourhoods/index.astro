@@ -13,10 +13,9 @@ type Row = {
   status?: string;
   seo_title?: string;
   seo_description?: string;
-  // CTA-related (sheet columns)
-  cta1?: string; // image path
-  cta2?: string; // optional heading (not used here)
-  cta3?: string; // optional copy (not used here)
+  cta1?: string; // image path or URL
+  cta2?: string; // CTA title
+  cta3?: string; // CTA copy
 };
 
 let items: Row[] = [];
@@ -36,10 +35,15 @@ try {
   const get = (r:any,k:string)=>
     (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
+  const slugify = (v:string) =>
+    (v ?? "").toLowerCase().trim()
+      .replace(/&/g,"-and-")
+      .replace(/[^a-z0-9]+/g,"-")
+      .replace(/^-+|-+$/g,"");
+
   const normalize = (r:any): Row => {
     const title = get(r,"title");
-    const computedSlug = (title||"").toLowerCase()
-      .replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+    const computedSlug = slugify(title || "");
     return {
       slug: get(r,"slug") || computedSlug,
       title,
@@ -56,8 +60,11 @@ try {
 
   const normalized = rows.map(normalize);
 
-  // Page-level meta/hero row: prefer slug === "index"
-  header = normalized.find((r)=> (r.slug ?? "").toLowerCase()==="index") ?? null;
+  // Prefer explicit index row; otherwise fall back to first row that has cta1 populated.
+  header =
+    normalized.find(r => (r.slug ?? "").toLowerCase() === "index") ??
+    normalized.find(r => !!r.cta1) ??
+    null;
 
   // Visible cards (exclude index + draft/hidden/inactive)
   items = normalized.filter(
@@ -72,20 +79,37 @@ try {
   error = e?.message || String(e);
 }
 
-const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
+// Resolve images:
+// - full URL: use as-is
+// - leading "/": use as-is
+// - bare filename: run through heroPath
+const resolveImg = (v?: string) => {
+  const s = (v || "").trim();
+  if (!s) return "";
+  if (/^(https?:)?\/\//i.test(s)) return s;
+  if (s.startsWith("/")) return s;
+  return heroPath(s);
+};
 
-// ✅ SEO from sheet
+const heroSrc = resolveImg(header?.hero_img);
+
+// SEO
 const pageSeoTitle = header?.seo_title || header?.title || "Fernie Neighbourhoods";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
 
-/* === CTA CONFIG + INSERTION (image-only, never first) =================== */
-type CtaCard = { _kind:"cta"; src:string; alt:string; href?:string };
-const ctaSrc = header?.cta1 ? heroPath(header.cta1) : "/img/hero/puppy.webp";
+/* === CTA CONFIG + INSERTION (cta1 image, cta2 title, cta3 copy) ======== */
+type CtaCard = { _kind:"cta"; src:string; title?:string; copy?:string; alt:string; href?:string };
+
+const ctaSrcResolved = resolveImg(header?.cta1) || "/img/hero/puppy.webp";
+const ctaTitle = (header?.cta2 || "").trim() || "Let’s talk Fernie real estate";
+const ctaCopy  = (header?.cta3 || "").trim() || "Book a quick call to discuss neighborhoods, investment options, and next steps.";
 
 const CTA: CtaCard = {
   _kind: "cta",
-  src: ctaSrc,
-  alt: "Fernie real estate consultation",
+  src: ctaSrcResolved,
+  title: ctaTitle,
+  copy: ctaCopy,
+  alt: ctaTitle,
   href: "/contact"
 };
 
@@ -138,7 +162,7 @@ const cards = withRandomCTA(items);
       ) : (
         <div class="grid">
           {cards.map((n) => {
-            // CTA image-only branch
+            // CTA card with image (cta1), title (cta2), copy (cta3)
             if ((n as any)._kind === "cta") {
               const c = n as CtaCard;
               return c.href ? (
@@ -146,18 +170,30 @@ const cards = withRandomCTA(items);
                   <div class="thumb">
                     <img src={c.src} alt={c.alt} loading="lazy" decoding="async" />
                   </div>
+                  {(c.title || c.copy) && (
+                    <div class="body">
+                      {c.title && <strong>{c.title}</strong>}
+                      {c.copy && <p>{c.copy}</p>}
+                    </div>
+                  )}
                 </a>
               ) : (
                 <div class="card cta">
                   <div class="thumb">
                     <img src={c.src} alt={c.alt} loading="lazy" decoding="async" />
                   </div>
+                  {(c.title || c.copy) && (
+                    <div class="body">
+                      {c.title && <strong>{c.title}</strong>}
+                      {c.copy && <p>{c.copy}</p>}
+                    </div>
+                  )}
                 </div>
               );
             }
 
             // Normal neighbourhood card
-            const primary = n.hero_img ? heroPath(n.hero_img) : "";
+            const primary = resolveImg(n.hero_img);
             const altBase = primary.includes("/images/")
               ? primary.replace("/images/", "/img/")
               : primary.replace("/img/", "/images/");
@@ -225,10 +261,11 @@ const cards = withRandomCTA(items);
     }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 
-    /* CTA card uses same thumb (16:9) so height matches the rest */
-    .card.cta { border: none; box-shadow: none; background: transparent; }
+    /* CTA card keeps same image ratio as others */
     .thumb { aspect-ratio: 16/9; background: #f6f6f6; display: grid; place-items: center; }
     .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    .card.cta { border: 1px solid #e5e7eb; background: #ffffff; }
 
     .ph { font-size: 12px; color: #999; }
     .body { padding: 12px; }
