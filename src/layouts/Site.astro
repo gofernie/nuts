@@ -101,7 +101,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
         width:100%;
         height:100%;
         padding:0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-        display:flex; align-items:center; gap:12px;
+        display:flex; align-items:center; gap:1px;
       }
       .brand{
         margin-right:auto; font-weight:700; font-size:1rem; color:var(--ink);
@@ -109,7 +109,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
       }
       .brand:hover{ background:var(--hover-bg); }
 
-      nav{ margin-left:auto; display:flex; align-items:center; gap:12px; }
+      nav{ margin-left:auto; display:flex; align-items:center; gap:0px; }
       nav a{ color:var(--ink-muted); padding:6px 8px; text-decoration:none; border-radius:8px; font-weight:500; }
       nav a:hover, nav a:focus-visible{ color:var(--ink); background:var(--hover-bg); }
       .hamburger{ display:none; background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--ink-muted); }
@@ -348,19 +348,7 @@ const metaDescription = (seo_description || summary || "").toString().trim();
               })()}
             </div>
 
-            <div class="menu-group">
-              <a class="menu-link has-sub" href="/stay">Stay</a>
-              {(() => {
-                const cols = colsFor(stayMenu.length + 1);
-                const wide = cols > 1 ? "wide" : "";
-                return (
-                  <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                    {stayMenu.map(s => <a href={`/stay/${s.slug}`}>{s.title}</a>)}
-                    <a class="view-all" href="/stay">ALL STAYS</a>
-                  </div>
-                );
-              })()}
-            </div>
+        
 
             <div class="menu-group">
               <a class="menu-link has-sub" href="/xtraarea">Other Areas</a>
@@ -385,6 +373,19 @@ const metaDescription = (seo_description || summary || "").toString().trim();
                   <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
                     {todoMenu.map(t => <a href={`/to_do/${t.slug}`}>{t.title}</a>)}
                     <a class="view-all" href="/to_do">ALL THINGS TO DO</a>
+                  </div>
+                );
+              })()}
+            </div>
+    <div class="menu-group">
+              <a class="menu-link has-sub" href="/stay">Stay</a>
+              {(() => {
+                const cols = colsFor(stayMenu.length + 1);
+                const wide = cols > 1 ? "wide" : "";
+                return (
+                  <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
+                    {stayMenu.map(s => <a href={`/stay/${s.slug}`}>{s.title}</a>)}
+                    <a class="view-all" href="/stay">ALL STAYS</a>
                   </div>
                 );
               })()}
