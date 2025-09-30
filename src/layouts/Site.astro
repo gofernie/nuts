@@ -55,11 +55,11 @@ async function fetchMenu(url?: string): Promise<MenuItem[]> {
 let neighbourhoods:MenuItem[] = await fetchMenu(import.meta.env.PUBLIC_SHEET_JSON);
 let typesMenu:MenuItem[]      = await fetchMenu(import.meta.env.PUBLIC_TYPES_JSON);
 let xtraMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_XTRAAREA_JSON);
-let todoMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_TODO_JSON);
+let todoMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_TODO_JSON); // still fetched, even if not listed
 
 /** ---------- helpers ---------- */
 const ROWS_PER_COL = 7;
-const colsFor = (n:number) => Math.min(6, Math.max(1, Math.ceil(n / ROWS_PER_COL)));
+const colsFor = (n:number) => Math.min(6, Math.ceil(n / ROWS_PER_COL));
 
 const metaDescription = (seo_description || summary || "").toString().trim();
 
@@ -121,14 +121,16 @@ const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> 
       .menu-group{ position:relative; margin:0 2px; }
       .menu-link.has-sub::after{ content:" ▾"; opacity:.8; }
 
+      /* Dropdown: auto-size columns to fit content */
       .dropdown{
         position:absolute; left:0; top:calc(100% + 21px);
         background:rgba(255,255,255,0.9); backdrop-filter:blur(6px);
         border:1px solid rgba(229,231,235,.7); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.08);
         display:grid; grid-auto-flow: column;
         grid-template-rows: repeat(7, auto);
-        grid-auto-columns: 220px; gap: 6px 12px; padding: 10px;
-        width: max-content; max-width: calc(min(92vw, var(--cols, 1) * 240px));
+        grid-auto-columns: max-content;
+        gap: 6px 12px; padding: 10px;
+        width: max-content; max-width: 92vw;
         opacity:0; transform:translateY(-12px); pointer-events:none; visibility:visible;
         transition:transform .28s cubic-bezier(.2,.7,.2,1), opacity .22s ease-out;
         z-index:1100;
@@ -139,7 +141,7 @@ const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> 
       .dropdown > a{ display:block; padding:8px 10px; line-height:1.35; white-space:normal;
         text-decoration:none; border-radius:6px; color:var(--ink-muted);
         transition: background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease, font-weight .15s ease; }
-      .dropdown > a:hover{ background:#fff; color:var(--ink); font-weight:600;
+      .dropdown > a:hover{ background:#fff; color:#111827; font-weight:600;
         box-shadow:0 1px 3px rgba(0,0,0,0.08); transform:translateY(-1px); }
 
       @media (min-width:769px){
@@ -262,7 +264,7 @@ const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> 
                     <div class="menu-group">
                       <a class="menu-link has-sub" href="/stay">Stay</a>
                       <div class="dropdown" style="--cols:1;">
-                        <a class="view-all" href="/stay">ALL STAYS</a>
+                        <a class="view-all" href="/stay">ALL PLACES TO STAY</a>
                         <a href="/stay#hotels">Hotels</a>
                         <a href="/stay#airbnb">Airbnb</a>
                       </div>
@@ -299,15 +301,12 @@ const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> 
                   case "todo": return (
                     <div class="menu-group">
                       <a class="menu-link has-sub" href="/to_do">To Do</a>
-                      {(() => {
-                        const cols=colsFor(todoMenu.length+1); const wide=cols>1?"wide":"";
-                        return (
-                          <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                            <a class="view-all" href="/to_do">ALL THINGS TO DO</a>
-                            {todoMenu.map(t=><a href={`/to_do/${t.slug}`}>{t.title}</a>)}
-                          </div>
-                        );
-                      })()}
+                      {/* Anchored filters only; no item listing */}
+                      <div class="dropdown" style="--cols:1;">
+                        <a class="view-all" href="/to_do">ALL THINGS TO DO</a>
+                        <a href="/to_do#summer">Summer</a>
+                        <a href="/to_do#winter">Winter</a>
+                      </div>
                     </div>
                   );
                   case "contact": return <a class="menu-link" href="/contact">Contact</a>;

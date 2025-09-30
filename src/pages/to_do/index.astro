@@ -5,7 +5,7 @@ import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
 const url = import.meta.env.PUBLIC_TODO_JSON;
-const PATH_BASE = "/to_do"; // <- detail pages live under /to_do
+const PATH_BASE = "/to_do"; // detail pages live under /to_do
 
 type Row = {
   slug?: string;
@@ -15,6 +15,8 @@ type Row = {
   status?: string;
   seo_title?: string;
   seo_description?: string;
+  category?: string;  // summer | winter | both (case-insensitive; trims spaces)
+  sort?: number;
 };
 
 let items: Row[] = [];
@@ -38,6 +40,17 @@ try {
     const title = get(r,"title");
     const computedSlug = (title||"").toLowerCase()
       .replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+
+    // normalize category
+    const rawCat = get(r,"category").toLowerCase().replace(/\s+/g,"");
+    const category =
+      rawCat === "summer" ? "summer" :
+      rawCat === "winter" ? "winter" :
+      rawCat === "both"   ? "both"   :
+      ""; // anything else -> unclassified (won't render)
+
+    const sort = Number.isFinite(+r?.sort) ? +r.sort : Number.MAX_SAFE_INTEGER;
+
     return {
       slug: get(r,"slug") || computedSlug,
       title,
@@ -46,6 +59,8 @@ try {
       status: get(r,"status"),
       seo_title: get(r,"seo_title"),
       seo_description: get(r,"seo_description"),
+      category,
+      sort,
     };
   };
 
@@ -61,8 +76,12 @@ try {
       r.slug.toLowerCase()!=="index" &&
       !/^draft$/i.test(r.status ?? "") &&
       !/^hidden$/i.test(r.status ?? "") &&
-      !/^inactive$/i.test(r.status ?? "")
+      !/^inactive$/i.test(r.status ?? "") &&
+      !!r.category // must be summer|winter|both
   );
+
+  // sort by 'sort' then by title
+  items.sort((a,b) => (a.sort! - b.sort!) || a.title!.localeCompare(b.title!));
 } catch (e:any) {
   error = e?.message || String(e);
 }
@@ -72,6 +91,10 @@ const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
 // ✅ SEO from sheet
 const pageSeoTitle = header?.seo_title || header?.title || "Things To Do in Fernie";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
+
+// Build groups (items with "both" appear in both arrays)
+const summer = items.filter(i => i.category === "summer" || i.category === "both");
+const winter = items.filter(i => i.category === "winter" || i.category === "both");
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
@@ -104,14 +127,57 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
   </div>
 
   <div class="container">
-    <section class="grid-wrap">
-      {error ? (
-        <p class="error">Error: {error}</p>
-      ) : items.length === 0 ? (
-        <p>No activities yet. Check <code>PUBLIC_TODO_JSON</code> or add rows to your sheet.</p>
-      ) : (
-        <div class="grid">
-          {items.map((n) => {
+    {error && <p class="error">Error: {error}</p>}
+
+    {!error && items.length === 0 && (
+      <p>No activities yet. Check <code>PUBLIC_TODO_JSON</code> and your sheet’s <code>status</code>/<code>slug</code>/<code>category</code> columns.</p>
+    )}
+
+    {summer.length > 0 && (
+      <section class="group anchor-target" id="summer">
+        <h2 class="group-title">Summer Activities</h2>
+        <div class={`grid ${summer.length === 1 ? "single" : ""}`}>
+          {summer.map((n) => {
+            const primary = n.hero_img ? heroPath(n.hero_img) : "";
+            const altBase = primary.includes("/images/")
+              ? primary.replace("/images/", "/img/")
+              : primary.replace("/img/", "/images/");
+            const filename = (primary.split("/").pop() || "").trim();
+            const finalFallback = filename ? `/img/hero/${filename}` : "";
+
+            return (
+              <a class="card" href={`${PATH_BASE}/${n.slug}`}>
+                <div class="thumb">
+                  {primary ? (
+                    <img
+                      src={primary}
+                      alt={n.title}
+                      loading="lazy"
+                      decoding="async"
+                      onerror={`if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
+                               else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
+                               else { const ph = document.createElement('div'); ph.className='ph'; ph.setAttribute('aria-hidden','true'); ph.textContent='No image'; this.replaceWith(ph); }`}
+                    />
+                  ) : (
+                    <div class="ph" aria-hidden="true">No image</div>
+                  )}
+                </div>
+                <div class="body">
+                  <strong>{n.title}</strong>
+                  {n.summary && <p>{(n.summary).split(/\s+/).slice(0,11).join(" ") + ((n.summary).split(/\s+/).length>10 ? "…" : "")}</p>}
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      </section>
+    )}
+
+    {winter.length > 0 && (
+      <section class="group anchor-target" id="winter">
+        <h2 class="group-title">Winter Activities</h2>
+        <div class={`grid ${winter.length === 1 ? "single" : ""}`}>
+          {winter.map((n) => {
             const primary = n.hero_img ? heroPath(n.hero_img) : "";
             const altBase = primary.includes("/images/")
               ? primary.replace("/images/", "/img/")
@@ -144,8 +210,8 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
             );
           })}
         </div>
-      )}
-    </section>
+      </section>
+    )}
   </div>
 
   <style>
@@ -155,12 +221,17 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px 0; color: #111827; }
     .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
 
-    .grid-wrap { margin-top: 24px; }
+    .group { margin: 28px 0; }
+    .group-title { margin: 0 0 10px; font-size: 1.4rem; font-weight: 800; color:#111827; }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 16px;
     }
+    /* keep single-card sections visually consistent (not full-width) */
+    .grid.single { grid-template-columns: clamp(240px, 45vw, 320px); justify-content: start; }
+    .grid.single > .card { max-width: 320px; }
 
     .card {
       display: flex; flex-direction: column;
@@ -175,7 +246,7 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     /* 16:9 locked thumbnails */
     .thumb {
       position: relative;
-      aspect-ratio: 16 / 9;
+      aspect-ratio: 16 / 6;
       background: #f6f6f6;
       overflow: hidden;
     }
@@ -200,5 +271,8 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     .body { padding: 12px; }
     .body p { margin: .4rem 0 0 0; color: #555; font-size: .95rem; line-height: 1.35; }
     .error { color: #b00; }
+
+    /* nice anchor offset when linked from nav (if you add anchors) */
+    .anchor-target { scroll-margin-top: calc(var(--header-h) + 25px); }
   </style>
 </Site>
