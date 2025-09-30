@@ -57,6 +57,7 @@ let neighbourhoods:MenuItem[] = await fetchMenu(import.meta.env.PUBLIC_SHEET_JSO
 let typesMenu:MenuItem[]      = await fetchMenu(import.meta.env.PUBLIC_TYPES_JSON);
 let xtraMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_XTRAAREA_JSON);
 let todoMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_TODO_JSON);
+let stayMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_STAY_JSON); // ⬅ NEW
 
 /** ---------- helpers ---------- */
 const ROWS_PER_COL = 7; // match CSS
@@ -342,6 +343,20 @@ const metaDescription = (seo_description || summary || "").toString().trim();
                   <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
                     {typesMenu.map(t => <a href={`/types/${t.slug}`}>{t.title}</a>)}
                     <a class="view-all" href="/types">ALL PROPERTY TYPES</a>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div class="menu-group">
+              <a class="menu-link has-sub" href="/stay">Stay</a>
+              {(() => {
+                const cols = colsFor(stayMenu.length + 1);
+                const wide = cols > 1 ? "wide" : "";
+                return (
+                  <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
+                    {stayMenu.map(s => <a href={`/stay/${s.slug}`}>{s.title}</a>)}
+                    <a class="view-all" href="/stay">ALL STAYS</a>
                   </div>
                 );
               })()}
