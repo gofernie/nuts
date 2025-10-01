@@ -119,43 +119,109 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
 
-<div class="container"><h2>hi there</h2></div>
+  <div class="container"><h2>hi there555</h2></div>
 
+  <!-- ✅ MRP container with skeleton placeholder -->
+  <div class="container">
+    <div id="mrp-container" aria-busy="true">
+      <div id="mrp-skeleton" class="mrp-skeleton grid" aria-hidden="true">
+        <div class="s-card">
+          <div class="s-thumb shimmer"></div>
+          <div class="s-line shimmer" style="width: 70%"></div>
+          <div class="s-line shimmer" style="width: 45%"></div>
+        </div>
+        <div class="s-card">
+          <div class="s-thumb shimmer"></div>
+          <div class="s-line shimmer" style="width: 65%"></div>
+          <div class="s-line shimmer" style="width: 40%"></div>
+        </div>
+        <div class="s-card">
+          <div class="s-thumb shimmer"></div>
+          <div class="s-line shimmer" style="width: 80%"></div>
+          <div class="s-line shimmer" style="width: 50%"></div>
+        </div>
+        <div class="s-card">
+          <div class="s-thumb shimmer"></div>
+          <div class="s-line shimmer" style="width: 60%"></div>
+          <div class="s-line shimmer" style="width: 35%"></div>
+        </div>
+        <div class="s-card">
+          <div class="s-thumb shimmer"></div>
+          <div class="s-line shimmer" style="width: 72%"></div>
+          <div class="s-line shimmer" style="width: 48%"></div>
+        </div>
+        <div class="s-card">
+          <div class="s-thumb shimmer"></div>
+          <div class="s-line shimmer" style="width: 66%"></div>
+          <div class="s-line shimmer" style="width: 42%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<div class="container" id="mrp-container"></div>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const target = document.getElementById("mrp-container");
+      const skeleton = document.getElementById("mrp-skeleton");
 
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const target = document.getElementById("mrp-container");
+      const removeSkeleton = () => {
+        if (skeleton && skeleton.parentNode) {
+          skeleton.parentNode.removeChild(skeleton);
+        }
+        target?.setAttribute("aria-busy", "false");
+      };
 
-    const loadMrp = () => {
-      if (!document.getElementById("mrpscript")) {
-        const s = document.createElement("script");
-        s.id = "mrpscript";
-        s.src = "https://idx.myrealpage.com/wps/rest/66350/l/idx2/mylistings/tmpl~v2,noframe~true/-/mylistings(all-office-274487).def/in.js";
-        s.async = true;
-        target.appendChild(s);
-      }
-    };
+      const loadMrp = () => {
+        if (!document.getElementById("mrpscript")) {
+          const s = document.createElement("script");
+          s.id = "mrpscript";
+          s.src = "https://idx.myrealpage.com/wps/rest/66350/l/idx2/mylistings/tmpl~v2,noframe~true/-/mylistings(all-office-274487).def/in.js";
+          s.async = true;
 
-    // Use IntersectionObserver for lazy load
-    if ("IntersectionObserver" in window) {
-      const observer = new IntersectionObserver((entries, obs) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            loadMrp();
-            obs.unobserve(entry.target);
+          // Remove skeleton when script loads (most cases)
+          s.addEventListener("load", () => {
+            // Some widgets render after load; also keep the mutation observer below.
+            // If content is already there, remove now; otherwise the observer will catch it.
+            setTimeout(() => {
+              if (target && target.children.length > 0) removeSkeleton();
+            }, 0);
+          });
+
+          target.appendChild(s);
+        }
+      };
+
+      // Watch for the IDX injecting content; remove skeleton on first real node
+      const mo = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          for (const node of m.addedNodes) {
+            if (node.nodeType === 1 /* ELEMENT_NODE */ && (node as Element).id !== "mrp-skeleton") {
+              removeSkeleton();
+              mo.disconnect();
+              return;
+            }
           }
-        });
+        }
       });
-      observer.observe(target);
-    } else {
-      // Fallback if IntersectionObserver not supported
-      loadMrp();
-    }
-  });
-</script>
+      if (target) mo.observe(target, { childList: true, subtree: true });
 
+      // Lazy-load via IntersectionObserver
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver((entries, obs) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              loadMrp();
+              obs.unobserve(entry.target);
+            }
+          });
+        }, { rootMargin: "200px 0px" });
+        observer.observe(target);
+      } else {
+        // Fallback if IntersectionObserver not supported
+        loadMrp();
+      }
+    });
+  </script>
 
   <div class="container">
     <section class="grid-wrap">
@@ -237,5 +303,20 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     .body p { margin:.4rem 0 0 0; color:#555; font-size:.95rem; line-height:1.35; }
 
     .error { color:#b00; }
-  </style>
-</Site>
+
+    /* ✅ Reserve space to avoid layout shift */
+    #mrp-container { min-height: 600px; }
+
+    /* ✅ Skeleton styles */
+    .mrp-skeleton.grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      padding: 8px 0;
+    }
+    .s-card {
+      border:1px solid #eee; border-radius:12px; overflow:hidden; background:#fff;
+      box-shadow:0 1px 3px rgba(0,0,0,0.05);
+      display:flex; flex-direction:column; padding:0 12px 12px 12px;
+    }
+    .s-th
