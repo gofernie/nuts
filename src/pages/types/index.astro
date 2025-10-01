@@ -118,9 +118,44 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     <h1>{header?.title || pageSeoTitle}</h1>
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
- <div class="container">
-  <script id="mrpscript" src="https://idx.myrealpage.com/wps/rest/66350/l/idx2/mylistings/tmpl~v2,noframe~true/-/mylistings(all-office-274487).def/in.js" async></script>
-</div>
+
+<div class="container"><h2>hi there</h2></div>
+
+
+<div class="container" id="mrp-container"></div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const target = document.getElementById("mrp-container");
+
+    const loadMrp = () => {
+      if (!document.getElementById("mrpscript")) {
+        const s = document.createElement("script");
+        s.id = "mrpscript";
+        s.src = "https://idx.myrealpage.com/wps/rest/66350/l/idx2/mylistings/tmpl~v2,noframe~true/-/mylistings(all-office-274487).def/in.js";
+        s.async = true;
+        target.appendChild(s);
+      }
+    };
+
+    // Use IntersectionObserver for lazy load
+    if ("IntersectionObserver" in window) {
+      const observer = new IntersectionObserver((entries, obs) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            loadMrp();
+            obs.unobserve(entry.target);
+          }
+        });
+      });
+      observer.observe(target);
+    } else {
+      // Fallback if IntersectionObserver not supported
+      loadMrp();
+    }
+  });
+</script>
+
 
   <div class="container">
     <section class="grid-wrap">
