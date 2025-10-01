@@ -119,110 +119,88 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
 
-  <div class="container"><h2>hi there555</h2></div>
+  <div class="container"><h2>hi there skeleton</h2></div>
 
   <!-- ✅ MRP container with skeleton placeholder -->
+
   <div class="container">
-    <div id="mrp-container" aria-busy="true">
-      <div id="mrp-skeleton" class="mrp-skeleton grid" aria-hidden="true">
-        <div class="s-card">
-          <div class="s-thumb shimmer"></div>
-          <div class="s-line shimmer" style="width: 70%"></div>
-          <div class="s-line shimmer" style="width: 45%"></div>
-        </div>
-        <div class="s-card">
-          <div class="s-thumb shimmer"></div>
-          <div class="s-line shimmer" style="width: 65%"></div>
-          <div class="s-line shimmer" style="width: 40%"></div>
-        </div>
-        <div class="s-card">
-          <div class="s-thumb shimmer"></div>
-          <div class="s-line shimmer" style="width: 80%"></div>
-          <div class="s-line shimmer" style="width: 50%"></div>
-        </div>
-        <div class="s-card">
-          <div class="s-thumb shimmer"></div>
-          <div class="s-line shimmer" style="width: 60%"></div>
-          <div class="s-line shimmer" style="width: 35%"></div>
-        </div>
-        <div class="s-card">
-          <div class="s-thumb shimmer"></div>
-          <div class="s-line shimmer" style="width: 72%"></div>
-          <div class="s-line shimmer" style="width: 48%"></div>
-        </div>
-        <div class="s-card">
-          <div class="s-thumb shimmer"></div>
-          <div class="s-line shimmer" style="width: 66%"></div>
-          <div class="s-line shimmer" style="width: 42%"></div>
-        </div>
+  <div id="mrp-container" aria-busy="true">
+    <!-- Skeleton -->
+    <div id="mrp-skeleton" class="mrp-skeleton grid" aria-hidden="true">
+      <div class="s-card">
+        <div class="s-thumb shimmer"></div>
+        <div class="s-line shimmer" style="width:70%"></div>
+        <div class="s-line shimmer" style="width:45%"></div>
       </div>
+      <!-- ...repeat a few cards... -->
     </div>
+
+    <!-- Dedicated mount for IDX injection -->
+    <div id="mrp-mount"></div>
   </div>
+</div>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const target = document.getElementById("mrp-container");
-      const skeleton = document.getElementById("mrp-skeleton");
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const container = document.getElementById("mrp-container");
+    const skeleton  = document.getElementById("mrp-skeleton");
+    const mount     = document.getElementById("mrp-mount");
 
-      const removeSkeleton = () => {
-        if (skeleton && skeleton.parentNode) {
-          skeleton.parentNode.removeChild(skeleton);
-        }
-        target?.setAttribute("aria-busy", "false");
-      };
+    if (!container || !skeleton || !mount) return;
 
-      const loadMrp = () => {
-        if (!document.getElementById("mrpscript")) {
-          const s = document.createElement("script");
-          s.id = "mrpscript";
-          s.src = "https://idx.myrealpage.com/wps/rest/66350/l/idx2/mylistings/tmpl~v2,noframe~true/-/mylistings(all-office-274487).def/in.js";
-          s.async = true;
+    const removeSkeleton = () => {
+      skeleton.style.display = "none";
+      container.setAttribute("aria-busy", "false");
+    };
 
-          // Remove skeleton when script loads (most cases)
-          s.addEventListener("load", () => {
-            // Some widgets render after load; also keep the mutation observer below.
-            // If content is already there, remove now; otherwise the observer will catch it.
-            setTimeout(() => {
-              if (target && target.children.length > 0) removeSkeleton();
-            }, 0);
-          });
+    const loadMrp = () => {
+      if (document.getElementById("mrpscript")) return; // prevent double-load
+      const s = document.createElement("script");
+      s.id  = "mrpscript";
+      s.src = "https://idx.myrealpage.com/wps/rest/66350/l/idx2/mylistings/tmpl~v2,noframe~true/-/mylistings(all-office-274487).def/in.js";
+      s.async = true;
 
-          target.appendChild(s);
-        }
-      };
-
-      // Watch for the IDX injecting content; remove skeleton on first real node
-      const mo = new MutationObserver((mutations) => {
-        for (const m of mutations) {
-          for (const node of m.addedNodes) {
-            if (node.nodeType === 1 /* ELEMENT_NODE */ && (node as Element).id !== "mrp-skeleton") {
-              removeSkeleton();
-              mo.disconnect();
-              return;
-            }
-          }
-        }
+      // Fallback: if the script fires 'load' but no DOM injected yet, the MO will still catch it.
+      s.addEventListener("load", () => {
+        // no-op, MutationObserver below will handle DOM insertion reliably
       });
-      if (target) mo.observe(target, { childList: true, subtree: true });
+      s.addEventListener("error", () => {
+        // keep skeleton visible or swap to an error state if you want
+        console.error("MRP script failed to load");
+      });
 
-      // Lazy-load via IntersectionObserver
-      if ("IntersectionObserver" in window) {
-        const observer = new IntersectionObserver((entries, obs) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              loadMrp();
-              obs.unobserve(entry.target);
-            }
-          });
-        }, { rootMargin: "200px 0px" });
-        observer.observe(target);
-      } else {
-        // Fallback if IntersectionObserver not supported
-        loadMrp();
+      mount.appendChild(s);
+    };
+
+    // Hide skeleton the moment real nodes (not just the script tag) appear under mount
+    const mo = new MutationObserver(() => {
+      const hasRealContent = Array.from(mount.children).some(
+        n => n.tagName !== "SCRIPT"
+      ) || mount.querySelector("*:not(script)");
+      if (hasRealContent) {
+        removeSkeleton();
+        mo.disconnect();
       }
     });
-  </script>
+    mo.observe(mount, { childList: true, subtree: true });
 
+    // Lazy-load when near viewport
+    if ("IntersectionObserver" in window) {
+      const io = new IntersectionObserver((entries, obs) => {
+        if (entries[0]?.isIntersecting) {
+          loadMrp();
+          obs.disconnect();
+        }
+      }, { rootMargin: "200px 0px" });
+      io.observe(container);
+    } else {
+      loadMrp();
+    }
+  });
+</script>
+
+
+  
   <div class="container">
     <section class="grid-wrap">
       {error ? (
