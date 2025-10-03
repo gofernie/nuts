@@ -166,11 +166,13 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
     .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
 
     /* Listings embed */
-    .embed-wrap {
-      margin: 32px auto;
-      background: #fff;          /* white background */
-      padding: 0;                /* flush, no extra padding */
-    }
+  .embed-wrap {
+  margin: 32px auto;
+  background: #fff;          /* white background */
+  padding: 0;
+  border-radius: 12px;       /* ✅ rounded corners */
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08); /* optional soft shadow */
+}
     .mrp-container {
       max-width: var(--content-max, 1100px); /* aligns with intro width */
       margin: 0 auto;
