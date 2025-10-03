@@ -171,14 +171,14 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
     /* Intro width baseline */
     .intro {
       margin: 24px auto 20px;
-      max-width: var(--content-max, 1100px);
+      max-width: 1200px; /* match index */
     }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
     .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
 
     /* Inner white card that matches intro width exactly */
     .embed-card {
-      max-width: var(--content-max, 1100px); /* matches .intro */
+      max-width: 1200px; /* match index */
       margin: 32px auto;
       background: #fff !important;
       padding: 20px;
