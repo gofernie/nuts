@@ -13,9 +13,9 @@ type Row = {
   status?: string;
   seo_title?: string;
   seo_description?: string;
-  cta1?: string; // image path or URL
-  cta2?: string; // CTA title
-  cta3?: string; // CTA copy
+  cta1?: string; // kept in type for sheet compatibility (unused here)
+  cta2?: string;
+  cta3?: string;
 };
 
 let items: Row[] = [];
@@ -60,13 +60,13 @@ try {
 
   const normalized = rows.map(normalize);
 
-  // Prefer explicit index row; otherwise fall back to first row that has cta1 populated.
+  // Prefer explicit index row; otherwise first row with cta1 (legacy) or null
   header =
     normalized.find(r => (r.slug ?? "").toLowerCase() === "index") ??
     normalized.find(r => !!r.cta1) ??
     null;
 
-  // Visible cards (exclude index + draft/hidden/inactive)
+  // Visible cards only (no index/drafts)
   items = normalized.filter(
     (r) =>
       r.slug && r.title &&
@@ -79,10 +79,7 @@ try {
   error = e?.message || String(e);
 }
 
-// Resolve images:
-// - full URL: use as-is
-// - leading "/": use as-is
-// - bare filename: run through heroPath
+// Resolve images
 const resolveImg = (v?: string) => {
   const s = (v || "").trim();
   if (!s) return "";
@@ -96,32 +93,6 @@ const heroSrc = resolveImg(header?.hero_img);
 // SEO
 const pageSeoTitle = header?.seo_title || header?.title || "Fernie Neighbourhoods";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
-
-/* === CTA CONFIG + INSERTION (cta1 image, cta2 title, cta3 copy) ======== */
-type CtaCard = { _kind:"cta"; src:string; title?:string; copy?:string; alt:string; href?:string };
-
-const ctaSrcResolved = resolveImg(header?.cta1) || "/img/hero/puppy.webp";
-const ctaTitle = (header?.cta2 || "").trim() || "Let’s talk Fernie real estate";
-const ctaCopy  = (header?.cta3 || "").trim() || "Book a quick call to discuss neighborhoods, investment options, and next steps.";
-
-const CTA: CtaCard = {
-  _kind: "cta",
-  src: ctaSrcResolved,
-  title: ctaTitle,
-  copy: ctaCopy,
-  alt: ctaTitle,
-  href: "/contact"
-};
-
-function withRandomCTA(list: Row[]): (Row | CtaCard)[] {
-  if (!Array.isArray(list) || list.length === 0) return list; // never first if empty
-  const insertAt = 1 + Math.floor(Math.random() * list.length); // 1..length
-  const out = list.slice();
-  out.splice(insertAt, 0, CTA);
-  return out;
-}
-
-const cards = withRandomCTA(items);
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
@@ -161,38 +132,7 @@ const cards = withRandomCTA(items);
         <p>No neighbourhoods yet. Check your <code>PUBLIC_SHEET_JSON</code> URL or add rows to your sheet.</p>
       ) : (
         <div class="grid">
-          {cards.map((n) => {
-            // CTA card with image (cta1), title (cta2), copy (cta3)
-            if ((n as any)._kind === "cta") {
-              const c = n as CtaCard;
-              return c.href ? (
-                <a class="card cta" href={c.href} aria-label={c.alt}>
-                  <div class="thumb">
-                    <img src={c.src} alt={c.alt} loading="lazy" decoding="async" />
-                  </div>
-                  {(c.title || c.copy) && (
-                    <div class="body">
-                      {c.title && <strong>{c.title}</strong>}
-                      {c.copy && <p>{c.copy}</p>}
-                    </div>
-                  )}
-                </a>
-              ) : (
-                <div class="card cta">
-                  <div class="thumb">
-                    <img src={c.src} alt={c.alt} loading="lazy" decoding="async" />
-                  </div>
-                  {(c.title || c.copy) && (
-                    <div class="body">
-                      {c.title && <strong>{c.title}</strong>}
-                      {c.copy && <p>{c.copy}</p>}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            // Normal neighbourhood card
+          {items.map((n) => {
             const primary = resolveImg(n.hero_img);
             const altBase = primary.includes("/images/")
               ? primary.replace("/images/", "/img/")
@@ -209,17 +149,9 @@ const cards = withRandomCTA(items);
                       alt={n.title}
                       loading="lazy"
                       decoding="async"
-                      onerror={`
-                        if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
-                        else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
-                        else {
-                          const ph = document.createElement('div');
-                          ph.className = 'ph';
-                          ph.setAttribute('aria-hidden','true');
-                          ph.textContent = 'No image';
-                          this.replaceWith(ph);
-                        }
-                      `}
+                      onerror={`if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
+                                else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
+                                else { const ph = document.createElement('div'); ph.className = 'ph'; ph.setAttribute('aria-hidden','true'); ph.textContent = 'No image'; this.replaceWith(ph); }`}
                     />
                   ) : (
                     <div class="ph" aria-hidden="true">No image</div>
@@ -261,11 +193,8 @@ const cards = withRandomCTA(items);
     }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 
-    /* CTA card keeps same image ratio as others */
     .thumb { aspect-ratio: 16/9; background: #f6f6f6; display: grid; place-items: center; }
     .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-    .card.cta { border: 1px solid #e5e7eb; background: #ffffff; }
 
     .ph { font-size: 12px; color: #999; }
     .body { padding: 12px; }

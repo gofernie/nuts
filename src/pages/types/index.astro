@@ -1,5 +1,4 @@
 ---
-// src/pages/types/index.astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -7,7 +6,6 @@ import { heroPath } from "../../lib/paths";
 const url = import.meta.env.PUBLIC_TYPES_JSON;
 
 type Row = {
-  // raw values from the sheet
   raw_slug?: string;
   title?: string;
   summary?: string;
@@ -15,7 +13,6 @@ type Row = {
   status?: string;
   seo_title?: string;
   seo_description?: string;
-  // derived for cards/links
   slug?: string;
 };
 
@@ -38,7 +35,7 @@ try {
 
   const normalize = (r:any): Row => {
     const title = get(r,"title");
-    const raw_slug = get(r,"slug"); // preserve sheet slug (may be blank)
+    const raw_slug = get(r,"slug");
     const computedSlug = (title||"").toLowerCase()
       .replace(/&/g,"-and-")
       .replace(/[^a-z0-9]+/g,"-")
@@ -52,44 +49,35 @@ try {
       status: get(r,"status"),
       seo_title: get(r,"seo_title"),
       seo_description: get(r,"seo_description"),
-      // used for cards/links
       slug: raw_slug || computedSlug,
     };
   };
 
   const normalized = rows.map(normalize);
 
-  // ✅ robust header detection:
-  // 1) explicit slug === "index", or 2) status === "header", or 3) blank raw slug
   header =
     normalized.find(r => (r.raw_slug ?? "").toLowerCase() === "index") ??
     normalized.find(r => (r.status ?? "").toLowerCase() === "header") ??
     normalized.find(r => !r.raw_slug) ??
     null;
 
-  // ✅ visible cards (exclude header row itself + hidden states)
   items = normalized.filter((r) => {
     if (!r.slug || !r.title) return false;
     if (header && r === header) return false;
     const s = (r.status ?? "").toLowerCase();
     return !["draft","hidden","inactive"].includes(s);
   });
-
-  // Optional build-time logs (helpful on Netlify)
-  console.log("[types/index] url:", url);
-  console.log("[types/index] rows:", rows.length, "items:", items.length);
-  console.log("[types/index] header:", header?.title ?? "(none)");
-  console.log("[types/index] header.seo_title:", header?.seo_title ?? "(none)");
-  console.log("[types/index] header.seo_description:", header?.seo_description ? "(present)" : "(none)");
 } catch (e:any) {
   error = e?.message || String(e);
 }
 
 const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
-
-// ✅ SEO pulled from header row, with sensible fallbacks
 const pageSeoTitle = header?.seo_title || header?.title || "Property Types";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
+
+/** 👉 Your exact MRP embed URL */
+const MRP_SCRIPT_SRC =
+  "https://idx.myrealpage.com/wps/rest/66350/l/idx2/recip/tmpl~v2,noframe~true/-/search-1425912.def/in.js";
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
@@ -119,132 +107,121 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
 
-  <div class="container"><h2>hi there skeleton</h2></div>
+  <div class="container"><h2>Is There Any Shift?</h2></div>
 
-  <!-- ✅ MRP container with skeleton placeholder -->
-
+  <!-- =========================
+       MRP — ZERO-TRANSITION OVERLAY
+       ========================= -->
   <div class="container">
-  <div id="mrp-container" aria-busy="true">
-    <!-- Skeleton -->
-    <div id="mrp-skeleton" class="mrp-skeleton grid" aria-hidden="true">
-      <div class="s-card">
-        <div class="s-thumb shimmer"></div>
-        <div class="s-line shimmer" style="width:70%"></div>
-        <div class="s-line shimmer" style="width:45%"></div>
+    <div id="mrp-wrap" aria-busy="true">
+      <!-- Overlay (absolute; contributes no height) -->
+      <div id="mrp-skeleton" role="status" aria-live="polite" aria-label="Loading listings">
+        <div class="skel">
+          <div class="bar" style="width: 42%"></div>
+          <div class="bar" style="width: 68%"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+        </div>
       </div>
-      <!-- ...repeat a few cards... -->
+
+      <!-- Mount point for MRP injection -->
+      <div id="mrp-mount"></div>
     </div>
-
-    <!-- Dedicated mount for IDX injection -->
-    <div id="mrp-mount"></div>
   </div>
-</div>
 
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const container = document.getElementById("mrp-container");
-    const skeleton  = document.getElementById("mrp-skeleton");
-    const mount     = document.getElementById("mrp-mount");
+  <script is:inline>
+    (function () {
+      const WRAP = document.getElementById('mrp-wrap');
+      const SKELETON = document.getElementById('mrp-skeleton');
+      const MOUNT = document.getElementById('mrp-mount');
+      if (!WRAP || !SKELETON || !MOUNT) return;
 
-    if (!container || !skeleton || !mount) return;
+      let hidden = false;
+      let idleTimer;
 
-    const removeSkeleton = () => {
-      skeleton.style.display = "none";
-      container.setAttribute("aria-busy", "false");
-    };
-
-    const loadMrp = () => {
-      if (document.getElementById("mrpscript")) return; // prevent double-load
-      const s = document.createElement("script");
-      s.id  = "mrpscript";
-      s.src = "https://idx.myrealpage.com/wps/rest/66350/l/idx2/mylistings/tmpl~v2,noframe~true/-/mylistings(all-office-274487).def/in.js";
-      s.async = true;
-
-      // Fallback: if the script fires 'load' but no DOM injected yet, the MO will still catch it.
-      s.addEventListener("load", () => {
-        // no-op, MutationObserver below will handle DOM insertion reliably
-      });
-      s.addEventListener("error", () => {
-        // keep skeleton visible or swap to an error state if you want
-        console.error("MRP script failed to load");
-      });
-
-      mount.appendChild(s);
-    };
-
-    // Hide skeleton the moment real nodes (not just the script tag) appear under mount
-    const mo = new MutationObserver(() => {
-      const hasRealContent = Array.from(mount.children).some(
-        n => n.tagName !== "SCRIPT"
-      ) || mount.querySelector("*:not(script)");
-      if (hasRealContent) {
-        removeSkeleton();
-        mo.disconnect();
+      function widgetLooksReady() {
+        // script + at least one non-script child, or any non-script descendant
+        return MOUNT.childElementCount > 1 || MOUNT.querySelector('*:not(script)');
       }
-    });
-    mo.observe(mount, { childList: true, subtree: true });
 
-    // Lazy-load when near viewport
-    if ("IntersectionObserver" in window) {
-      const io = new IntersectionObserver((entries, obs) => {
-        if (entries[0]?.isIntersecting) {
-          loadMrp();
-          obs.disconnect();
-        }
-      }, { rootMargin: "200px 0px" });
-      io.observe(container);
-    } else {
-      loadMrp();
-    }
-  });
-</script>
+      function hideOverlayNow() {
+        if (hidden) return;
+        hidden = true;
+        WRAP.setAttribute('aria-busy', 'false');
+        // no transition; avoid blended repaints
+        SKELETON.style.visibility = 'hidden';
+        SKELETON.style.opacity = '0';
+        // remove next frame to keep paint stable
+        requestAnimationFrame(() => {
+          if (SKELETON && SKELETON.parentNode) SKELETON.remove();
+        });
+      }
 
+      function scheduleHideIfReady() {
+        if (!widgetLooksReady() || hidden) return;
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(hideOverlayNow, 350); // wait for DOM to settle
+      }
 
-  
+      const observer = new MutationObserver(scheduleHideIfReady);
+      observer.observe(MOUNT, { childList: true, subtree: true });
+
+      function loadMrpScript() {
+        if (document.getElementById('mrp-script')) return;
+        const s = document.createElement('script');
+        s.id = 'mrp-script';
+        s.src = MRP_SCRIPT_SRC;
+        s.async = true;
+        s.addEventListener('load', scheduleHideIfReady);
+        s.addEventListener('error', () => console.error("MRP script failed to load"));
+        MOUNT.appendChild(s);
+      }
+
+      if ('IntersectionObserver' in window) {
+        const io = new IntersectionObserver((entries, obs) => {
+          if (entries[0]?.isIntersecting) {
+            loadMrpScript();
+            obs.disconnect();
+          }
+        }, { rootMargin: '200px 0px' });
+        io.observe(WRAP);
+      } else {
+        loadMrpScript();
+      }
+
+      // Hard fallback (never shimmer forever)
+      setTimeout(() => {
+        if (!hidden) hideOverlayNow();
+      }, 8000);
+    })();
+  </script>
+
+  <!-- ======================
+       Your existing grid/cards
+       ====================== -->
   <div class="container">
     <section class="grid-wrap">
       {error ? (
         <p class="error">Error: {error}</p>
       ) : items.length === 0 ? (
-        <p>No property types yet. Check your <code>PUBLIC_TYPES_JSON</code> or add rows to your sheet.</p>
+        <p>No property types yet.</p>
       ) : (
         <div class="grid">
           {items.map((n) => {
             const primary = n.hero_img ? heroPath(n.hero_img) : "";
-            const altBase = primary.includes("/images/")
-              ? primary.replace("/images/", "/img/")
-              : primary.replace("/img/", "/images/");
-            const filename = (primary.split("/").pop() || "").trim();
-            const finalFallback = filename ? `/img/hero/${filename}` : "";
-
             return (
               <a class="card" href={`/types/${n.slug}`}>
                 <div class="thumb">
                   {primary ? (
-                    <img
-                      src={primary}
-                      alt={n.title}
-                      loading="lazy"
-                      decoding="async"
-                      onerror={`
-                        if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
-                        else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
-                        else {
-                          const ph = document.createElement('div');
-                          ph.className = 'ph';
-                          ph.setAttribute('aria-hidden','true');
-                          ph.textContent = 'No image';
-                          this.replaceWith(ph);
-                        }
-                      `}
-                    />
+                    <img src={primary} alt={n.title} loading="lazy" decoding="async" />
                   ) : (
                     <div class="ph" aria-hidden="true">No image</div>
                   )}
                 </div>
                 <div class="body">
                   <strong>{n.title}</strong>
-                  {n.summary && <p>{(n.summary).split(/\s+/).slice(0,10).join(" ") + ((n.summary).split(/\s+/).length>10 ? "…" : "")}</p>}
+                  {n.summary && <p>{n.summary.split(/\s+/).slice(0,10).join(" ") + (n.summary.split(/\s+/).length>10 ? "…" : "")}</p>}
                 </div>
               </a>
             );
@@ -255,46 +232,43 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
   </div>
 
   <style>
-    .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 1rem; }
-    .intro { margin-top: 24px; margin-bottom: 20px; text-align: left; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px 0; color: #111827; }
-    .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+    .intro { margin-top: 24px; margin-bottom: 20px; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 8px; }
+    .intro p { font-size: 1rem; line-height: 1.6; }
 
-    .grid-wrap { margin-top: 24px; }
-    .grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
-    }
-
-    .card {
-      display:flex; flex-direction:column; background:#fff; border-radius:12px; overflow:hidden;
-      border:1px solid #eee; text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,0.05);
-      transform:translateY(0); transition: transform .25s ease, box-shadow .25s ease;
-    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .card { display:flex; flex-direction:column; background:#fff; border-radius:12px; overflow:hidden;
+            border:1px solid #eee; text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,0.05);
+            transition: transform .25s ease, box-shadow .25s ease; }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 
-    .thumb { aspect-ratio:16/9; background:#f6f6f6; display:grid; place-items:center; }
+    .thumb { aspect-ratio:16/9; background:#f6f6f6; }
     .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
 
-    .ph { font-size:12px; color:#999; }
     .body { padding:12px; }
-    .body p { margin:.4rem 0 0 0; color:#555; font-size:.95rem; line-height:1.35; }
+    .body p { margin-top:.4rem; color:#555; font-size:.95rem; line-height:1.35; }
 
     .error { color:#b00; }
 
-    /* ✅ Reserve space to avoid layout shift */
-    #mrp-container { min-height: 600px; }
+    /* ===== Zero-transition overlay + reserved space ===== */
+    :root { --mrp-min-height: 980px; } /* bump if needed; keeps layout steady */
+    #mrp-wrap { position: relative; min-height: var(--mrp-min-height); }
+    #mrp-mount { contain: layout style; }
 
-    /* ✅ Skeleton styles */
-    .mrp-skeleton.grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
-      padding: 8px 0;
+    #mrp-skeleton {
+      position: absolute; inset: 0;
+      display: grid; place-items: center;
+      background: #f8fafc;      /* static, no shimmer */
+      opacity: 1;               /* no CSS transition to avoid flashing */
+      visibility: visible;
+      pointer-events: none;     /* always ignore pointer */
+      z-index: 10;
     }
-    .s-card {
-      border:1px solid #eee; border-radius:12px; overflow:hidden; background:#fff;
-      box-shadow:0 1px 3px rgba(0,0,0,0.05);
-      display:flex; flex-direction:column; padding:0 12px 12px 12px;
-    }
-    .s-th
+    .skel { width: min(1100px, 92vw); display: grid; gap: 16px; }
+    .skel .bar { height: 18px; border-radius: 6px; background: #eef2f7; }
+    .skel .card { height: 220px; border-radius: 12px; background: #f1f5f9; }
+
+    @media (min-width: 1024px) { :root { --mrp-min-height: 1100px; } }
+  </style>
+</Site>

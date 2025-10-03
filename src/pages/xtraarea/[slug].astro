@@ -30,6 +30,8 @@ export async function getStaticPaths() {
       map_embed: get("map_embed"),
       long_copy: get("long_copy"),
       cta1: get("cta1"),
+      // NEW: take the MRP embed url from spare_1
+      embed_url: get("spare_1"),
       status: get("status"),
       seo_title: get("seo_title"),
       seo_description: get("seo_description"),
@@ -59,6 +61,7 @@ export async function getStaticPaths() {
         return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
       })(),
       long_copy: n.long_copy || "",
+      embed_url: n.embed_url || "",   // NEW
       // ✅ SEO props
       seo_title: n.seo_title || "",
       seo_description: n.seo_description || "",
@@ -67,7 +70,7 @@ export async function getStaticPaths() {
 }
 
 const {
-  title, summary, hero, map_embed, long_copy, cta1,
+  title, summary, hero, map_embed, long_copy, cta1, embed_url,
   seo_title, seo_description
 } = Astro.props as any;
 
@@ -107,6 +110,26 @@ const pageSeoDesc  = seo_description || summary || "";
     <h1>{title}</h1>
     {summary && <p>{summary}</p>}
   </div>
+
+  <!-- NEW: MRP embed injected below intro if spare_1 had a URL -->
+  {embed_url && (
+    <div class="container" aria-label="Listings">
+      <div id="mrp-embed" class="mrp-embed"></div>
+      <script>
+        // Avoid duplicate loads if this page rehydrates
+        (function() {
+          const id = "mrpscript";
+          if (!document.getElementById(id)) {
+            const s = document.createElement("script");
+            s.id = id;
+            s.src = "{embed_url}";
+            s.async = true;
+            document.currentScript?.parentElement?.appendChild(s);
+          }
+        })();
+      </script>
+    </div>
+  )}
 
   {map_embed && (
     <div class="container map-wrap">
