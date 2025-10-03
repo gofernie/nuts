@@ -116,13 +116,21 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
     {summary && <p>{summary}</p>}
   </div>
 
-  <!-- Listings embed -->
+  <!-- Listings embed (LAZY LOADED) -->
   {spare_1 && (
     <div class="container embed-wrap">
-      <div id="mrp-container" class="mrp-container">
+      <div id="mrp-container" class="mrp-container" aria-live="polite">
+        <!-- Skeleton to hold space & avoid CLS -->
+        <div id="mrp-skeleton" class="mrp-skeleton" aria-hidden="true">
+          <div class="sk-row"></div>
+          <div class="sk-row"></div>
+          <div class="sk-row"></div>
+        </div>
+
+        <!-- We stash the embed as data; JS will inject when near viewport -->
         {isUrl(spare_1)
-          ? <div set:html={`<script id="mrpscript" src="${spare_1}" async></script>`}></div>
-          : <div set:html={spare_1}></div>
+          ? <div id="mrp-embed-src" data-src={spare_1}></div>
+          : <template id="mrp-embed-html" data-type="html">{spare_1}</template>
         }
       </div>
     </div>
@@ -160,24 +168,45 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
     </div>
   )}
 
+  <!-- Page styles -->
   <style>
     .intro { margin: 24px auto 20px; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
     .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
 
-    /* Listings embed */
-  .embed-wrap {
-  margin: 32px auto;
-  background: #fff;          /* white background */
-  padding: 0;
-  border-radius: 12px;       /* ✅ rounded corners */
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08); /* optional soft shadow */
-}
-    .mrp-container {
-      max-width: var(--content-max, 1100px); /* aligns with intro width */
-      margin: 0 auto;
-      overflow: hidden;
+    /* Listings embed container — force WHITE background and show it around cards */
+    .embed-wrap {
+      margin: 32px auto;
+      background: #fff !important;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
     }
+    .mrp-container {
+      max-width: var(--content-max, 1100px);
+      margin: 0 auto;
+      overflow: visible;
+      background: transparent !important;
+    }
+
+    /* Skeleton (approximate card heights; light for perf) */
+    .mrp-skeleton { display: grid; gap: 16px; }
+    .mrp-skeleton .sk-row {
+      height: 220px;              /* mobile-friendly placeholder */
+      border-radius: 12px;
+      background:
+        linear-gradient(90deg, rgba(0,0,0,.06), rgba(0,0,0,.10), rgba(0,0,0,.06));
+      background-size: 200% 100%;
+      animation: sk 1.2s ease-in-out infinite;
+    }
+    @media (min-width: 769px) {
+      .mrp-skeleton .sk-row { height: 260px; }
+    }
+    @keyframes sk {
+      0% { background-position: 0% 0; }
+      100% { background-position: -200% 0; }
+    }
+
     .mrp-container iframe {
       width: 100% !important;
       display: block;
@@ -201,4 +230,172 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
     .long-copy h2{ font-size:1.5rem; border-left:4px solid #0a7bff; padding-left:.5rem; }
     .long-copy h3{ font-size:1.25rem; }
   </style>
+
+  <!-- Global: force inner backgrounds white & mobile 1-col -->
+  <style is:global>
+    /* Make inner MRP wrappers white too (some themes set their own bg) */
+    .embed-wrap .listing-results-view,
+    .embed-wrap .resultsContainer,
+    .embed-wrap .results,
+    .embed-wrap .searchResults,
+    .embed-wrap .mrp-grid,
+    .embed-wrap .result-grid,
+    .embed-wrap .mrp-listing-result,
+    .embed-wrap .mrp-listing,
+    .embed-wrap .result,
+    .embed-wrap .result-item,
+    .embed-wrap .srItem,
+    .embed-wrap .searchResultItem {
+      background-color: #fff !important;
+    }
+
+    /* Mobile: force ONE full-width card per row */
+    @media (max-width: 768px) {
+      .listing-results-view,
+      .results,
+      .resultsContainer,
+      .searchResults,
+      .mrp-grid,
+      .result-grid {
+        display: block !important;
+        grid-template-columns: 1fr !important;
+        column-gap: 0 !important;
+        row-gap: 0 !important;
+      }
+      .mrp-listing-result,
+      .mrp-listing,
+      .result,
+      .result-item,
+      .srItem,
+      .searchResultItem,
+      .listing-results-view > div,
+      .results > div,
+      .resultsContainer > div {
+        width: 100% !important;
+        max-width: 100% !important;
+        float: none !important;
+        clear: both !important;
+        display: block !important;
+        margin: 0 0 16px !important;
+        box-sizing: border-box !important;
+      }
+      .mrp-listing .photo,
+      .mrp-listing .details,
+      .mrp-listing-result .photo,
+      .mrp-listing-result .details,
+      .result .photo,
+      .result .details {
+        width: 100% !important;
+        float: none !important;
+        display: block !important;
+      }
+      .mrp-listing img,
+      .mrp-listing-result img,
+      .result img,
+      .srItem img,
+      .searchResultItem img {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        display: block !important;
+      }
+    }
+
+    /* Desktop: keep your 3-up (if MRP uses this) */
+    .mrp-listing-result { width: 33.333% !important; max-height: 490px; }
+  </style>
+
+  <!-- LAZY LOADER -->
+  <script>
+    (function(){
+      const container = document.getElementById('mrp-container');
+      if (!container) return;
+
+      const skeleton = document.getElementById('mrp-skeleton');
+      const srcHolder = document.getElementById('mrp-embed-src');
+      const htmlTpl   = document.getElementById('mrp-embed-html');
+
+      let loaded = false;
+
+      function removeSkeletonWhenReady() {
+        // If script injects content after load, watch for first child nodes
+        const done = () => skeleton && skeleton.parentNode && skeleton.parentNode.removeChild(skeleton);
+        if (!skeleton) return;
+
+        // If content already there, remove now
+        if (container && container.children.length > 0 && container.children[0] !== skeleton) {
+          done(); return;
+        }
+
+        const obs = new MutationObserver(() => {
+          if (container && container.querySelector(':not(#mrp-skeleton)')) {
+            obs.disconnect(); done();
+          }
+        });
+        obs.observe(container, { childList: true, subtree: true });
+
+        // Safety timeout to avoid hanging skeletons
+        setTimeout(() => { try { obs.disconnect(); } catch(e){} done(); }, 8000);
+      }
+
+      function injectEmbed() {
+        if (loaded) return;
+        loaded = true;
+
+        // URL embed -> create script tag now
+        if (srcHolder && srcHolder.dataset && srcHolder.dataset.src) {
+          const url = srcHolder.dataset.src;
+          const s = document.createElement('script');
+          s.id = 'mrpscript';
+          s.src = url;  // keep your original URL (MRP handles its own async)
+          s.async = true;
+
+          // Remove skeleton on load (best-effort; some widgets render after load)
+          s.addEventListener('load', removeSkeletonWhenReady);
+          s.addEventListener('error', removeSkeletonWhenReady);
+
+          container.appendChild(s);
+          removeSkeletonWhenReady();
+          return;
+        }
+
+        // Raw HTML embed -> materialize from template
+        if (htmlTpl && htmlTpl.content) {
+          container.appendChild(htmlTpl.content.cloneNode(true));
+          removeSkeletonWhenReady();
+          return;
+        }
+
+        // Nothing to inject; remove skeleton anyway
+        removeSkeletonWhenReady();
+      }
+
+      // Lazy: when near viewport
+      const io = ('IntersectionObserver' in window)
+        ? new IntersectionObserver((entries) => {
+            entries.forEach((e) => {
+              if (e.isIntersecting) {
+                io.disconnect();
+                injectEmbed();
+              }
+            });
+          }, { root: null, rootMargin: '800px 0px', threshold: 0.01 }) // start early for mobile
+        : null;
+
+      if (io) {
+        io.observe(container);
+      } else {
+        // Fallback: inject after first user interaction or small delay
+        let fired = false;
+        const fire = () => { if (!fired) { fired = true; injectEmbed(); } };
+        window.addEventListener('scroll', fire, { once: true, passive: true });
+        window.addEventListener('touchstart', fire, { once: true, passive: true });
+        window.addEventListener('mousemove', fire, { once: true });
+        setTimeout(fire, 2500);
+      }
+
+      // Also inject on very slow pages after a longer delay (belt & suspenders)
+      setTimeout(() => { if (!loaded) injectEmbed(); }, 10000);
+    })();
+  </script>
 </Site>
