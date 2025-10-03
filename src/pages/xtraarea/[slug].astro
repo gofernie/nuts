@@ -8,7 +8,7 @@ export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_XTRAAREA_JSON;
   if (!url) return [];
 
-  let rows:any[] = [];
+  let rows: any[] = [];
   try {
     const raw = await getJson<any>(url);
     rows =
@@ -20,7 +20,7 @@ export async function getStaticPaths() {
   }
 
   const items = rows.map((r:any) => {
-    const get=(k:string)=>(r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+    const get = (k:string) => (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
     const title = get("title"); if (!title) return null;
 
     const computedSlug = title.toLowerCase()
@@ -39,7 +39,7 @@ export async function getStaticPaths() {
       status: get("status"),
       seo_title: get("seo_title"),
       seo_description: get("seo_description"),
-      spare_1: get("spare_1"),
+      spare_1: get("spare_1"), // plain URL like https://idx.myrealpage.com/.../in.js
     };
   }).filter((r)=> r && r.slug && r.title && r.slug.toLowerCase()!=="index" && !/^draft$/i.test(r.status||""));
 
@@ -116,22 +116,20 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
     {summary && <p>{summary}</p>}
   </div>
 
-  <!-- Listings embed (LAZY LOADED) -->
-  {spare_1 && (
-    <div class="container embed-wrap">
-      <div id="mrp-container" class="mrp-container" aria-live="polite">
-        <!-- Skeleton to hold space & avoid CLS -->
-        <div id="mrp-skeleton" class="mrp-skeleton" aria-hidden="true">
-          <div class="sk-row"></div>
-          <div class="sk-row"></div>
-          <div class="sk-row"></div>
+  <!-- Listings embed (LAZY LOADED, URL-only) -->
+  {spare_1 && isUrl(spare_1) && (
+    <div class="container">
+      <div class="embed-card">
+        <div id="mrp-container" class="mrp-container" aria-live="polite">
+          <!-- skeleton to avoid CLS until widget arrives -->
+          <div id="mrp-skeleton" class="mrp-skeleton" aria-hidden="true">
+            <div class="sk-row"></div>
+            <div class="sk-row"></div>
+            <div class="sk-row"></div>
+          </div>
+          <!-- store URL; JS injects the script when near viewport -->
+          <div id="mrp-embed-src" data-src={spare_1}></div>
         </div>
-
-        <!-- We stash the embed as data; JS will inject when near viewport -->
-        {isUrl(spare_1)
-          ? <div id="mrp-embed-src" data-src={spare_1}></div>
-          : <template id="mrp-embed-html" data-type="html">{spare_1}</template>
-        }
       </div>
     </div>
   )}
@@ -168,49 +166,43 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
     </div>
   )}
 
-  <!-- Page styles -->
+  <!-- Styles -->
   <style>
-    .intro { margin: 24px auto 20px; }
+    /* Intro width baseline */
+    .intro {
+      margin: 24px auto 20px;
+      max-width: var(--content-max, 1100px);
+    }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
     .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
 
-    /* Listings embed container — force WHITE background and show it around cards */
-    .embed-wrap {
+    /* Inner white card that matches intro width exactly */
+    .embed-card {
+      max-width: var(--content-max, 1100px); /* matches .intro */
       margin: 32px auto;
       background: #fff !important;
       padding: 20px;
       border-radius: 12px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-    }
-    .mrp-container {
-      max-width: var(--content-max, 1100px);
-      margin: 0 auto;
-      overflow: visible;
-      background: transparent !important;
+      box-sizing: border-box;  /* padding doesn't increase total width */
+      overflow-x: hidden;
     }
 
-    /* Skeleton (approximate card heights; light for perf) */
+    /* Keep MRP content fluid inside the card */
+    .mrp-container { background: transparent !important; }
+    .mrp-container iframe { width: 100% !important; display: block; }
+
+    /* Skeleton */
     .mrp-skeleton { display: grid; gap: 16px; }
     .mrp-skeleton .sk-row {
-      height: 220px;              /* mobile-friendly placeholder */
+      height: 220px;
       border-radius: 12px;
-      background:
-        linear-gradient(90deg, rgba(0,0,0,.06), rgba(0,0,0,.10), rgba(0,0,0,.06));
+      background: linear-gradient(90deg, rgba(0,0,0,.06), rgba(0,0,0,.10), rgba(0,0,0,.06));
       background-size: 200% 100%;
       animation: sk 1.2s ease-in-out infinite;
     }
-    @media (min-width: 769px) {
-      .mrp-skeleton .sk-row { height: 260px; }
-    }
-    @keyframes sk {
-      0% { background-position: 0% 0; }
-      100% { background-position: -200% 0; }
-    }
-
-    .mrp-container iframe {
-      width: 100% !important;
-      display: block;
-    }
+    @media (min-width: 769px) { .mrp-skeleton .sk-row { height: 260px; } }
+    @keyframes sk { 0%{background-position:0% 0} 100%{background-position:-200% 0} }
 
     /* Map card */
     .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
@@ -221,7 +213,6 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
     .cta-card h2{ margin:0 0 10px; font-size:1.75rem; font-weight:700; }
     .cta-card p{ font-size:1rem; color:#374151; margin-bottom:18px; }
     .cta-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; background:#0a7bff; color:#fff; text-decoration:none; font-weight:700; font-size:1.125rem; padding:12px 28px; border-radius:999px; box-shadow:0 4px 10px rgba(0,0,0,0.15); transition: background .15s ease, box-shadow .15s ease; }
-    .cta-btn .cta-text{ text-decoration:none; }
     .cta-btn:hover{ background:#065aa3; box-shadow:0 6px 14px rgba(0,0,0,0.25); }
 
     .long-copy{ margin:40px 0 48px; font-size:1.05rem; line-height:1.8; color:#1f2937; }
@@ -231,25 +222,8 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
     .long-copy h3{ font-size:1.25rem; }
   </style>
 
-  <!-- Global: force inner backgrounds white & mobile 1-col -->
+  <!-- Global: mobile one-column for MRP cards -->
   <style is:global>
-    /* Make inner MRP wrappers white too (some themes set their own bg) */
-    .embed-wrap .listing-results-view,
-    .embed-wrap .resultsContainer,
-    .embed-wrap .results,
-    .embed-wrap .searchResults,
-    .embed-wrap .mrp-grid,
-    .embed-wrap .result-grid,
-    .embed-wrap .mrp-listing-result,
-    .embed-wrap .mrp-listing,
-    .embed-wrap .result,
-    .embed-wrap .result-item,
-    .embed-wrap .srItem,
-    .embed-wrap .searchResultItem {
-      background-color: #fff !important;
-    }
-
-    /* Mobile: force ONE full-width card per row */
     @media (max-width: 768px) {
       .listing-results-view,
       .results,
@@ -300,102 +274,50 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
         display: block !important;
       }
     }
-
-    /* Desktop: keep your 3-up (if MRP uses this) */
-    .mrp-listing-result { width: 33.333% !important; max-height: 490px; }
   </style>
 
-  <!-- LAZY LOADER -->
+  <!-- Lazy loader for the MRP script -->
   <script>
     (function(){
-      const container = document.getElementById('mrp-container');
+      var container = document.getElementById('mrp-container');
       if (!container) return;
 
-      const skeleton = document.getElementById('mrp-skeleton');
-      const srcHolder = document.getElementById('mrp-embed-src');
-      const htmlTpl   = document.getElementById('mrp-embed-html');
+      var skeleton = document.getElementById('mrp-skeleton');
+      var srcHolder = document.getElementById('mrp-embed-src');
+      var loaded = false;
 
-      let loaded = false;
-
-      function removeSkeletonWhenReady() {
-        // If script injects content after load, watch for first child nodes
-        const done = () => skeleton && skeleton.parentNode && skeleton.parentNode.removeChild(skeleton);
-        if (!skeleton) return;
-
-        // If content already there, remove now
-        if (container && container.children.length > 0 && container.children[0] !== skeleton) {
-          done(); return;
-        }
-
-        const obs = new MutationObserver(() => {
-          if (container && container.querySelector(':not(#mrp-skeleton)')) {
-            obs.disconnect(); done();
-          }
-        });
-        obs.observe(container, { childList: true, subtree: true });
-
-        // Safety timeout to avoid hanging skeletons
-        setTimeout(() => { try { obs.disconnect(); } catch(e){} done(); }, 8000);
+      function removeSkeleton() {
+        if (skeleton && skeleton.parentNode) skeleton.parentNode.removeChild(skeleton);
       }
 
-      function injectEmbed() {
-        if (loaded) return;
-        loaded = true;
-
-        // URL embed -> create script tag now
+      function inject() {
+        if (loaded) return; loaded = true;
         if (srcHolder && srcHolder.dataset && srcHolder.dataset.src) {
-          const url = srcHolder.dataset.src;
-          const s = document.createElement('script');
+          var s = document.createElement('script');
           s.id = 'mrpscript';
-          s.src = url;  // keep your original URL (MRP handles its own async)
+          s.src = srcHolder.dataset.src;
           s.async = true;
-
-          // Remove skeleton on load (best-effort; some widgets render after load)
-          s.addEventListener('load', removeSkeletonWhenReady);
-          s.addEventListener('error', removeSkeletonWhenReady);
-
+          s.addEventListener('load', removeSkeleton);
+          s.addEventListener('error', removeSkeleton);
           container.appendChild(s);
-          removeSkeletonWhenReady();
-          return;
+        } else {
+          removeSkeleton();
         }
-
-        // Raw HTML embed -> materialize from template
-        if (htmlTpl && htmlTpl.content) {
-          container.appendChild(htmlTpl.content.cloneNode(true));
-          removeSkeletonWhenReady();
-          return;
-        }
-
-        // Nothing to inject; remove skeleton anyway
-        removeSkeletonWhenReady();
+        setTimeout(removeSkeleton, 8000); // safety
       }
 
-      // Lazy: when near viewport
-      const io = ('IntersectionObserver' in window)
-        ? new IntersectionObserver((entries) => {
-            entries.forEach((e) => {
-              if (e.isIntersecting) {
-                io.disconnect();
-                injectEmbed();
-              }
-            });
-          }, { root: null, rootMargin: '800px 0px', threshold: 0.01 }) // start early for mobile
+      var io = ('IntersectionObserver' in window)
+        ? new IntersectionObserver(function(entries){
+            for (var i=0;i<entries.length;i++) {
+              if (entries[i].isIntersecting) { io.disconnect(); inject(); break; }
+            }
+          }, { root: null, rootMargin: '800px 0px', threshold: 0.01 })
         : null;
 
-      if (io) {
-        io.observe(container);
-      } else {
-        // Fallback: inject after first user interaction or small delay
-        let fired = false;
-        const fire = () => { if (!fired) { fired = true; injectEmbed(); } };
-        window.addEventListener('scroll', fire, { once: true, passive: true });
-        window.addEventListener('touchstart', fire, { once: true, passive: true });
-        window.addEventListener('mousemove', fire, { once: true });
-        setTimeout(fire, 2500);
-      }
+      if (io) io.observe(container);
+      else setTimeout(inject, 2500);
 
-      // Also inject on very slow pages after a longer delay (belt & suspenders)
-      setTimeout(() => { if (!loaded) injectEmbed(); }, 10000);
+      setTimeout(function(){ if(!loaded) inject(); }, 10000);
     })();
   </script>
 </Site>
