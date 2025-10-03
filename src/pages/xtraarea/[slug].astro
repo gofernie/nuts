@@ -1,4 +1,5 @@
 ---
+// File: src/pages/xtraarea/[slug].astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -10,8 +11,13 @@ export async function getStaticPaths() {
   let rows:any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch { return []; }
+    rows =
+      Array.isArray(raw) ? raw :
+      Array.isArray(raw?.data) ? raw.data :
+      Array.isArray(raw?.rows) ? raw.rows : [];
+  } catch {
+    return [];
+  }
 
   const items = rows.map((r:any) => {
     const get=(k:string)=>(r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
@@ -30,11 +36,10 @@ export async function getStaticPaths() {
       map_embed: get("map_embed"),
       long_copy: get("long_copy"),
       cta1: get("cta1"),
-      // NEW: take the MRP embed url from spare_1
-      embed_url: get("spare_1"),
       status: get("status"),
       seo_title: get("seo_title"),
       seo_description: get("seo_description"),
+      spare_1: get("spare_1"),
     };
   }).filter((r)=> r && r.slug && r.title && r.slug.toLowerCase()!=="index" && !/^draft$/i.test(r.status||""));
 
@@ -61,22 +66,22 @@ export async function getStaticPaths() {
         return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
       })(),
       long_copy: n.long_copy || "",
-      embed_url: n.embed_url || "",   // NEW
-      // ✅ SEO props
       seo_title: n.seo_title || "",
       seo_description: n.seo_description || "",
+      spare_1: n.spare_1 || "",
     }
   }));
 }
 
 const {
-  title, summary, hero, map_embed, long_copy, cta1, embed_url,
+  title, summary, hero, map_embed, long_copy, cta1, spare_1,
   seo_title, seo_description
 } = Astro.props as any;
 
-// ✅ Compute SEO fallbacks
 const pageSeoTitle = seo_title || title || "Area";
 const pageSeoDesc  = seo_description || summary || "";
+
+const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
 ---
 
 <Site
@@ -92,7 +97,7 @@ const pageSeoDesc  = seo_description || summary || "";
     </Fragment>
   )}
 
-  <!-- LCP hero -->
+  <!-- Hero -->
   <section class="hero-bleed">
     {hero && (
       <img
@@ -111,23 +116,15 @@ const pageSeoDesc  = seo_description || summary || "";
     {summary && <p>{summary}</p>}
   </div>
 
-  <!-- NEW: MRP embed injected below intro if spare_1 had a URL -->
-  {embed_url && (
-    <div class="container" aria-label="Listings">
-      <div id="mrp-embed" class="mrp-embed"></div>
-      <script>
-        // Avoid duplicate loads if this page rehydrates
-        (function() {
-          const id = "mrpscript";
-          if (!document.getElementById(id)) {
-            const s = document.createElement("script");
-            s.id = id;
-            s.src = "{embed_url}";
-            s.async = true;
-            document.currentScript?.parentElement?.appendChild(s);
-          }
-        })();
-      </script>
+  <!-- Listings embed -->
+  {spare_1 && (
+    <div class="container embed-wrap">
+      <div id="mrp-container" class="mrp-container">
+        {isUrl(spare_1)
+          ? <div set:html={`<script id="mrpscript" src="${spare_1}" async></script>`}></div>
+          : <div set:html={spare_1}></div>
+        }
+      </div>
     </div>
   )}
 
@@ -168,9 +165,27 @@ const pageSeoDesc  = seo_description || summary || "";
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
     .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
 
+    /* Listings embed */
+    .embed-wrap {
+      margin: 32px auto;
+      background: #fff;          /* white background */
+      padding: 0;                /* flush, no extra padding */
+    }
+    .mrp-container {
+      max-width: var(--content-max, 1100px); /* aligns with intro width */
+      margin: 0 auto;
+      overflow: hidden;
+    }
+    .mrp-container iframe {
+      width: 100% !important;
+      display: block;
+    }
+
+    /* Map card */
     .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
     .map-card{ border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
 
+    /* CTA */
     .cta-card{ background:#fff; color:#111827; border:2px solid #e5e7eb; border-radius:16px; padding:28px 20px; margin:36px 0; text-align:center; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
     .cta-card h2{ margin:0 0 10px; font-size:1.75rem; font-weight:700; }
     .cta-card p{ font-size:1rem; color:#374151; margin-bottom:18px; }
