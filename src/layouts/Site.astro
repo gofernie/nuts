@@ -106,30 +106,31 @@ const NAV_ORDER = [
       .nav-inner{
         width:100%; height:100%;
         padding:0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-        display:flex; align-items:center; gap:10px;
-        flex-wrap: nowrap;              /* prevent wrapping in the bar */
+        display:flex; align-items:center; justify-content:space-between; /* ✅ logo left, nav right */
+        gap:10px; flex-wrap:nowrap;
       }
 
       /* ✅ brand stays on one line and never shrinks */
       .brand{
-        margin-right:auto; font-weight:700; font-size:1rem; color:var(--ink);
+        font-weight:700; font-size:1rem; color:var(--ink);
         text-decoration:none; padding:4px 6px; border-radius:6px;
-        white-space: nowrap;             /* keep "Fernie Real Estate" on one line */
+        white-space: nowrap;             /* keep name on one line */
         flex: 0 0 auto;                  /* do not shrink */
       }
       .brand:hover{ background:var(--hover-bg); }
 
-      /* nav takes remaining width and is allowed to shrink */
+      /* nav sits on the right and can shrink */
       nav{
-        margin-left:auto; display:flex; align-items:center; gap:8px;
+        display:flex; align-items:center; gap:8px;
         flex: 1 1 auto;                  /* allow shrinking */
         min-width: 0;                    /* enable flex-shrink in Chrome */
+        justify-content:flex-end;        /* ✅ right-align menu */
       }
 
       /* keep nav items single-line and center label + chevron */
       nav a{
         color:var(--ink-muted); padding:6px 8px; text-decoration:none; border-radius:8px; font-weight:500;
-        display:inline-flex; align-items:center; gap:4px; white-space:nowrap;   /* NEW */
+        display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
       }
       nav a:hover, nav a:focus-visible{ color:var(--ink); background:var(--hover-bg); }
       .hamburger{ display:none; background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--ink-muted); }
