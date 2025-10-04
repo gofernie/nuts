@@ -72,7 +72,7 @@ const NAV_ORDER: Array<
   "xtra",
   "todo",
   "stay",
-  "search",   // ✅ added
+  "search",
   "contact",
 ];
 ---
@@ -199,6 +199,47 @@ const NAV_ORDER: Array<
       window.toggleNav=toggleNav;
       const isDesktop=()=>window.matchMedia("(min-width:769px)").matches;
     </script>
+
+    <script is:inline>
+      // ---- Smooth anchor scrolling
+      (function(){
+        function measureHeader(){
+          const header = document.querySelector('header, .site-header');
+          const h = header ? Math.max(52, Math.round(header.getBoundingClientRect().height)) : 52;
+          document.documentElement.style.setProperty('--header-h', h + 'px');
+        }
+        measureHeader();
+        window.addEventListener('resize', () => requestAnimationFrame(measureHeader), { passive:true });
+
+        function smoothToHash(){
+          const id = decodeURIComponent(location.hash.replace(/^#/, ''));
+          if(!id) return;
+          const el = document.getElementById(id);
+          if(!el) return;
+          requestAnimationFrame(()=> el.scrollIntoView({ behavior:'smooth', block:'start' }));
+        }
+
+        document.addEventListener('click', (e) => {
+          const a = (e.target as HTMLElement).closest('a[href^="#"]') as HTMLAnchorElement | null;
+          if(!a) return;
+          const id = decodeURIComponent(a.getAttribute('href')!.slice(1));
+          const el = document.getElementById(id);
+          if(!el) return;
+          e.preventDefault();
+          history.pushState(null, '', '#' + id);
+          el.scrollIntoView({ behavior:'smooth', block:'start' });
+        }, { passive:false });
+
+        window.addEventListener('hashchange', (e) => {
+          e.preventDefault();
+          smoothToHash();
+        });
+
+        if (location.hash) {
+          window.addEventListener('load', () => setTimeout(smoothToHash, 60));
+        }
+      })();
+    </script>
   </head>
   <body class={bodyClass}>
     {showHeader && (
@@ -212,13 +253,13 @@ const NAV_ORDER: Array<
                 switch(key){
                   case "neighbourhoods": return (
                     <div class="menu-group">
-                      <a class="menu-link has-sub" href="/neighbourhoods" data-astro-prefetch>Neighbourhoods</a>
+                      <a class="menu-link has-sub" href="/neighbourhoods" data-astro-prefetch="hover">Neighbourhoods</a>
                       {(() => {
                         const cols=colsFor(neighbourhoods.length+1); const wide=cols>1?"wide":"";
                         return (
                           <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                            <a class="view-all" href="/neighbourhoods" data-astro-prefetch>ALL NEIGHBOURHOODS</a>
-                            {neighbourhoods.map(n=><a href={`/neighbourhoods/${n.slug}`} data-astro-prefetch>{n.title}</a>)}
+                            <a class="view-all" href="/neighbourhoods" data-astro-prefetch="hover">ALL NEIGHBOURHOODS</a>
+                            {neighbourhoods.map(n=><a href={`/neighbourhoods/${n.slug}`} data-astro-prefetch="hover">{n.title}</a>)}
                           </div>
                         );
                       })()}
@@ -226,23 +267,23 @@ const NAV_ORDER: Array<
                   );
                   case "stay": return (
                     <div class="menu-group">
-                      <a class="menu-link has-sub" href="/stay" data-astro-prefetch>Stay</a>
+                      <a class="menu-link has-sub" href="/stay" data-astro-prefetch="hover">Stay</a>
                       <div class="dropdown" style="--cols:1;">
-                        <a class="view-all" href="/stay" data-astro-prefetch>ALL PLACES TO STAY</a>
-                        <a href="/stay#hotels" data-astro-prefetch>Hotels</a>
-                        <a href="/stay#airbnb" data-astro-prefetch>Airbnb</a>
+                        <a class="view-all" href="/stay" data-astro-prefetch="hover">ALL PLACES TO STAY</a>
+                        <a href="/stay#hotels" data-astro-prefetch="hover">Hotels</a>
+                        <a href="/stay#airbnb" data-astro-prefetch="hover">Airbnb</a>
                       </div>
                     </div>
                   );
                   case "types": return (
                     <div class="menu-group">
-                      <a class="menu-link has-sub" href="/types" data-astro-prefetch>Types</a>
+                      <a class="menu-link has-sub" href="/types" data-astro-prefetch="hover">Types</a>
                       {(() => {
                         const cols=colsFor(typesMenu.length+1); const wide=cols>1?"wide":"";
                         return (
                           <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                            <a class="view-all" href="/types" data-astro-prefetch>ALL PROPERTY TYPES</a>
-                            {typesMenu.map(t=><a href={`/types/${t.slug}`} data-astro-prefetch>{t.title}</a>)}
+                            <a class="view-all" href="/types" data-astro-prefetch="hover">ALL PROPERTY TYPES</a>
+                            {typesMenu.map(t=><a href={`/types/${t.slug}`} data-astro-prefetch="hover">{t.title}</a>)}
                           </div>
                         );
                       })()}
@@ -250,13 +291,13 @@ const NAV_ORDER: Array<
                   );
                   case "xtra": return (
                     <div class="menu-group">
-                      <a class="menu-link has-sub" href="/xtraarea" data-astro-prefetch>Other Areas</a>
+                      <a class="menu-link has-sub" href="/xtraarea" data-astro-prefetch="hover">Other Areas</a>
                       {(() => {
                         const cols=colsFor(xtraMenu.length+1); const wide=cols>1?"wide":"";
                         return (
                           <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                            <a class="view-all" href="/xtraarea" data-astro-prefetch>ALL OTHER AREAS</a>
-                            {xtraMenu.map(x=><a href={`/xtraarea/${x.slug}`} data-astro-prefetch>{x.title}</a>)}
+                            <a class="view-all" href="/xtraarea" data-astro-prefetch="hover">ALL OTHER AREAS</a>
+                            {xtraMenu.map(x=><a href={`/xtraarea/${x.slug}`} data-astro-prefetch="hover">{x.title}</a>)}
                           </div>
                         );
                       })()}
@@ -264,19 +305,19 @@ const NAV_ORDER: Array<
                   );
                   case "todo": return (
                     <div class="menu-group">
-                      <a class="menu-link has-sub" href="/to_do" data-astro-prefetch>To Do</a>
+                      <a class="menu-link has-sub" href="/to_do" data-astro-prefetch="hover">To Do</a>
                       <div class="dropdown" style="--cols:1;">
-                        <a class="view-all" href="/to_do" data-astro-prefetch>ALL THINGS TO DO</a>
-                        <a href="/to_do#summer" data-astro-prefetch>Summer</a>
-                        <a href="/to_do#winter" data-astro-prefetch>Winter</a>
+                        <a class="view-all" href="/to_do" data-astro-prefetch="hover">ALL THINGS TO DO</a>
+                        <a href="/to_do#summer" data-astro-prefetch="hover">Summer</a>
+                        <a href="/to_do#winter" data-astro-prefetch="hover">Winter</a>
                       </div>
                     </div>
                   );
                   case "search": return (
-                    <a class="menu-link" href="/search" data-astro-prefetch>Search</a>
+                    <a class="menu-link" href="/search" data-astro-prefetch="hover">Search</a>
                   );
                   case "contact": return (
-                    <a class="menu-link" href="/contact" data-astro-prefetch>Contact</a>
+                    <a class="menu-link" href="/contact" data-astro-prefetch="hover">Contact</a>
                   );
                 }
               })
