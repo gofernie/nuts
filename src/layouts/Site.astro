@@ -200,46 +200,8 @@ const NAV_ORDER: Array<
       const isDesktop=()=>window.matchMedia("(min-width:769px)").matches;
     </script>
 
-    <script is:inline>
-      // ---- Smooth anchor scrolling
-      (function(){
-        function measureHeader(){
-          const header = document.querySelector('header, .site-header');
-          const h = header ? Math.max(52, Math.round(header.getBoundingClientRect().height)) : 52;
-          document.documentElement.style.setProperty('--header-h', h + 'px');
-        }
-        measureHeader();
-        window.addEventListener('resize', () => requestAnimationFrame(measureHeader), { passive:true });
-
-        function smoothToHash(){
-          const id = decodeURIComponent(location.hash.replace(/^#/, ''));
-          if(!id) return;
-          const el = document.getElementById(id);
-          if(!el) return;
-          requestAnimationFrame(()=> el.scrollIntoView({ behavior:'smooth', block:'start' }));
-        }
-
-        document.addEventListener('click', (e) => {
-          const a = (e.target as HTMLElement).closest('a[href^="#"]') as HTMLAnchorElement | null;
-          if(!a) return;
-          const id = decodeURIComponent(a.getAttribute('href')!.slice(1));
-          const el = document.getElementById(id);
-          if(!el) return;
-          e.preventDefault();
-          history.pushState(null, '', '#' + id);
-          el.scrollIntoView({ behavior:'smooth', block:'start' });
-        }, { passive:false });
-
-        window.addEventListener('hashchange', (e) => {
-          e.preventDefault();
-          smoothToHash();
-        });
-
-        if (location.hash) {
-          window.addEventListener('load', () => setTimeout(smoothToHash, 60));
-        }
-      })();
-    </script>
+    <!-- External smooth anchor script -->
+    <script src="/js/smooth-anchors.js" defer></script>
   </head>
   <body class={bodyClass}>
     {showHeader && (
