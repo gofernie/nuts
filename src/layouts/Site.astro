@@ -10,25 +10,24 @@ const {
 
 import { getJson } from "../lib/fetchJson";
 
-/** ---------- shared helpers ---------- */
+/* ---------- helpers ---------- */
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
-
 const getField = (r:any, k:string) =>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-
 const visible = (r:any) => {
   const s = getField(r, "status").toLowerCase();
   const rawSlug = getField(r, "slug").toLowerCase();
   return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
-
 type MenuItem = { title:string; slug:string; sort:number };
 
-async function fetchMenu(url?: string): Promise<MenuItem[]> {
+async function fetchMenuSafe(url?: string): Promise<MenuItem[]> {
   if (!url) return [];
+  try { new URL(url, "http://x"); } catch { return []; }
+
   try {
-    const raw = await getJson<any>(url);
-    const rows: any[] =
+    const raw = await getJson<any>(url); // returns null on failure
+    const rows:any[] =
       Array.isArray(raw) ? raw :
       Array.isArray(raw?.data) ? raw.data :
       Array.isArray(raw?.rows) ? raw.rows : [];
@@ -37,36 +36,32 @@ async function fetchMenu(url?: string): Promise<MenuItem[]> {
     for (const r of rows) {
       if (!visible(r)) continue;
       const title = getField(r, "title");
-      const s = getField(r, "slug");
-      if (!title || !s) continue;
+      const slug = getField(r, "slug");
+      if (!title || !slug) continue;
       const sort = Number.isFinite(+r?.sort) ? +r.sort : Number.MAX_SAFE_INTEGER;
-      out.push({ title, slug: s, sort });
+      out.push({ title, slug, sort });
     }
-
     out.sort((a,b) => (a.sort - b.sort) || a.title.localeCompare(b.title));
     return out;
   } catch (e) {
-    console.warn("Menu fetch failed for", url, e);
+    console.warn("[fetchMenuSafe] using empty menu for", url, e);
     return [];
   }
 }
 
-/** ---------- build menus ---------- */
-let neighbourhoods:MenuItem[] = await fetchMenu(import.meta.env.PUBLIC_SHEET_JSON);
-let typesMenu:MenuItem[]      = await fetchMenu(import.meta.env.PUBLIC_TYPES_JSON);
-let xtraMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_XTRAAREA_JSON);
-let todoMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_TODO_JSON);
+/* ---------- build menus (safe) ---------- */
+const neighbourhoods:MenuItem[] = await fetchMenuSafe(import.meta.env.PUBLIC_SHEET_JSON);
+const typesMenu:MenuItem[]      = await fetchMenuSafe(import.meta.env.PUBLIC_TYPES_JSON);
+const xtraMenu:MenuItem[]       = await fetchMenuSafe(import.meta.env.PUBLIC_XTRAAREA_JSON);
+await fetchMenuSafe(import.meta.env.PUBLIC_TODO_JSON); // prefetch safe
 
-/** ---------- helpers ---------- */
+/* ---------- misc ---------- */
 const ROWS_PER_COL = 7;
 const colsFor = (n:number) => Math.min(6, Math.ceil(n / ROWS_PER_COL));
-
 const metaDescription = (seo_description || summary || "").toString().trim();
 
-/** ---------- Nav order ---------- */
-const NAV_ORDER: Array<
-  "neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"search"|"contact"
-> = [
+/* ---------- nav order ---------- */
+const NAV_ORDER = [
   "neighbourhoods",
   "types",
   "xtra",
@@ -74,7 +69,7 @@ const NAV_ORDER: Array<
   "stay",
   "search",
   "contact",
-];
+] as const;
 ---
 
 <html lang="en">
@@ -84,14 +79,15 @@ const NAV_ORDER: Array<
     <title>{seo_title}</title>
     {metaDescription && <meta name="description" content={metaDescription} />}
 
+    <slot name="head" />
+
     <style>
-      @media (max-width:768px){
+      /* collapse to hamburger a bit earlier to avoid crowding */
+      @media (max-width:900px){
         header nav{ display:none !important; }
         header nav.open{ display:flex !important; }
       }
     </style>
-
-    <slot name="head" />
 
     <style>
       :root {
@@ -111,18 +107,38 @@ const NAV_ORDER: Array<
         width:100%; height:100%;
         padding:0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
         display:flex; align-items:center; gap:10px;
+        flex-wrap: nowrap;              /* prevent wrapping in the bar */
       }
-      .brand{ margin-right:auto; font-weight:700; font-size:1rem; color:var(--ink);
-        text-decoration:none; padding:4px 6px; border-radius:6px; }
+
+      /* ✅ brand stays on one line and never shrinks */
+      .brand{
+        margin-right:auto; font-weight:700; font-size:1rem; color:var(--ink);
+        text-decoration:none; padding:4px 6px; border-radius:6px;
+        white-space: nowrap;             /* keep "Fernie Real Estate" on one line */
+        flex: 0 0 auto;                  /* do not shrink */
+      }
       .brand:hover{ background:var(--hover-bg); }
 
-      nav{ margin-left:auto; display:flex; align-items:center; gap:8px; }
-      nav a{ color:var(--ink-muted); padding:6px 8px; text-decoration:none; border-radius:8px; font-weight:500; }
+      /* nav takes remaining width and is allowed to shrink */
+      nav{
+        margin-left:auto; display:flex; align-items:center; gap:8px;
+        flex: 1 1 auto;                  /* allow shrinking */
+        min-width: 0;                    /* enable flex-shrink in Chrome */
+      }
+
+      /* keep nav items single-line and center label + chevron */
+      nav a{
+        color:var(--ink-muted); padding:6px 8px; text-decoration:none; border-radius:8px; font-weight:500;
+        display:inline-flex; align-items:center; gap:4px; white-space:nowrap;   /* NEW */
+      }
       nav a:hover, nav a:focus-visible{ color:var(--ink); background:var(--hover-bg); }
       .hamburger{ display:none; background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--ink-muted); }
 
       .menu-group{ position:relative; margin:0 2px; }
-      .menu-link.has-sub::after{ content:" ▾"; opacity:.8; }
+
+      /* ✅ Chevron fix: never wraps, stays inline with text */
+      .menu-link.has-sub{ display:inline-flex; align-items:center; gap:3px; white-space:nowrap; }
+      .menu-link.has-sub::after{ content:"▾"; display:inline; line-height:1; opacity:.8; }
 
       .dropdown{
         position:absolute; left:0; top:calc(100% + 21px);
@@ -146,14 +162,14 @@ const NAV_ORDER: Array<
       .dropdown > a:hover{ background:#fff; color:#111827; font-weight:600;
         box-shadow:0 1px 3px rgba(0,0,0,0.08); transform:translateY(-1px); }
 
-      @media (min-width:769px){
+      @media (min-width:901px){
         .menu-group::before{ content:""; position:absolute; top:100%; left:-12px; right:-12px; height:40px; pointer-events:auto; }
         .menu-group.hovering > .dropdown,
         .menu-group:hover > .dropdown,
         .menu-group:focus-within > .dropdown{ opacity:1; transform:translateY(0); pointer-events:auto; }
       }
 
-      @media (max-width:768px){
+      @media (max-width:900px){
         header nav{ position:absolute; top:var(--header-h); right:0; background:#fff;
           flex-direction:column; gap:0; padding:8px 12px; box-shadow:0 2px 8px rgba(0,0,0,.1);
           width:auto; max-width:92vw; min-width:220px; }
@@ -196,12 +212,14 @@ const NAV_ORDER: Array<
         btn.setAttribute("aria-expanded",String(isOpen));
         if(!isOpen){ nav.querySelectorAll(".menu-group.expanded").forEach(g=>g.classList.remove("expanded")); }
       }
+      // @ts-ignore
       window.toggleNav=toggleNav;
-      const isDesktop=()=>window.matchMedia("(min-width:769px)").matches;
+      const isDesktop=()=>window.matchMedia("(min-width:901px)").matches;
+      document.addEventListener("DOMContentLoaded",()=>{ const nav=document.querySelector("header nav"); if(nav) nav.classList.remove("open"); });
     </script>
 
-    <!-- External smooth anchor script -->
-    <script src="/js/smooth-anchors.js" defer></script>
+    <!-- Serve from /public and load early; mark inline so Astro doesn't bundle -->
+    <script is:inline src="/js/smooth-anchors.js"></script>
   </head>
   <body class={bodyClass}>
     {showHeader && (
@@ -211,41 +229,33 @@ const NAV_ORDER: Array<
           <button class="hamburger" onclick="toggleNav()" aria-label="Open menu" aria-expanded="false">☰</button>
           <nav>
             {
-              NAV_ORDER.map((key)=>{
-                switch(key){
+              NAV_ORDER.map((key) => {
+                switch (key) {
                   case "neighbourhoods": return (
                     <div class="menu-group">
                       <a class="menu-link has-sub" href="/neighbourhoods" data-astro-prefetch="hover">Neighbourhoods</a>
                       {(() => {
-                        const cols=colsFor(neighbourhoods.length+1); const wide=cols>1?"wide":"";
+                        const cols = colsFor(neighbourhoods.length + 1);
+                        const wide = cols > 1 ? "wide" : "";
                         return (
                           <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
                             <a class="view-all" href="/neighbourhoods" data-astro-prefetch="hover">ALL NEIGHBOURHOODS</a>
-                            {neighbourhoods.map(n=><a href={`/neighbourhoods/${n.slug}`} data-astro-prefetch="hover">{n.title}</a>)}
+                            {neighbourhoods.map(n => <a href={`/neighbourhoods/${n.slug}`} data-astro-prefetch="hover">{n.title}</a>)}
                           </div>
                         );
                       })()}
-                    </div>
-                  );
-                  case "stay": return (
-                    <div class="menu-group">
-                      <a class="menu-link has-sub" href="/stay" data-astro-prefetch="hover">Stay</a>
-                      <div class="dropdown" style="--cols:1;">
-                        <a class="view-all" href="/stay" data-astro-prefetch="hover">ALL PLACES TO STAY</a>
-                        <a href="/stay#hotels" data-astro-prefetch="hover">Hotels</a>
-                        <a href="/stay#airbnb" data-astro-prefetch="hover">Airbnb</a>
-                      </div>
                     </div>
                   );
                   case "types": return (
                     <div class="menu-group">
                       <a class="menu-link has-sub" href="/types" data-astro-prefetch="hover">Types</a>
                       {(() => {
-                        const cols=colsFor(typesMenu.length+1); const wide=cols>1?"wide":"";
+                        const cols = colsFor(typesMenu.length + 1);
+                        const wide = cols > 1 ? "wide" : "";
                         return (
                           <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
                             <a class="view-all" href="/types" data-astro-prefetch="hover">ALL PROPERTY TYPES</a>
-                            {typesMenu.map(t=><a href={`/types/${t.slug}`} data-astro-prefetch="hover">{t.title}</a>)}
+                            {typesMenu.map(t => <a href={`/types/${t.slug}`} data-astro-prefetch="hover">{t.title}</a>)}
                           </div>
                         );
                       })()}
@@ -255,11 +265,12 @@ const NAV_ORDER: Array<
                     <div class="menu-group">
                       <a class="menu-link has-sub" href="/xtraarea" data-astro-prefetch="hover">Other Areas</a>
                       {(() => {
-                        const cols=colsFor(xtraMenu.length+1); const wide=cols>1?"wide":"";
+                        const cols = colsFor(xtraMenu.length + 1);
+                        const wide = cols > 1 ? "wide" : "";
                         return (
                           <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
                             <a class="view-all" href="/xtraarea" data-astro-prefetch="hover">ALL OTHER AREAS</a>
-                            {xtraMenu.map(x=><a href={`/xtraarea/${x.slug}`} data-astro-prefetch="hover">{x.title}</a>)}
+                            {xtraMenu.map(x => <a href={`/xtraarea/${x.slug}`} data-astro-prefetch="hover">{x.title}</a>)}
                           </div>
                         );
                       })()}
@@ -275,12 +286,18 @@ const NAV_ORDER: Array<
                       </div>
                     </div>
                   );
-                  case "search": return (
-                    <a class="menu-link" href="/search" data-astro-prefetch="hover">Search</a>
+                  case "stay": return (
+                    <div class="menu-group">
+                      <a class="menu-link has-sub" href="/stay" data-astro-prefetch="hover">Stay</a>
+                      <div class="dropdown" style="--cols:1;">
+                        <a class="view-all" href="/stay" data-astro-prefetch="hover">ALL PLACES TO STAY</a>
+                        <a href="/stay#hotels" data-astro-prefetch="hover">Hotels</a>
+                        <a href="/stay#airbnb" data-astro-prefetch="hover">Airbnb</a>
+                      </div>
+                    </div>
                   );
-                  case "contact": return (
-                    <a class="menu-link" href="/contact" data-astro-prefetch="hover">Contact</a>
-                  );
+                  case "search": return <a class="menu-link" href="/search" data-astro-prefetch="hover">Search</a>;
+                  case "contact": return <a class="menu-link" href="/contact" data-astro-prefetch>Contact</a>;
                 }
               })
             }
