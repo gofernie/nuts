@@ -2,11 +2,9 @@
 // File: src/pages/search/index.astro
 import Site from "../../layouts/Site.astro";
 
-// Optional: set these in .env to control the hero image/summary
-const hero = import.meta.env.PUBLIC_SEARCH_HERO || "";
+const hero = "/img/hero/search_hero.webp"; // hardcoded
 const pageTitle = "Search Listings";
 const pageSummary =
-  import.meta.env.PUBLIC_SEARCH_SUMMARY ||
   "Find Fernie homes, condos, townhomes, and investment properties. Filter by price, beds, and more.";
 
 const seo_title = "Search Fernie Real Estate Listings";
@@ -15,27 +13,21 @@ const seo_description =
 ---
 
 <Site title={pageTitle} seo_title={seo_title} seo_description={seo_description}>
-  {hero && (
-    <Fragment slot="head">
-      <link rel="preload" as="image" href={hero} fetchpriority="high" />
-    </Fragment>
-  )}
+  <Fragment slot="head">
+    <link rel="preload" as="image" href={hero} fetchpriority="high" />
+  </Fragment>
 
   <!-- Match global hero height via .hero-bleed from Site.astro -->
   <section class="hero-bleed">
-    {hero ? (
-      <img
-        src={hero}
-        alt=""
-        fetchpriority="high"
-        loading="eager"
-        decoding="async"
-        width="2000"
-        height="1000"
-      />
-    ) : (
-      <div class="hero-fallback" aria-hidden="true"></div>
-    )}
+    <img
+      src={hero}
+      alt=""
+      fetchpriority="high"
+      loading="eager"
+      decoding="async"
+      width="2000"
+      height="1000"
+    />
   </section>
 
   <div class="container intro">
@@ -51,7 +43,7 @@ const seo_description =
       <!-- or -->
       <!-- <script src="https://idx.myrealpage.com/...in.js" async></script> -->
       <div class="search-placeholder">
-        <p>Drop your search widget here.</p>
+        <div data-rv-block="MQP2VMLT-HDQLLMRY"></div><script src="https://cdn.realtyvis.com/js/embed.js"></script>
       </div>
     </div>
   </div>
@@ -70,12 +62,6 @@ const seo_description =
     .search-placeholder{
       display:grid; place-items:center; height:280px; border:1px dashed #d1d5db; border-radius:12px; color:#6b7280;
       background-image: repeating-linear-gradient(-45deg, #fafafa, #fafafa 10px, #f5f5f5 10px, #f5f5f5 20px);
-    }
-
-    /* Fallback visual so hero matches height when no image is set */
-    .hero-fallback{
-      position:absolute; inset:0;
-      background: radial-gradient(1200px 600px at 70% 30%, #ffffffcc, #f3f4f6 40%, #e5e7eb 75%);
     }
   </style>
 </Site>

@@ -55,7 +55,7 @@ async function fetchMenu(url?: string): Promise<MenuItem[]> {
 let neighbourhoods:MenuItem[] = await fetchMenu(import.meta.env.PUBLIC_SHEET_JSON);
 let typesMenu:MenuItem[]      = await fetchMenu(import.meta.env.PUBLIC_TYPES_JSON);
 let xtraMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_XTRAAREA_JSON);
-let todoMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_TODO_JSON); // still fetched, even if not listed
+let todoMenu:MenuItem[]       = await fetchMenu(import.meta.env.PUBLIC_TODO_JSON);
 
 /** ---------- helpers ---------- */
 const ROWS_PER_COL = 7;
@@ -64,12 +64,15 @@ const colsFor = (n:number) => Math.min(6, Math.ceil(n / ROWS_PER_COL));
 const metaDescription = (seo_description || summary || "").toString().trim();
 
 /** ---------- Nav order ---------- */
-const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> = [
+const NAV_ORDER: Array<
+  "neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"search"|"contact"
+> = [
   "neighbourhoods",
   "types",
   "xtra",
   "todo",
   "stay",
+  "search",   // ✅ added
   "contact",
 ];
 ---
@@ -121,7 +124,6 @@ const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> 
       .menu-group{ position:relative; margin:0 2px; }
       .menu-link.has-sub::after{ content:" ▾"; opacity:.8; }
 
-      /* Dropdown: auto-size columns to fit content */
       .dropdown{
         position:absolute; left:0; top:calc(100% + 21px);
         background:rgba(255,255,255,0.9); backdrop-filter:blur(6px);
@@ -175,11 +177,8 @@ const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> 
     </style>
 
     <style is:global>
-      /* Smooth behavior for all in-page anchor jumps */
       html { scroll-behavior: smooth; }
-      /* Keep targets clear of the sticky header */
       :target { scroll-margin-top: calc(var(--header-h) + 12px); }
-
       .hero-bleed{ position:relative; left:50%; right:50%; width:calc(100vw + var(--bleed-fix)*2);
         margin-left:calc(-50vw - var(--bleed-fix)); margin-right:calc(-50vw - var(--bleed-fix));
         min-height:var(--hero-h); padding-top:var(--header-h);
@@ -197,90 +196,8 @@ const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> 
         btn.setAttribute("aria-expanded",String(isOpen));
         if(!isOpen){ nav.querySelectorAll(".menu-group.expanded").forEach(g=>g.classList.remove("expanded")); }
       }
-      (window as any).toggleNav=toggleNav;
+      window.toggleNav=toggleNav;
       const isDesktop=()=>window.matchMedia("(min-width:769px)").matches;
-
-      // ---- Smooth in-page anchor handling + avoid flash-to-top on hash changes
-      (function(){
-        // Keep --header-h accurate for scroll-margin
-        function measureHeader(){
-          const header = document.querySelector('header, .site-header');
-          const h = header ? Math.max(52, Math.round(header.getBoundingClientRect().height)) : 52;
-          document.documentElement.style.setProperty('--header-h', h + 'px');
-        }
-        measureHeader();
-        window.addEventListener('resize', () => { requestAnimationFrame(measureHeader); }, { passive: true });
-
-        function smoothToHash(){
-          const id = decodeURIComponent(location.hash.replace(/^#/, ''));
-          if(!id) return;
-          const el = document.getElementById(id);
-          if(!el) return;
-          // Wait one frame so layout (images/maps) can settle
-          requestAnimationFrame(()=> el.scrollIntoView({ behavior:'smooth', block:'start' }));
-        }
-
-        // Intercept same-page anchor clicks so the browser doesn't jump first
-        document.addEventListener('click', (e) => {
-          const a = (e.target as HTMLElement).closest('a[href^="#"]') as HTMLAnchorElement | null;
-          if(!a) return;
-          const id = decodeURIComponent(a.getAttribute('href')!.slice(1));
-          const el = document.getElementById(id);
-          if(!el) return; // allow default if target not on this page
-          e.preventDefault();
-          history.pushState(null, '', '#' + id);
-          el.scrollIntoView({ behavior:'smooth', block:'start' });
-        }, { passive:false });
-
-        // Smooth on hashchange (including back/forward)
-        window.addEventListener('hashchange', (e) => {
-          e.preventDefault();
-          smoothToHash();
-        });
-
-        // If arriving on a route with a hash (e.g., /to_do#summer), scroll after load
-        if (location.hash) {
-          window.addEventListener('load', () => setTimeout(smoothToHash, 60));
-        }
-      })();
-
-      document.addEventListener("DOMContentLoaded",function(){
-        const nav=document.querySelector("header nav");
-        if(nav)nav.classList.remove("open");
-
-        document.querySelectorAll("a.menu-link.has-sub").forEach(link=>{
-          link.addEventListener("click",function(e){
-            if(isDesktop()) return;
-            const group=link.closest(".menu-group");
-            if(!group) return;
-            if(!group.classList.contains("expanded")){
-              e.preventDefault();
-              nav?.querySelectorAll(".menu-group.expanded").forEach(g=>{ if(g!==group) g.classList.remove("expanded"); });
-              group.classList.add("expanded");
-            }
-          },{passive:false});
-        });
-
-        if(isDesktop()){
-          const groups=document.querySelectorAll(".menu-group");
-          groups.forEach(g=>{
-            const dd=g.querySelector(".dropdown");
-            let t:any=null;
-            function alignToViewport(){
-              if(!dd) return;
-              dd.classList.remove("align-right");
-              const rect=dd.getBoundingClientRect();
-              if(rect.right > (window.innerWidth - 12)) dd.classList.add("align-right");
-            }
-            function openNow(){ clearTimeout(t); g.classList.add("hovering"); alignToViewport(); }
-            function scheduleClose(){ clearTimeout(t); t=setTimeout(()=>g.classList.remove("hovering"),160); }
-            g.addEventListener("mouseenter",openNow);
-            g.addEventListener("mouseleave",scheduleClose);
-            g.addEventListener("focusin",openNow);
-            g.addEventListener("focusout",scheduleClose);
-          });
-        }
-      });
     </script>
   </head>
   <body class={bodyClass}>
@@ -348,16 +265,19 @@ const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> 
                   case "todo": return (
                     <div class="menu-group">
                       <a class="menu-link has-sub" href="/to_do" data-astro-prefetch>To Do</a>
-                      {/* Anchored filters only; no item listing */}
                       <div class="dropdown" style="--cols:1;">
                         <a class="view-all" href="/to_do" data-astro-prefetch>ALL THINGS TO DO</a>
-                        {/* These use hash. data-astro-prefetch warms /to_do so it feels instant. */}
                         <a href="/to_do#summer" data-astro-prefetch>Summer</a>
                         <a href="/to_do#winter" data-astro-prefetch>Winter</a>
                       </div>
                     </div>
                   );
-                  case "contact": return <a class="menu-link" href="/contact" data-astro-prefetch>Contact</a>;
+                  case "search": return (
+                    <a class="menu-link" href="/search" data-astro-prefetch>Search</a>
+                  );
+                  case "contact": return (
+                    <a class="menu-link" href="/contact" data-astro-prefetch>Contact</a>
+                  );
                 }
               })
             }
@@ -376,6 +296,5 @@ const NAV_ORDER: Array<"neighbourhoods"|"types"|"xtra"|"todo"|"stay"|"contact"> 
         </div>
       </div>
     </footer>
-   
   </body>
 </html>
