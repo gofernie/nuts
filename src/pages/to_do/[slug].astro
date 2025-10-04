@@ -1,5 +1,4 @@
 ---
-// src/pages/to_do/[slug].astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -135,7 +134,7 @@ const pageSeoDesc = seo_description || summary || "";
   </section>
 
   <div class="container intro">
-    <h1>{title}</h1>
+    <h1 id="top">{title}</h1>
     {summary && <p>{summary}</p>}
   </div>
 
@@ -160,13 +159,14 @@ const pageSeoDesc = seo_description || summary || "";
       <div class="cta-card">
         <h2>Ready to tackle {title}?</h2>
         <p>Open the checklist or jump straight to the related listings.</p>
-        <a href={cta1} class="cta-btn"><span class="cta-text">✅ Open Action</span></a>
+        <a href={cta1} class="cta-btn" data-astro-prefetch><span class="cta-text">✅ Open Action</span></a>
       </div>
     </div>
   )}
 
   {long_copy && (
     <div class="container">
+      {/* Your long_copy can contain <h2 id="summer">, <h2 id="winter">, etc. */}
       <article class="long-copy" set:html={long_copy}></article>
     </div>
   )}

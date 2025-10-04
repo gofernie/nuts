@@ -1,0 +1,81 @@
+---
+// File: src/pages/search/index.astro
+import Site from "../../layouts/Site.astro";
+
+// Optional: set these in .env to control the hero image/summary
+const hero = import.meta.env.PUBLIC_SEARCH_HERO || "";
+const pageTitle = "Search Listings";
+const pageSummary =
+  import.meta.env.PUBLIC_SEARCH_SUMMARY ||
+  "Find Fernie homes, condos, townhomes, and investment properties. Filter by price, beds, and more.";
+
+const seo_title = "Search Fernie Real Estate Listings";
+const seo_description =
+  "Live Fernie MLS® search: homes, condos, townhomes, investment properties. Filter and explore neighborhoods with up-to-date listings.";
+---
+
+<Site title={pageTitle} seo_title={seo_title} seo_description={seo_description}>
+  {hero && (
+    <Fragment slot="head">
+      <link rel="preload" as="image" href={hero} fetchpriority="high" />
+    </Fragment>
+  )}
+
+  <!-- Match global hero height via .hero-bleed from Site.astro -->
+  <section class="hero-bleed">
+    {hero ? (
+      <img
+        src={hero}
+        alt=""
+        fetchpriority="high"
+        loading="eager"
+        decoding="async"
+        width="2000"
+        height="1000"
+      />
+    ) : (
+      <div class="hero-fallback" aria-hidden="true"></div>
+    )}
+  </section>
+
+  <div class="container intro">
+    <h1>{pageTitle}</h1>
+    <p>{pageSummary}</p>
+  </div>
+
+  <div class="container">
+    <!-- 🔎 Drop your actual search UI/embed below -->
+    <div class="search-card">
+      <!-- Example placeholders; replace with your widget/component -->
+      <!-- <SearchWidget /> -->
+      <!-- or -->
+      <!-- <script src="https://idx.myrealpage.com/...in.js" async></script> -->
+      <div class="search-placeholder">
+        <p>Drop your search widget here.</p>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .intro { margin: 24px auto 20px; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
+    .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
+
+    .search-card{
+      background:#fff; border:1px solid #e5e7eb; border-radius:16px;
+      padding:16px; margin:16px 0 40px; box-shadow:0 2px 10px rgba(0,0,0,.06);
+      overflow:hidden;
+    }
+
+    .search-placeholder{
+      display:grid; place-items:center; height:280px; border:1px dashed #d1d5db; border-radius:12px; color:#6b7280;
+      background-image: repeating-linear-gradient(-45deg, #fafafa, #fafafa 10px, #f5f5f5 10px, #f5f5f5 20px);
+    }
+
+    /* Fallback visual so hero matches height when no image is set */
+    .hero-fallback{
+      position:absolute; inset:0;
+      background: radial-gradient(1200px 600px at 70% 30%, #ffffffcc, #f3f4f6 40%, #e5e7eb 75%);
+    }
+  </style>
+</Site>
