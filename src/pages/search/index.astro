@@ -12,59 +12,44 @@ const seo_description =
 ---
 
 <Site title={pageTitle} seo_title={seo_title} seo_description={seo_description}>
-  <!-- Intro -->
-  <div class="container intro">
+  <!-- (optional) intro space kept for consistency -->
+  <div class="container intro"></div>
 
-  </div>
-
-  <!-- RealtyVis Listings Embed -->
-  <section class="rv-section">
+  <!-- RealtyVis Listings Embed (no extra padding/background; aligned to container) -->
+  <section class="rv-section rv-nopad">
     <div class="container">
-      <div id="rv-embed" class="rv-wrapper">
+      <div id="rv-wrapper" class="rv-wrapper">
         <div data-rv-block="MQP2VMLT-14Y2W8DC"></div>
         <script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>
       </div>
     </div>
   </section>
 
-  <!-- History-state scroll save/restore (same-tab friendly) -->
+  <!-- Scroll position save/restore -->
   <script is:inline>
     (() => {
       const getY = () => Math.max(window.scrollY, document.documentElement.scrollTop || 0);
-
-      // Continuously write scroll into the *current* history entry for /search
       const writeState = (y) => {
         try {
           const cur = history.state && typeof history.state === 'object' ? history.state : {};
-          if (cur.y === y) return; // tiny throttle
+          if (cur.y === y) return;
           history.replaceState({ ...cur, y }, document.title, location.href);
         } catch {}
       };
 
-      // Save while scrolling (throttled by rAF)
       let raf = 0;
-      const onScroll = () => {
+      addEventListener('scroll', () => {
         if (raf) return;
-        raf = requestAnimationFrame(() => {
-          raf = 0;
-          writeState(getY());
-        });
-      };
-      addEventListener('scroll', onScroll, { passive: true });
-      // Also save once on load (so a fresh visit gets a baseline)
+        raf = requestAnimationFrame(() => { raf = 0; writeState(getY()); });
+      }, { passive: true });
       writeState(getY());
 
-      // Restore when we *return* to this entry (Back) or on BFCache
       const forceRestore = (y) => {
         if (!Number.isFinite(y)) return;
-        // Disable smooth behavior to avoid fighting animations
         const html = document.documentElement;
         const prev = html.style.scrollBehavior;
         html.style.scrollBehavior = 'auto';
-
-        // A short, stubborn loop to beat late layout
-        let tries = 0;
-        const max = 40; // ~650ms
+        let tries = 0, max = 40;
         const tick = () => {
           window.scrollTo(0, y);
           if (++tries < max) requestAnimationFrame(tick);
@@ -73,21 +58,16 @@ const seo_description =
         requestAnimationFrame(tick);
       };
 
-      // If we land here via Back, event.state has our y
       addEventListener('popstate', (e) => {
         const y = e.state && typeof e.state === 'object' ? e.state.y : undefined;
         if (y != null) forceRestore(y);
       });
-
-      // If page came from BFCache, also restore from history.state
       addEventListener('pageshow', (e) => {
         if (e.persisted) {
           const y = history.state && typeof history.state === 'object' ? history.state.y : undefined;
           if (y != null) forceRestore(y);
         }
       });
-
-      // For normal reloads (rare on this page), try once from state too
       if (document.readyState !== 'loading') {
         const y = history.state && typeof history.state === 'object' ? history.state.y : undefined;
         if (y != null) forceRestore(y);
@@ -100,8 +80,38 @@ const seo_description =
     })();
   </script>
 
+  <!-- Runtime CSS injector to beat RV stylesheet load order in prod -->
+  <script is:inline>
+    (() => {
+      const installRvFixes = () => {
+        if (document.getElementById('rv-fix-css-runtime')) return;
+        const css = `
+#rv-wrapper{--rv-page-padding:0!important;--rv-container-padding:0!important;--rv-gutter-x:0!important;--rv-gutter-inline:0!important;overflow-x:clip}
+.rv-section.rv-nopad{background:transparent!important;padding:0!important;margin:30px 0 0 0!important} /* 30px top space */
+.rv-section.rv-nopad #rv-wrapper{background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0!important;padding:0!important;margin:0!important;min-height:0!important}
+#rv-wrapper .rv-block,
+#rv-wrapper .rv-block .rv-gridView,
+#rv-wrapper .rv-block .rv-filterView,
+#rv-wrapper .rv-block .rv-results,
+#rv-wrapper .rv-block .rv-content,
+#rv-wrapper .rv-block .rv-items,
+#rv-wrapper .rv-block .rv-root,
+#rv-wrapper .rv-block .rv-container{margin-left:0!important;margin-right:0!important;padding-left:0!important;padding-right:0!important}
+#rv-wrapper .rv-block:first-child{margin-top:0!important;padding-top:0!important}`;
+        const tag = document.createElement('style');
+        tag.id = 'rv-fix-css-runtime';
+        tag.textContent = css;
+        document.head.appendChild(tag);
+      };
+      installRvFixes();
+      const mo = new MutationObserver(installRvFixes);
+      mo.observe(document.documentElement, { childList: true, subtree: true });
+      setTimeout(() => mo.disconnect(), 3000);
+    })();
+  </script>
+
   <style>
-    /* Remove any layout hero space just for this page (if Site.astro renders one) */
+    /* Kill any hero space on this page */
     :global(.hero-bleed),
     :global(.hero-bleed img),
     :global(.hero-bleed::before),
@@ -114,16 +124,43 @@ const seo_description =
       content: none !important;
     }
 
-    /* Layout */
+    /* Page layout */
     .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
-    .intro { margin-top: 24px; margin-bottom: 20px; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
-    .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color:#1f2937; }
+    .intro { margin-top: 24px; margin-bottom: 16px; }
+  </style>
 
-    .rv-section { background:#fafaf9; padding: 2.5rem 0; }
-    .rv-wrapper {
-      background:#fff; border-radius: 1rem; border: 1px solid #eee;
-      box-shadow: 0 2px 10px rgba(0,0,0,.05); padding: 1.25rem;
+  <!-- Strong build-time overrides (runtime injector above ensures precedence in prod) -->
+  <style is:global id="rv-fix-css">
+    .rv-section.rv-nopad { background: transparent !important; padding: 0 !important; margin-top: 30px !important; }
+    .rv-section.rv-nopad #rv-wrapper {
+      background: transparent !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      min-height: 0 !important;
     }
+    #rv-wrapper {
+      --rv-page-padding: 0 !important;
+      --rv-container-padding: 0 !important;
+      --rv-gutter-x: 0 !important;
+      --rv-gutter-inline: 0 !important;
+      overflow-x: clip;
+    }
+    #rv-wrapper .rv-block,
+    #rv-wrapper .rv-block .rv-gridView,
+    #rv-wrapper .rv-block .rv-filterView,
+    #rv-wrapper .rv-block .rv-results,
+    #rv-wrapper .rv-block .rv-content,
+    #rv-wrapper .rv-block .rv-items,
+    #rv-wrapper .rv-block .rv-root,
+    #rv-wrapper .rv-block .rv-container {
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+    #rv-wrapper .rv-block:first-child { margin-top: 0 !important; padding-top: 0 !important; }
   </style>
 </Site>

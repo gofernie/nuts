@@ -5,15 +5,14 @@ import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
 export async function getStaticPaths() {
-  // Helper lives INSIDE getStaticPaths → guaranteed defined when used.
   function buildCtaHtmlLocal(v: string): string {
     const s = (v || "").trim();
     if (!s) return "";
 
-    // Raw embed HTML pasted directly
+    // raw embed markup
     if (/[<](script|iframe)\b/i.test(s) || /data-rv-block=/i.test(s)) return s;
 
-    // RealtyVis block id (e.g., MQP2VMLT-14Y2W8DC)
+    // RealtyVis block id
     const id = s.match(/^[A-Z0-9]{8}-[A-Z0-9]{8}$/i)?.[0];
     if (id) {
       return `<div data-rv-block="${id}"></div>
@@ -44,9 +43,7 @@ export async function getStaticPaths() {
     rows = Array.isArray(raw) ? raw :
            Array.isArray(raw?.data) ? raw.data :
            Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 
   const items = rows.map((r:any) => {
     const get=(k:string)=>(r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
@@ -81,11 +78,7 @@ export async function getStaticPaths() {
       title: n.title,
       summary: n.summary || "",
       hero: heroPath(n.hero_img),
-
-      // ✅ Embed HTML resolved from sheet cell cta1
       cta_html: buildCtaHtmlLocal(n.cta1 || ""),
-
-      // Map resolver (unchanged)
       map_embed: (() => {
         const v = (n.map_embed || "").trim();
         if (!v) return "";
@@ -101,7 +94,6 @@ export async function getStaticPaths() {
         }
         return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
       })(),
-
       long_copy: n.long_copy || "",
       seo_title: n.seo_title || "",
       seo_description: n.seo_description || "",
@@ -118,19 +110,14 @@ const pageSeoTitle = seo_title || title || "Neighbourhood";
 const pageSeoDesc  = seo_description || summary || "";
 ---
 
-<Site
-  showHeader={true}
-  title={title}
-  seo_title={pageSeoTitle}
-  seo_description={pageSeoDesc}
->
+<Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
   {hero && (
     <Fragment slot="head">
       <link rel="preload" as="image" href={hero} fetchpriority="high" />
     </Fragment>
   )}
 
-  <!-- Hero -->
+  <!-- HERO -->
   <section class="hero-bleed">
     {hero && (
       <img
@@ -144,11 +131,13 @@ const pageSeoDesc  = seo_description || summary || "";
     )}
   </section>
 
+  <!-- Intro -->
   <div class="container intro">
     <h1>{title}</h1>
     {summary && <p>{summary}</p>}
   </div>
 
+  <!-- Map -->
   {map_embed && (
     <div class="container map-wrap">
       <h2>Explore on the Map</h2>
@@ -165,47 +154,163 @@ const pageSeoDesc  = seo_description || summary || "";
     </div>
   )}
 
-  <!-- Inline embed from cta1 -->
+  <!-- RV embed from cta1 -->
   {cta_html && (
-    <div class="container">
-      <div class="embed-card" set:html={cta_html}></div>
-    </div>
+    <section class="rv-section rv-nopad">
+      <div class="container rv-capped">
+        <div id="rv-wrap-neigh">
+          <div class="rv-mount" set:html={cta_html}></div>
+        </div>
+      </div>
+    </section>
   )}
 
-  {long_copy && (
-    <div class="container">
-      <article class="long-copy" set:html={long_copy}></article>
-    </div>
-  )}
+  <!-- Scroll memory (save y while scrolling; restore on back/BFCache) -->
+  <script is:inline>
+    (() => {
+      const getY = () => Math.max(window.scrollY, document.documentElement.scrollTop || 0);
+      const writeState = (y) => {
+        try {
+          const cur = (history.state && typeof history.state === 'object') ? history.state : {};
+          if (cur.y === y) return;
+          history.replaceState({ ...cur, y }, document.title, location.href);
+        } catch {}
+      };
+
+      let raf = 0;
+      const onScroll = () => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => { raf = 0; writeState(getY()); });
+      };
+      addEventListener('scroll', onScroll, { passive: true });
+      writeState(getY());
+
+      const restoreTo = (y) => {
+        if (!Number.isFinite(y)) return;
+        const html = document.documentElement;
+        const prev = html.style.scrollBehavior;
+        html.style.scrollBehavior = 'auto';
+        let tries = 0, max = 40; // ~650ms
+        const tick = () => {
+          window.scrollTo(0, y);
+          if (++tries < max) requestAnimationFrame(tick);
+          else html.style.scrollBehavior = prev || '';
+        };
+        requestAnimationFrame(tick);
+      };
+
+      addEventListener('popstate', (e) => {
+        const y = e.state && typeof e.state === 'object' ? e.state.y : undefined;
+        if (y != null) restoreTo(y);
+      });
+
+      addEventListener('pageshow', (e) => {
+        if (e.persisted) {
+          const y = history.state && typeof history.state === 'object' ? history.state.y : undefined;
+          if (y != null) restoreTo(y);
+        }
+      });
+
+      if (document.readyState !== 'loading') {
+        const y = history.state && typeof history.state === 'object' ? history.state.y : undefined;
+        if (y != null) restoreTo(y);
+      } else {
+        addEventListener('DOMContentLoaded', () => {
+          const y = history.state && typeof history.state === 'object' ? history.state.y : undefined;
+          if (y != null) restoreTo(y);
+        });
+      }
+    })();
+  </script>
+
+  <!-- Inline fixer to re-zero paddings RV may inject -->
+  <script is:inline>
+    (() => {
+      const root = document.getElementById('rv-wrap-neigh');
+      if (!root) return;
+
+      const applyInline = (scope = root) => {
+        const sels = [
+          '.rv-block',
+          '.rv-block .rv-gridView',
+          '.rv-block .rv-filterView',
+          '.rv-block .rv-results',
+          '.rv-block .rv-content',
+          '.rv-block .rv-items',
+          '.rv-block .rv-root',
+          '.rv-block .rv-container'
+        ];
+        scope.querySelectorAll(sels.join(',')).forEach(el => {
+          (el as HTMLElement).style.padding = '0px';
+          (el as HTMLElement).style.marginLeft  = '0px';
+          (el as HTMLElement).style.marginRight = '0px';
+        });
+        const gv = scope.querySelector('.rv-gridView') as HTMLElement | null;
+        if (gv) gv.style.padding = '0px';
+        const first = scope.querySelector('.rv-block') as HTMLElement | null;
+        if (first) { first.style.marginTop = '0px'; first.style.paddingTop = '0px'; }
+      };
+
+      applyInline();
+      const mo = new MutationObserver(muts => {
+        muts.forEach(m =>
+          m.addedNodes && m.addedNodes.forEach(n => n.nodeType === 1 && applyInline(n as Element))
+        );
+      });
+      mo.observe(root, { childList: true, subtree: true });
+      setTimeout(() => mo.disconnect(), 5000);
+    })();
+  </script>
 
   <style>
+    /* Page container */
     .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 1rem; }
 
     .intro { margin: 24px auto 20px; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
-    .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
+    .intro p  { font-size: 1rem; line-height:1.6; color:#1f2937; }
 
     .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
     .map-card{ border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
 
-    .embed-card{
-      background:#fff;
-      color:#111827;
-      border:1px solid #e5e7eb;
-      border-radius:16px;
-      padding:16px;
-      margin:36px 0;
-      box-shadow:0 2px 10px rgba(0,0,0,0.06);
-      overflow:hidden;
-    }
-    .embed-card iframe { width:100%; display:block; border:0; }
-    .embed-card [data-rv-block] { max-width:none; }
-    .embed-card script { display:block; }
+    /* RV container cap + no section padding */
+    .rv-section.rv-nopad { background: transparent; padding: 0; margin-top: 30px; }
+    .container.rv-capped { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
 
+    /* Long copy */
     .long-copy{ margin:40px 0 48px; font-size:1.05rem; line-height:1.8; color:#1f2937; }
     .long-copy p{ margin:0 0 1.25em; }
     .long-copy h2,.long-copy h3{ font-weight:700; color:#111827; line-height:1.3; margin:2em 0 .75em; }
     .long-copy h2{ font-size:1.5rem; border-left:4px solid #0a7bff; padding-left:.5rem; }
     .long-copy h3{ font-size:1.25rem; }
+  </style>
+
+  <!-- High-specificity global rules scoped to this embed -->
+  <style is:global>
+    #rv-wrap-neigh .rv-block,
+    #rv-wrap-neigh .rv-block .rv-gridView,
+    #rv-wrap-neigh .rv-block .rv-filterView,
+    #rv-wrap-neigh .rv-block .rv-results,
+    #rv-wrap-neigh .rv-block .rv-content,
+    #rv-wrap-neigh .rv-block .rv-items,
+    #rv-wrap-neigh .rv-block .rv-root,
+    #rv-wrap-neigh .rv-block .rv-container {
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+    /* explicit zero for the last 7px */
+    #rv-wrap-neigh .rv-block .rv-gridView {
+      position: relative;
+      display: flex;
+      width: 100%;
+      flex: none;
+      flex-direction: column;
+      gap: .5em;
+      align-self: center;
+      padding: 0 !important;
+    }
+    #rv-wrap-neigh .rv-block:first-child { margin-top: 0 !important; padding-top: 0 !important; }
   </style>
 </Site>
