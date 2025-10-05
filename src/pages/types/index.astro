@@ -107,21 +107,35 @@ const RV_BLOCK_ID = "MQP2VMLT-J7GGZNVR";
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
 
-  <!-- RealtyVis (LAZY) -->
-  <section class="rv-section">
+  <!-- RealtyVis (LAZY, centered width, no bg/padding) -->
+  <section class="rv-section rv-clean rv-nopad">
     <div class="container">
-      <div id="rv-wrapper" class="rv-wrapper" data-rv-block-id={RV_BLOCK_ID}>
-        <!-- skeleton -->
+      <div id="rv-wrapper" data-rv-block-id={RV_BLOCK_ID}>
         <div id="rv-skeleton" aria-hidden="true" class="rv-skel">
           <div class="bar" style="width:45%"></div>
           <div class="card"></div>
           <div class="card"></div>
         </div>
-        <!-- mount point -->
         <div id="rv-mount"></div>
       </div>
     </div>
   </section>
+
+  <style>
+    .rv-section.rv-clean { background: transparent; padding: 0; }
+
+    /* kill the “card” look */
+    #rv-wrapper {
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      border-radius: 0;
+      padding: 0;
+    }
+
+    /* keep your global container sizing */
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+  </style>
 
   <!-- Cards grid -->
   <div class="container">
@@ -155,7 +169,7 @@ const RV_BLOCK_ID = "MQP2VMLT-J7GGZNVR";
     </section>
   </div>
 
-  <!-- Lazy loader (loads RealtyVis when near viewport; script only once) -->
+  <!-- Lazy loader -->
   <script is:inline>
     (() => {
       const WRAP_ID = "rv-wrapper";
@@ -204,6 +218,27 @@ const RV_BLOCK_ID = "MQP2VMLT-J7GGZNVR";
     })();
   </script>
 
+  <style is:global>
+    /* Limit to this block to avoid affecting other RV embeds */
+    #rv-wrapper .rv-block .rv-gridView {
+      position: relative;
+      display: flex;
+      width: 100%;
+      flex: none;
+      flex-direction: column;
+      gap: .5em;
+      align-self: center;
+      padding: 0;
+    }
+
+    #rv-wrapper .rv-block .rv-filterView {
+      position: relative;
+      display: flex;
+      gap: .5em;
+      padding: 0;
+    }
+  </style>
+
   <style>
     /* Shared page container — matches neighbourhoods */
     .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
@@ -212,7 +247,7 @@ const RV_BLOCK_ID = "MQP2VMLT-J7GGZNVR";
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 8px; color:#111827; }
     .intro p { font-size: 1rem; line-height: 1.6; color:#1f2937; }
 
-    /* RealtyVis section — full-width soft bg, constrained inner container */
+    /* (These original RV styles remain for other sections/pages) */
     .rv-section { background: #fafaf9; padding: 2.5rem 0; }
     .rv-wrapper {
       background: #fff;
@@ -221,7 +256,7 @@ const RV_BLOCK_ID = "MQP2VMLT-J7GGZNVR";
       box-shadow: 0 2px 10px rgba(0,0,0,.05);
       padding: 1.25rem;
       position: relative;
-      min-height: 420px; /* reserve a bit of space pre-load */
+      min-height: 420px;
     }
     .rv-skel { display: grid; gap: 14px; }
     .rv-skel .bar  { height: 18px; border-radius: 6px; background:#eef2f7; }
@@ -241,5 +276,21 @@ const RV_BLOCK_ID = "MQP2VMLT-J7GGZNVR";
     .body p { margin-top:.4rem; color:#555; font-size:.95rem; line-height:1.35; }
 
     .error { color:#b00; }
+  </style>
+
+  <!-- 🔒 FINAL OVERRIDES: no padding/background for THIS RV section -->
+  <style is:global>
+    .rv-section.rv-nopad { background: transparent !important; padding: 0 !important; margin: 0 !important; }
+    .rv-section.rv-nopad .container { padding-left: 0 !important; padding-right: 0 !important; }
+    .rv-section.rv-nopad #rv-wrapper {
+      background: transparent !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      padding: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+    }
+    .rv-section.rv-nopad #rv-skeleton { margin: 0 !important; }
   </style>
 </Site>
