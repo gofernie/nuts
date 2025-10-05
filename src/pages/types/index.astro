@@ -1,4 +1,5 @@
 ---
+// File: src/pages/types/index.astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -58,8 +59,7 @@ try {
   header =
     normalized.find(r => (r.raw_slug ?? "").toLowerCase() === "index") ??
     normalized.find(r => (r.status ?? "").toLowerCase() === "header") ??
-    normalized.find(r => !r.raw_slug) ??
-    null;
+    normalized.find(r => !r.raw_slug) ?? null;
 
   items = normalized.filter((r) => {
     if (!r.slug || !r.title) return false;
@@ -75,19 +75,18 @@ const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
 const pageSeoTitle = header?.seo_title || header?.title || "Property Types";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
 
-/** 👉 Your exact MRP embed URL */
-const MRP_SCRIPT_SRC =
-  "https://idx.myrealpage.com/wps/rest/66350/l/idx2/recip/tmpl~v2,noframe~true/-/search-1425912.def/in.js";
+// RealtyVis block to lazy-load (change ID if needed)
+const RV_BLOCK_ID = "MQP2VMLT-J7GGZNVR";
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-
   {heroSrc && (
     <Fragment slot="head">
       <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
     </Fragment>
   )}
 
+  <!-- HERO -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -102,41 +101,29 @@ const MRP_SCRIPT_SRC =
     )}
   </section>
 
+  <!-- Intro -->
   <div class="container intro">
     <h1>{header?.title || pageSeoTitle}</h1>
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
 
-
-<!-- RealtyVis Embed (1200px container, safe inline script) -->
-<section class="rv-section">
-  <div class="container">
-    <div class="rv-wrapper">
-      <div data-rv-block="MQP2VMLT-J7GGZNVR"></div>
-      <script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>
+  <!-- RealtyVis (LAZY) -->
+  <section class="rv-section">
+    <div class="container">
+      <div id="rv-wrapper" class="rv-wrapper" data-rv-block-id={RV_BLOCK_ID}>
+        <!-- skeleton -->
+        <div id="rv-skeleton" aria-hidden="true" class="rv-skel">
+          <div class="bar" style="width:45%"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+        </div>
+        <!-- mount point -->
+        <div id="rv-mount"></div>
+      </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<style>
-  .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
-  .rv-section { background: #fafaf9; padding: 2.5rem 0; }
-  .rv-wrapper {
-    background: #fff;
-    border-radius: 1rem;
-    border: 1px solid #eee;
-    box-shadow: 0 2px 10px rgba(0,0,0,.05);
-    padding: 1.25rem;
-  }
-</style>
-
-
-
-   
-
-  <!-- ======================
-       Your existing grid/cards
-       ====================== -->
+  <!-- Cards grid -->
   <div class="container">
     <section class="grid-wrap">
       {error ? (
@@ -168,44 +155,91 @@ const MRP_SCRIPT_SRC =
     </section>
   </div>
 
+  <!-- Lazy loader (loads RealtyVis when near viewport; script only once) -->
+  <script is:inline>
+    (() => {
+      const WRAP_ID = "rv-wrapper";
+      const SCRIPT_ID = "rv-script";
+      const CDN = "https://cdn.realtyvis.com/js/embed.js";
+
+      const wrap = document.getElementById(WRAP_ID);
+      if (!wrap) return;
+
+      const blockId = wrap.getAttribute("data-rv-block-id");
+      const mount = document.getElementById("rv-mount");
+      const skeleton = document.getElementById("rv-skeleton");
+
+      const init = () => {
+        if (!mount || !blockId) return;
+        if (mount.querySelector("[data-rv-block]")) return; // already injected
+
+        mount.innerHTML = `<div data-rv-block="${blockId}"></div>`;
+
+        const finish = () => { skeleton?.remove(); };
+
+        if (!document.getElementById(SCRIPT_ID)) {
+          const s = document.createElement("script");
+          s.id = SCRIPT_ID;
+          s.src = CDN;
+          s.async = true;
+          s.onload = () => setTimeout(finish, 50);
+          s.onerror = finish;
+          document.body.appendChild(s);
+        } else {
+          setTimeout(finish, 200);
+        }
+      };
+
+      if ("IntersectionObserver" in window) {
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach((e) => {
+            if (e.isIntersecting) { init(); io.disconnect(); }
+          });
+        }, { rootMargin: "300px 0px" });
+        io.observe(wrap);
+      } else {
+        // Fallback if IO unavailable
+        setTimeout(init, 800);
+      }
+    })();
+  </script>
+
   <style>
+    /* Shared page container — matches neighbourhoods */
     .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+
     .intro { margin-top: 24px; margin-bottom: 20px; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 8px; }
-    .intro p { font-size: 1rem; line-height: 1.6; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 8px; color:#111827; }
+    .intro p { font-size: 1rem; line-height: 1.6; color:#1f2937; }
 
+    /* RealtyVis section — full-width soft bg, constrained inner container */
+    .rv-section { background: #fafaf9; padding: 2.5rem 0; }
+    .rv-wrapper {
+      background: #fff;
+      border-radius: 1rem;
+      border: 1px solid #eee;
+      box-shadow: 0 2px 10px rgba(0,0,0,.05);
+      padding: 1.25rem;
+      position: relative;
+      min-height: 420px; /* reserve a bit of space pre-load */
+    }
+    .rv-skel { display: grid; gap: 14px; }
+    .rv-skel .bar  { height: 18px; border-radius: 6px; background:#eef2f7; }
+    .rv-skel .card { height: 220px; border-radius: 12px; background:#f1f5f9; }
+
+    /* Cards grid */
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-    .card { display:flex; flex-direction:column; background:#fff; border-radius:12px; overflow:hidden;
-            border:1px solid #eee; text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,0.05);
-            transition: transform .25s ease, box-shadow .25s ease; }
+    .card {
+      display:flex; flex-direction:column; background:#fff; border-radius:12px; overflow:hidden;
+      border:1px solid #eee; text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,0.05);
+      transition: transform .25s ease, box-shadow .25s ease;
+    }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-
     .thumb { aspect-ratio:16/9; background:#f6f6f6; }
     .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
-
     .body { padding:12px; }
     .body p { margin-top:.4rem; color:#555; font-size:.95rem; line-height:1.35; }
 
     .error { color:#b00; }
-
-    /* ===== Zero-transition overlay + reserved space ===== */
-    :root { --mrp-min-height: 980px; } /* bump if needed; keeps layout steady */
-    #mrp-wrap { position: relative; min-height: var(--mrp-min-height); }
-    #mrp-mount { contain: layout style; }
-
-    #mrp-skeleton {
-      position: absolute; inset: 0;
-      display: grid; place-items: center;
-      background: #f8fafc;      /* static, no shimmer */
-      opacity: 1;               /* no CSS transition to avoid flashing */
-      visibility: visible;
-      pointer-events: none;     /* always ignore pointer */
-      z-index: 10;
-    }
-    .skel { width: min(1100px, 92vw); display: grid; gap: 16px; }
-    .skel .bar { height: 18px; border-radius: 6px; background: #eef2f7; }
-    .skel .card { height: 220px; border-radius: 12px; background: #f1f5f9; }
-
-    @media (min-width: 1024px) { :root { --mrp-min-height: 1100px; } }
   </style>
 </Site>
