@@ -2,7 +2,6 @@
 // File: src/pages/search/index.astro
 import Site from "../../layouts/Site.astro";
 
-const hero = "/img/hero/search_hero.webp";
 const pageTitle = "Search Listings";
 const pageSummary =
   "Find Fernie homes, condos, townhomes, and investment properties. Filter by price, beds, and more.";
@@ -13,54 +12,119 @@ const seo_description =
 ---
 
 <Site title={pageTitle} seo_title={seo_title} seo_description={seo_description}>
-  <Fragment slot="head">
-    <link rel="preload" as="image" href={hero} fetchpriority="high" />
-  </Fragment>
-
-  <!-- HERO (matches neighbourhoods via .hero-bleed in Site.astro) -->
-  <section class="hero-bleed">
-    <img
-      src={hero}
-      alt=""
-      fetchpriority="high"
-      loading="eager"
-      decoding="async"
-      width="2000"
-      height="1000"
-    />
-  </section>
-
-  <!-- H1 + intro (same spacing/typography as neighbourhoods) -->
+  <!-- Intro -->
   <div class="container intro">
     <h1>{pageTitle}</h1>
     <p>{pageSummary}</p>
   </div>
 
-  <!-- RealtyVis Listings Embed (full-width bg, constrained inner container) -->
+  <!-- RealtyVis Listings Embed -->
   <section class="rv-section">
     <div class="container">
-      <div class="rv-wrapper">
+      <div id="rv-embed" class="rv-wrapper">
         <div data-rv-block="MQP2VMLT-14Y2W8DC"></div>
         <script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>
       </div>
     </div>
   </section>
 
-  <style>
-    /* Match neighbourhoods page */
-    .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 1rem; }
+  <!-- History-state scroll save/restore (same-tab friendly) -->
+  <script is:inline>
+    (() => {
+      const getY = () => Math.max(window.scrollY, document.documentElement.scrollTop || 0);
 
-    .intro { margin-top: 24px; margin-bottom: 20px; text-align: left; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px 0; color: #111827; }
-    .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
+      // Continuously write scroll into the *current* history entry for /search
+      const writeState = (y) => {
+        try {
+          const cur = history.state && typeof history.state === 'object' ? history.state : {};
+          if (cur.y === y) return; // tiny throttle
+          history.replaceState({ ...cur, y }, document.title, location.href);
+        } catch {}
+      };
+
+      // Save while scrolling (throttled by rAF)
+      let raf = 0;
+      const onScroll = () => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          writeState(getY());
+        });
+      };
+      addEventListener('scroll', onScroll, { passive: true });
+      // Also save once on load (so a fresh visit gets a baseline)
+      writeState(getY());
+
+      // Restore when we *return* to this entry (Back) or on BFCache
+      const forceRestore = (y) => {
+        if (!Number.isFinite(y)) return;
+        // Disable smooth behavior to avoid fighting animations
+        const html = document.documentElement;
+        const prev = html.style.scrollBehavior;
+        html.style.scrollBehavior = 'auto';
+
+        // A short, stubborn loop to beat late layout
+        let tries = 0;
+        const max = 40; // ~650ms
+        const tick = () => {
+          window.scrollTo(0, y);
+          if (++tries < max) requestAnimationFrame(tick);
+          else html.style.scrollBehavior = prev || '';
+        };
+        requestAnimationFrame(tick);
+      };
+
+      // If we land here via Back, event.state has our y
+      addEventListener('popstate', (e) => {
+        const y = e.state && typeof e.state === 'object' ? e.state.y : undefined;
+        if (y != null) forceRestore(y);
+      });
+
+      // If page came from BFCache, also restore from history.state
+      addEventListener('pageshow', (e) => {
+        if (e.persisted) {
+          const y = history.state && typeof history.state === 'object' ? history.state.y : undefined;
+          if (y != null) forceRestore(y);
+        }
+      });
+
+      // For normal reloads (rare on this page), try once from state too
+      if (document.readyState !== 'loading') {
+        const y = history.state && typeof history.state === 'object' ? history.state.y : undefined;
+        if (y != null) forceRestore(y);
+      } else {
+        addEventListener('DOMContentLoaded', () => {
+          const y = history.state && typeof history.state === 'object' ? history.state.y : undefined;
+          if (y != null) forceRestore(y);
+        });
+      }
+    })();
+  </script>
+
+  <style>
+    /* Remove any layout hero space just for this page (if Site.astro renders one) */
+    :global(.hero-bleed),
+    :global(.hero-bleed img),
+    :global(.hero-bleed::before),
+    :global(.hero-bleed::after) {
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      content: none !important;
+    }
+
+    /* Layout */
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+    .intro { margin-top: 24px; margin-bottom: 20px; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
+    .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color:#1f2937; }
 
     .rv-section { background:#fafaf9; padding: 2.5rem 0; }
     .rv-wrapper {
-      background:#fff;
-      border-radius: 1rem;
-      box-shadow: 0 2px 10px rgba(0,0,0,.05);
-      padding: 1.25rem;
-      border: 1px solid #eee;
+      background:#fff; border-radius: 1rem; border: 1px solid #eee;
+      box-shadow: 0 2px 10px rgba(0,0,0,.05); padding: 1.25rem;
     }
   </style>
 </Site>
