@@ -86,7 +86,6 @@ try {
 
   items.sort((a,b) => (a.sort! - b.sort!) || a.title!.localeCompare(b.title!));
 
-  // take spare_1 and spare_2 from header row
   if (header) {
     hotelsCopy = header.spare_1 || null;
     airbnbsCopy = header.spare_2 || null;
@@ -104,6 +103,7 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
+  <!-- HERO (matches neighbourhoods via .hero-bleed) -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -118,52 +118,25 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
     )}
   </section>
 
+  <!-- H1 + intro — same spacing/typography as neighbourhoods -->
   <div class="container intro">
     <h1>{header?.title || "Places to Stay in Fernie"}</h1>
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
 
-  <div class="rv-container bg-[#fafaf9] rounded-2xl shadow-sm p-4">
-      <div data-rv-block="MQP2VMLT-HDQLLMRY"></div>
-      <script src="https://cdn.realtyvis.com/js/embed.js"></script>
+  <!-- RealtyVis Listings Embed — single instance, same container width -->
+  <section class="rv-section">
+    <div class="container">
+      <div class="rv-wrapper">
+        <div data-rv-block="MQP2VMLT-14Y2W8DC"></div>
+        <script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>
+      </div>
     </div>
-
-   <section class="container listings">
-    <!-- RealtyVis Embed -->
-    <div data-rv-block="MQP2VMLT-CRO04YLM"></div>
-    <script src="https://cdn.realtyvis.com/js/embed.js"></script>
   </section>
-
-  <!-- RealtyVis Listings Embed -->
-<section class="rv-section bg-[#fafaf9] py-10">
-  <div class="container mx-auto px-4 max-w-6xl">
-    <div class="rv-wrapper rounded-2xl shadow-sm p-4">
-      <div data-rv-block="MQP2VMLT-14Y2W8DC"></div>
-      <script src="https://cdn.realtyvis.com/js/embed.js"></script>
-    </div>
-  </div>
-</section>
-
-<style>
-  .rv-section {
-    background: #fafaf9;
-  }
-  .rv-wrapper {
-    background: white;
-    border-radius: 1rem;
-    padding: 1.5rem;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-  }
-  .container {
-    width: 100%;
-    max-width: 1100px;
-    margin: 0 auto;
-  }
-</style>
-
 
   <div class="container">
     {error && <p class="error">Error: {error}</p>}
+
     {!error && items.length === 0 && (
       <p>No stays yet. Check <code>PUBLIC_STAY_JSON</code> and your sheet’s <code>status</code>/<code>slug</code>/<code>category</code> columns.</p>
     )}
@@ -214,10 +187,21 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
   </div>
 
   <style>
+    /* Global container/intro — identical to neighbourhoods */
     .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 1rem; }
     .intro { margin-top: 24px; margin-bottom: 20px; text-align: left; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px 0; color: #111827; }
     .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
+
+    /* RV section uses full-width soft bg but inner container stays 1200px */
+    .rv-section { background:#fafaf9; padding: 2.5rem 0; }
+    .rv-wrapper {
+      background:#fff;
+      border-radius: 1rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,.05);
+      padding: 1.25rem;
+      border: 1px solid #eee;
+    }
 
     .group { margin: 50px 0; }
     .group-title { margin: 0 0 10px; font-size: 1.4rem; font-weight: 800; color:#111827; }

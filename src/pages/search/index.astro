@@ -2,7 +2,7 @@
 // File: src/pages/search/index.astro
 import Site from "../../layouts/Site.astro";
 
-const hero = "/img/hero/search_hero.webp"; // hardcoded
+const hero = "/img/hero/search_hero.webp";
 const pageTitle = "Search Listings";
 const pageSummary =
   "Find Fernie homes, condos, townhomes, and investment properties. Filter by price, beds, and more.";
@@ -17,7 +17,7 @@ const seo_description =
     <link rel="preload" as="image" href={hero} fetchpriority="high" />
   </Fragment>
 
-  <!-- Match global hero height via .hero-bleed from Site.astro -->
+  <!-- HERO (matches neighbourhoods via .hero-bleed in Site.astro) -->
   <section class="hero-bleed">
     <img
       src={hero}
@@ -30,81 +30,37 @@ const seo_description =
     />
   </section>
 
-
-
-
-  
+  <!-- H1 + intro (same spacing/typography as neighbourhoods) -->
   <div class="container intro">
     <h1>{pageTitle}</h1>
     <p>{pageSummary}</p>
   </div>
 
-  <div class="container">
-    <!-- 🔎 Drop your actual search UI/embed below -->
-    <div class="search-card">
-      <!-- Example placeholders; replace with your widget/component -->
-      <!-- <SearchWidget /> -->
-      <!-- or -->
-      <!-- <script src="https://idx.myrealpage.com/...in.js" async></script> -->
-      <div class="search-placeholder">
-        <div data-rv-block="MQP2VMLT-HDQLLMRY"></div><script src="https://cdn.realtyvis.com/js/embed.js"></script>
+  <!-- RealtyVis Listings Embed (full-width bg, constrained inner container) -->
+  <section class="rv-section">
+    <div class="container">
+      <div class="rv-wrapper">
+        <div data-rv-block="MQP2VMLT-14Y2W8DC"></div>
+        <script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>
       </div>
     </div>
-
-
-
-
-    
-  <!-- RealtyVis Listings Embed -->
-<section class="rv-section">
-  <div class="container">
-    <div class="rv-wrapper">
-      <div data-rv-block="MQP2VMLT-14Y2W8DC"></div>
-      <script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>
-    </div>
-  </div>
-</section>
-
-<style>
-  .rv-section { background:#fafaf9; padding:2.5rem 0; }
-  .container { max-width:1100px; margin:0 auto; padding:0 1rem; }
-  .rv-wrapper { background:#fff; border-radius:1rem; box-shadow:0 2px 10px rgba(0,0,0,.05); padding:1.25rem; }
-</style>
-
-
-<style>
-  .rv-section {
-    background: #fafaf9;
-  }
-  .rv-wrapper {
-    background: white;
-    border-radius: 1rem;
-    padding: 1.5rem;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-  }
-  .container {
-    width: 100%;
-    max-width: 1100px;
-    margin: 0 auto;
-  }
-</style>
-
-  </div>
+  </section>
 
   <style>
-    .intro { margin: 24px auto 20px; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
-    .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
+    /* Match neighbourhoods page */
+    .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 1rem; }
 
-    .search-card{
-      background:#fff; border:1px solid #e5e7eb; border-radius:16px;
-      padding:16px; margin:16px 0 40px; box-shadow:0 2px 10px rgba(0,0,0,.06);
-      overflow:hidden;
-    }
+    .intro { margin-top: 24px; margin-bottom: 20px; text-align: left; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px 0; color: #111827; }
+    .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
 
-    .search-placeholder{
-      display:grid; place-items:center; height:280px; border:1px dashed #d1d5db; border-radius:12px; color:#6b7280;
-      background-image: repeating-linear-gradient(-45deg, #fafafa, #fafafa 10px, #f5f5f5 10px, #f5f5f5 20px);
+    .rv-section { background:#fafaf9; padding: 2.5rem 0; }
+    .rv-wrapper {
+      background:#fff;
+      border-radius: 1rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,.05);
+      padding: 1.25rem;
+      border: 1px solid #eee;
     }
   </style>
 </Site>
