@@ -1,7 +1,46 @@
 ---
+// File: src/pages/neighbourhoods/[slug].astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
+
+/** Build safe-ish embed HTML from the sheet's cta1 value */
+const buildCtaHtml = (v: string): string => {
+  const s = (v || "").trim();
+  if (!s) return "";
+
+  // 1) Raw embed HTML pasted into the cell (iframe/script/realtyvis block)
+  if (/[<](script|iframe)\b/i.test(s) || /data-rv-block=/i.test(s)) {
+    return s;
+  }
+
+  // 2) RealtyVis block id pattern (e.g., MQP2VMLT-14Y2W8DC)
+  const idMatch = s.match(/^[A-Z0-9]{8}-[A-Z0-9]{8}$/i);
+  if (idMatch) {
+    const id = idMatch[0];
+    return `
+<div data-rv-block="${id}"></div>
+<script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>`;
+  }
+
+  // 3) URL → iframe (RealtyVis or generic)
+  try {
+    const u = new URL(s);
+    if (/cdn\.realtyvis\.com$/i.test(u.hostname)) {
+      // direct script link
+      return `<script src="${u.href}" is:inline></script>`;
+    }
+    if (/(\brealtyvis\.com|app\.realtyvis\.com)$/i.test(u.hostname)) {
+      // app or site page — iframe it
+      return `<iframe src="${u.href}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;min-height:900px;border:0;display:block;"></iframe>`;
+    }
+    // Generic URL as iframe
+    return `<iframe src="${u.href}" loading="lazy" style="width:100%;min-height:900px;border:0;display:block;"></iframe>`;
+  } catch {
+    // Fallback: treat as literal HTML/text the user intended
+    return s;
+  }
+};
 
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_SHEET_JSON;
@@ -10,8 +49,12 @@ export async function getStaticPaths() {
   let rows:any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch { return []; }
+    rows = Array.isArray(raw) ? raw :
+           Array.isArray(raw?.data) ? raw.data :
+           Array.isArray(raw?.rows) ? raw.rows : [];
+  } catch {
+    return [];
+  }
 
   const items = rows.map((r:any) => {
     const get=(k:string)=>(r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
@@ -42,7 +85,10 @@ export async function getStaticPaths() {
       title: n.title,
       summary: n.summary || "",
       hero: heroPath(n.hero_img),
-      cta1: n.cta1 || "",
+      // ✅ resolved embed HTML from cta1
+      cta_html: buildCtaHtml(n.cta1 || ""),
+
+      // map_embed resolution (kept from your original)
       map_embed: (() => {
         const v = (n.map_embed || "").trim();
         if (!v) return "";
@@ -58,8 +104,9 @@ export async function getStaticPaths() {
         }
         return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
       })(),
+
       long_copy: n.long_copy || "",
-      // ✅ SEO props
+      // SEO
       seo_title: n.seo_title || "",
       seo_description: n.seo_description || "",
     }
@@ -67,11 +114,11 @@ export async function getStaticPaths() {
 }
 
 const {
-  title, summary, hero, map_embed, long_copy, cta1,
+  title, summary, hero, map_embed, long_copy, cta_html,
   seo_title, seo_description
 } = Astro.props as any;
 
-// ✅ Compute SEO fallbacks
+// SEO fallbacks
 const pageSeoTitle = seo_title || title || "Neighbourhood";
 const pageSeoDesc  = seo_description || summary || "";
 ---
@@ -82,7 +129,6 @@ const pageSeoDesc  = seo_description || summary || "";
   seo_title={pageSeoTitle}
   seo_description={pageSeoDesc}
 >
-
   {hero && (
     <Fragment slot="head">
       <link rel="preload" as="image" href={hero} fetchpriority="high" />
@@ -124,13 +170,10 @@ const pageSeoDesc  = seo_description || summary || "";
     </div>
   )}
 
-  {cta1 && (
+  <!-- ✅ Inline embed slot driven by cta1 -->
+  {cta_html && (
     <div class="container">
-      <div class="cta-card">
-        <h2>Ready to explore {title} listings?</h2>
-        <p>Browse every property and get instant alerts for price changes.</p>
-        <a href={cta1} class="cta-btn"><span class="cta-text">🔎 View Listings</span></a>
-      </div>
+      <div class="embed-card" set:html={cta_html}></div>
     </div>
   )}
 
@@ -141,6 +184,8 @@ const pageSeoDesc  = seo_description || summary || "";
   )}
 
   <style>
+    .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 1rem; }
+
     .intro { margin: 24px auto 20px; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
     .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
@@ -148,12 +193,20 @@ const pageSeoDesc  = seo_description || summary || "";
     .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
     .map-card{ border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
 
-    .cta-card{ background:#fff; color:#111827; border:2px solid #e5e7eb; border-radius:16px; padding:28px 20px; margin:36px 0; text-align:center; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
-    .cta-card h2{ margin:0 0 10px; font-size:1.75rem; font-weight:700; }
-    .cta-card p{ font-size:1rem; color:#374151; margin-bottom:18px; }
-    .cta-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; background:#0a7bff; color:#fff; text-decoration:none; font-weight:700; font-size:1.125rem; padding:12px 28px; border-radius:999px; box-shadow:0 4px 10px rgba(0,0,0,0.15); transition: background .15s ease, box-shadow .15s ease; }
-    .cta-btn .cta-text{ text-decoration:none; }
-    .cta-btn:hover{ background:#065aa3; box-shadow:0 6px 14px rgba(0,0,0,0.25); }
+    /* Replaces old CTA card; now a generic embed wrapper */
+    .embed-card{
+      background:#fff;
+      color:#111827;
+      border:1px solid #e5e7eb;
+      border-radius:16px;
+      padding:16px;
+      margin:36px 0;
+      box-shadow:0 2px 10px rgba(0,0,0,0.06);
+      overflow:hidden;
+    }
+    .embed-card iframe { width:100%; display:block; border:0; }
+    .embed-card [data-rv-block] { max-width:none; }
+    .embed-card script { display:block; }
 
     .long-copy{ margin:40px 0 48px; font-size:1.05rem; line-height:1.8; color:#1f2937; }
     .long-copy p{ margin:0 0 1.25em; }
