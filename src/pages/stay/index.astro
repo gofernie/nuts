@@ -124,15 +124,7 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
 
-  <!-- RealtyVis Listings Embed — single instance, same container width -->
-  <section class="rv-section">
-    <div class="container">
-      <div class="rv-wrapper">
-        <div data-rv-block="MQP2VMLT-14Y2W8DC"></div>
-        <script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>
-      </div>
-    </div>
-  </section>
+  
 
   <div class="container">
     {error && <p class="error">Error: {error}</p>}

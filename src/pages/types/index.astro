@@ -96,8 +96,8 @@ const MRP_SCRIPT_SRC =
         fetchpriority="high"
         loading="eager"
         decoding="async"
-        width="2000"
-        height="1000"
+        width="1600"
+        height="800"
       />
     )}
   </section>
@@ -107,95 +107,32 @@ const MRP_SCRIPT_SRC =
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
 
-  <div class="container"><h2>Is There Any Shift?</h2></div>
 
-  <!-- =========================
-       MRP — ZERO-TRANSITION OVERLAY
-       ========================= -->
+<!-- RealtyVis Embed (1200px container, safe inline script) -->
+<section class="rv-section">
   <div class="container">
-    <div id="mrp-wrap" aria-busy="true">
-      <!-- Overlay (absolute; contributes no height) -->
-      <div id="mrp-skeleton" role="status" aria-live="polite" aria-label="Loading listings">
-        <div class="skel">
-          <div class="bar" style="width: 42%"></div>
-          <div class="bar" style="width: 68%"></div>
-          <div class="card"></div>
-          <div class="card"></div>
-          <div class="card"></div>
-        </div>
-      </div>
-
-      <!-- Mount point for MRP injection -->
-      <div id="mrp-mount"></div>
+    <div class="rv-wrapper">
+      <div data-rv-block="MQP2VMLT-J7GGZNVR"></div>
+      <script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>
     </div>
   </div>
+</section>
 
-  <script is:inline>
-    (function () {
-      const WRAP = document.getElementById('mrp-wrap');
-      const SKELETON = document.getElementById('mrp-skeleton');
-      const MOUNT = document.getElementById('mrp-mount');
-      if (!WRAP || !SKELETON || !MOUNT) return;
+<style>
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+  .rv-section { background: #fafaf9; padding: 2.5rem 0; }
+  .rv-wrapper {
+    background: #fff;
+    border-radius: 1rem;
+    border: 1px solid #eee;
+    box-shadow: 0 2px 10px rgba(0,0,0,.05);
+    padding: 1.25rem;
+  }
+</style>
 
-      let hidden = false;
-      let idleTimer;
 
-      function widgetLooksReady() {
-        // script + at least one non-script child, or any non-script descendant
-        return MOUNT.childElementCount > 1 || MOUNT.querySelector('*:not(script)');
-      }
 
-      function hideOverlayNow() {
-        if (hidden) return;
-        hidden = true;
-        WRAP.setAttribute('aria-busy', 'false');
-        // no transition; avoid blended repaints
-        SKELETON.style.visibility = 'hidden';
-        SKELETON.style.opacity = '0';
-        // remove next frame to keep paint stable
-        requestAnimationFrame(() => {
-          if (SKELETON && SKELETON.parentNode) SKELETON.remove();
-        });
-      }
-
-      function scheduleHideIfReady() {
-        if (!widgetLooksReady() || hidden) return;
-        clearTimeout(idleTimer);
-        idleTimer = setTimeout(hideOverlayNow, 350); // wait for DOM to settle
-      }
-
-      const observer = new MutationObserver(scheduleHideIfReady);
-      observer.observe(MOUNT, { childList: true, subtree: true });
-
-      function loadMrpScript() {
-        if (document.getElementById('mrp-script')) return;
-        const s = document.createElement('script');
-        s.id = 'mrp-script';
-        s.src = MRP_SCRIPT_SRC;
-        s.async = true;
-        s.addEventListener('load', scheduleHideIfReady);
-        s.addEventListener('error', () => console.error("MRP script failed to load"));
-        MOUNT.appendChild(s);
-      }
-
-      if ('IntersectionObserver' in window) {
-        const io = new IntersectionObserver((entries, obs) => {
-          if (entries[0]?.isIntersecting) {
-            loadMrpScript();
-            obs.disconnect();
-          }
-        }, { rootMargin: '200px 0px' });
-        io.observe(WRAP);
-      } else {
-        loadMrpScript();
-      }
-
-      // Hard fallback (never shimmer forever)
-      setTimeout(() => {
-        if (!hidden) hideOverlayNow();
-      }, 8000);
-    })();
-  </script>
+   
 
   <!-- ======================
        Your existing grid/cards
