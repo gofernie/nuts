@@ -4,45 +4,37 @@ import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-/** Build safe-ish embed HTML from the sheet's cta1 value */
-const buildCtaHtml = (v: string): string => {
-  const s = (v || "").trim();
-  if (!s) return "";
-
-  // 1) Raw embed HTML pasted into the cell (iframe/script/realtyvis block)
-  if (/[<](script|iframe)\b/i.test(s) || /data-rv-block=/i.test(s)) {
-    return s;
-  }
-
-  // 2) RealtyVis block id pattern (e.g., MQP2VMLT-14Y2W8DC)
-  const idMatch = s.match(/^[A-Z0-9]{8}-[A-Z0-9]{8}$/i);
-  if (idMatch) {
-    const id = idMatch[0];
-    return `
-<div data-rv-block="${id}"></div>
-<script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>`;
-  }
-
-  // 3) URL → iframe (RealtyVis or generic)
-  try {
-    const u = new URL(s);
-    if (/cdn\.realtyvis\.com$/i.test(u.hostname)) {
-      // direct script link
-      return `<script src="${u.href}" is:inline></script>`;
-    }
-    if (/(\brealtyvis\.com|app\.realtyvis\.com)$/i.test(u.hostname)) {
-      // app or site page — iframe it
-      return `<iframe src="${u.href}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;min-height:900px;border:0;display:block;"></iframe>`;
-    }
-    // Generic URL as iframe
-    return `<iframe src="${u.href}" loading="lazy" style="width:100%;min-height:900px;border:0;display:block;"></iframe>`;
-  } catch {
-    // Fallback: treat as literal HTML/text the user intended
-    return s;
-  }
-};
-
 export async function getStaticPaths() {
+  // Helper lives INSIDE getStaticPaths → guaranteed defined when used.
+  function buildCtaHtmlLocal(v: string): string {
+    const s = (v || "").trim();
+    if (!s) return "";
+
+    // Raw embed HTML pasted directly
+    if (/[<](script|iframe)\b/i.test(s) || /data-rv-block=/i.test(s)) return s;
+
+    // RealtyVis block id (e.g., MQP2VMLT-14Y2W8DC)
+    const id = s.match(/^[A-Z0-9]{8}-[A-Z0-9]{8}$/i)?.[0];
+    if (id) {
+      return `<div data-rv-block="${id}"></div>
+<script src="https://cdn.realtyvis.com/js/embed.js" is:inline></script>`;
+    }
+
+    // URL → iframe/script
+    try {
+      const u = new URL(s);
+      if (/cdn\.realtyvis\.com$/i.test(u.hostname)) {
+        return `<script src="${u.href}" is:inline></script>`;
+      }
+      if (/(\brealtyvis\.com|app\.realtyvis\.com)$/i.test(u.hostname)) {
+        return `<iframe src="${u.href}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;min-height:900px;border:0;display:block;"></iframe>`;
+      }
+      return `<iframe src="${u.href}" loading="lazy" style="width:100%;min-height:900px;border:0;display:block;"></iframe>`;
+    } catch {
+      return s;
+    }
+  }
+
   const url = import.meta.env.PUBLIC_SHEET_JSON;
   if (!url) return [];
 
@@ -77,7 +69,11 @@ export async function getStaticPaths() {
       seo_title: get("seo_title"),
       seo_description: get("seo_description"),
     };
-  }).filter((r)=> r && r.slug && r.title && r.slug.toLowerCase()!=="index" && !/^draft$/i.test(r.status||""));
+  }).filter((r)=>
+    r && r.slug && r.title &&
+    r.slug.toLowerCase()!=="index" &&
+    !/^draft$/i.test(r.status||"")
+  );
 
   return items.map((n:any)=>({
     params:{ slug:n.slug },
@@ -85,10 +81,11 @@ export async function getStaticPaths() {
       title: n.title,
       summary: n.summary || "",
       hero: heroPath(n.hero_img),
-      // ✅ resolved embed HTML from cta1
-      cta_html: buildCtaHtml(n.cta1 || ""),
 
-      // map_embed resolution (kept from your original)
+      // ✅ Embed HTML resolved from sheet cell cta1
+      cta_html: buildCtaHtmlLocal(n.cta1 || ""),
+
+      // Map resolver (unchanged)
       map_embed: (() => {
         const v = (n.map_embed || "").trim();
         if (!v) return "";
@@ -106,7 +103,6 @@ export async function getStaticPaths() {
       })(),
 
       long_copy: n.long_copy || "",
-      // SEO
       seo_title: n.seo_title || "",
       seo_description: n.seo_description || "",
     }
@@ -118,7 +114,6 @@ const {
   seo_title, seo_description
 } = Astro.props as any;
 
-// SEO fallbacks
 const pageSeoTitle = seo_title || title || "Neighbourhood";
 const pageSeoDesc  = seo_description || summary || "";
 ---
@@ -135,7 +130,7 @@ const pageSeoDesc  = seo_description || summary || "";
     </Fragment>
   )}
 
-  <!-- LCP hero -->
+  <!-- Hero -->
   <section class="hero-bleed">
     {hero && (
       <img
@@ -170,7 +165,7 @@ const pageSeoDesc  = seo_description || summary || "";
     </div>
   )}
 
-  <!-- ✅ Inline embed slot driven by cta1 -->
+  <!-- Inline embed from cta1 -->
   {cta_html && (
     <div class="container">
       <div class="embed-card" set:html={cta_html}></div>
@@ -193,7 +188,6 @@ const pageSeoDesc  = seo_description || summary || "";
     .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
     .map-card{ border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
 
-    /* Replaces old CTA card; now a generic embed wrapper */
     .embed-card{
       background:#fff;
       color:#111827;
