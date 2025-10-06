@@ -154,6 +154,9 @@ const pageSeoDesc  = seo_description || summary || "";
     </div>
   )}
 
+  <div class="container map-wrap">
+      <br><br><h2>Browse {title} Listings</h2></div>
+
   <!-- RV embed from cta1 -->
   {cta_html && (
     <section class="rv-section rv-nopad">
@@ -164,6 +167,12 @@ const pageSeoDesc  = seo_description || summary || "";
       </div>
     </section>
   )}
+
+  <!-- long -->
+  <div class="container intro">
+    <h2>{title}</h2>
+    {summary && <p>{summary}</p>}
+  </div>
 
   <!-- Scroll memory (save y while scrolling; restore on back/BFCache) -->
   <script is:inline>
