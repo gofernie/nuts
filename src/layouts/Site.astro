@@ -1,7 +1,5 @@
 ---
 // src/layouts/Site.astro
-
-// Props
 const {
   title = "Fernie Real Estate",
   seo_title = title,
@@ -13,7 +11,7 @@ const {
 
 import { getJson } from "../lib/fetchJson";
 
-// ---------- helpers ----------
+/* ---------- helpers ---------- */
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
 const getField = (r:any, k:string) =>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
@@ -39,7 +37,7 @@ async function fetchMenuSafe(url?: string): Promise<MenuItem[]> {
     for (const r of rows) {
       if (!visible(r)) continue;
       const title = getField(r, "title");
-      const slug = getField(r, "slug");
+      const slug  = getField(r, "slug");
       if (!title || !slug) continue;
       const sort = Number.isFinite(+r?.sort) ? +r.sort : Number.MAX_SAFE_INTEGER;
       out.push({ title, slug, sort });
@@ -51,18 +49,18 @@ async function fetchMenuSafe(url?: string): Promise<MenuItem[]> {
   }
 }
 
-// ---------- build menus (safe) ----------
+/* ---------- build menus (safe) ---------- */
 const neighbourhoods:MenuItem[] = await fetchMenuSafe(import.meta.env.PUBLIC_SHEET_JSON);
 const typesMenu:MenuItem[]      = await fetchMenuSafe(import.meta.env.PUBLIC_TYPES_JSON);
 const xtraMenu:MenuItem[]       = await fetchMenuSafe(import.meta.env.PUBLIC_XTRAAREA_JSON);
-await fetchMenuSafe(import.meta.env.PUBLIC_TODO_JSON); // warm cache, ignore
+await fetchMenuSafe(import.meta.env.PUBLIC_TODO_JSON);
 
-// ---------- misc ----------
+/* ---------- misc ---------- */
 const ROWS_PER_COL = 7;
 const colsFor = (n:number) => Math.min(6, Math.ceil(n / ROWS_PER_COL));
 const metaDescription = (seo_description || summary || "").toString().trim();
 
-// ---------- nav order ----------
+/* ---------- nav order ---------- */
 const NAV_ORDER = [
   "neighbourhoods",
   "types",
@@ -83,17 +81,17 @@ const NAV_ORDER = [
 
     <slot name="head" />
 
+    <!-- Base tokens -->
     <style>
-      :root{
+      :root {
         --header-h: 52px;
         --bg:#fafaf9; --ink:#111827; --ink-muted:#1f2937; --hover-bg:rgba(243,244,246,.9);
         --hero-h:48vh; --container-pad:12px; --bleed-fix:2px;
       }
-      *,*::before,*::after{ box-sizing:border-box; }
-      html,body{ height:100%; overflow-x:clip; }
-      body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+      *,*::before,*::after { box-sizing:border-box; }
+      html, body { height:100%; overflow-x:clip; }
+      body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); }
 
-      /* ===== Header ===== */
       header{
         position:fixed; top:0; left:0; right:0; height:var(--header-h); z-index:1000;
         background:rgba(255,255,255,.84); backdrop-filter:blur(10px); border-bottom:1px solid #e5e7eb;
@@ -101,44 +99,47 @@ const NAV_ORDER = [
       .nav-inner{
         width:100%; height:100%;
         padding:0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-        display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:nowrap;
+        display:flex; align-items:center; justify-content:space-between;
+        gap:10px; flex-wrap:nowrap;
       }
+
       .brand{
         font-weight:700; font-size:1rem; color:var(--ink);
-        text-decoration:none; padding:4px 6px; border-radius:6px; white-space:nowrap; flex:0 0 auto;
+        text-decoration:none; padding:4px 6px; border-radius:6px;
+        white-space:nowrap; flex:0 0 auto;
       }
       .brand:hover{ background:var(--hover-bg); }
 
-      nav#site-nav{
+      nav{
         display:flex; align-items:center; gap:8px;
         flex:1 1 auto; min-width:0; justify-content:flex-end;
       }
-      .hamburger{
-        display:none; background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--ink-muted);
-      }
-
-      .menu-group{ position:relative; margin:0 2px; }
       nav a{
         color:var(--ink-muted); padding:6px 8px; text-decoration:none; border-radius:8px; font-weight:500;
         display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
       }
       nav a:hover, nav a:focus-visible{ color:var(--ink); background:var(--hover-bg); }
 
-      .menu-link.has-sub{ display:inline-flex; align-items:center; gap:3px; white-space:nowrap; }
+      .hamburger{ display:none; background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--ink-muted); }
+      .menu-group{ position:relative; margin:0 2px; }
+      .menu-link.has-sub{ display:inline-flex; align-items:center; gap:3px; white-space:nowrap; touch-action:manipulation; }
       .menu-link.has-sub::after{ content:"▾"; display:inline; line-height:1; opacity:.8; }
 
       .dropdown{
         position:absolute; left:0; top:calc(100% + 21px);
         background:rgba(255,255,255,0.9); backdrop-filter:blur(6px);
         border:1px solid rgba(229,231,235,.7); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.08);
-        display:grid; grid-auto-flow:column; grid-template-rows:repeat(7,auto); grid-auto-columns:max-content;
-        gap:6px 12px; padding:10px; width:max-content; max-width:92vw;
+        display:grid; grid-auto-flow: column;
+        grid-template-rows: repeat(7, auto);
+        grid-auto-columns: max-content;
+        gap: 6px 12px; padding: 10px;
+        width: max-content; max-width: 92vw;
         opacity:0; transform:translateY(-12px); pointer-events:none; visibility:visible;
         transition:transform .28s cubic-bezier(.2,.7,.2,1), opacity .22s ease-out;
         z-index:1100;
       }
       .dropdown.wide{ overflow-x:auto; }
-      .dropdown.align-right{ left:auto; right:0; }
+      .dropdown.align-right{ right:0; left:auto; }
 
       .dropdown > a{
         display:block; padding:8px 10px; line-height:1.35; white-space:normal;
@@ -147,63 +148,49 @@ const NAV_ORDER = [
       }
       .dropdown > a:hover{ background:#fff; color:#111827; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,0.08); transform:translateY(-1px); }
 
-      /* Desktop show dropdown on hover */
+      /* Desktop: hover/intent activates dropdowns */
       @media (min-width:901px){
         .menu-group::before{ content:""; position:absolute; top:100%; left:-12px; right:-12px; height:40px; pointer-events:auto; }
         .menu-group:hover > .dropdown,
-        .menu-group:focus-within > .dropdown{ opacity:1; transform:translateY(0); pointer-events:auto; }
+        .menu-group:focus-within > .dropdown,
+        .menu-group.hovering > .dropdown{ opacity:1; transform:translateY(0); pointer-events:auto; }
       }
 
-      /* ===== Mobile panel ===== */
+      /* Mobile: collapsed nav by default; panel opens when .open set */
       @media (max-width:900px){
-        nav#site-nav{ display:none; }
-        nav#site-nav.open{
-          display:flex; position:absolute; top:var(--header-h); right:0; background:#fff;
+        #site-nav{
+          display:none;
+          position:absolute; top:var(--header-h); right:0; background:#fff;
           flex-direction:column; gap:0; padding:8px 12px; box-shadow:0 2px 8px rgba(0,0,0,.1);
-          width:auto; max-width:92vw; min-width:220px; border:1px solid #e5e7eb; border-top:0; border-radius:0 0 10px 10px;
+          width:auto; max-width:92vw; min-width:220px;
         }
+        #site-nav.open{ display:flex; }
+
         .hamburger{ display:block; margin-left:auto; }
 
-        .menu-group{ width:100%; border-top:1px solid #f1f5f9; padding-top:6px; margin-top:6px; }
-        .menu-group:first-child{ border-top:0; padding-top:0; margin-top:0; }
-
-        /* trigger highlight when open */
-        .menu-group.expanded > .menu-link.has-sub{
-          background:#f8fafc; box-shadow:inset 0 0 0 1px #e5e7eb; border-radius:8px;
-        }
-
-        /* dropdown collapses/expands */
+        .menu-group{ width:100%; }
         .menu-group > .dropdown{
-          position:static; background:#fff; box-shadow:none; border:0; padding:6px 6px 8px 10px;
+          position:static; background:#fff; box-shadow:none; border:0; padding:0 0 4px 0;
           display:block; overflow:hidden; max-height:0; transition:max-height .28s ease;
           opacity:1; transform:none; pointer-events:auto;
         }
         .menu-group.expanded > .dropdown{ max-height:480px; overflow:auto; }
-
-        /* leaf items (Search/Contact) */
-        #site-nav .menu-leaf{
-          width:100%; text-align:left; padding:10px; margin-top:4px; border-radius:8px;
-        }
       }
 
       main{ margin:0; padding:0; }
 
-      /* ===== Footer ===== */
-      footer.site-footer{
-        width:100%; background:rgba(255,255,255,0.9); backdrop-filter:blur(6px);
-        border-top:1px solid #e5e7eb; padding:1rem 0; margin-top:3rem; text-align:center; font-size:.875rem; color:#4b5563;
-      }
+      footer.site-footer{ width:100%; background:rgba(255,255,255,0.9); backdrop-filter:blur(6px);
+        border-top:1px solid #e5e7eb; padding:1rem 0; margin-top:3rem; text-align:center; font-size:.875rem; color:#4b5563; }
       footer.site-footer .container{ max-width:1200px; margin-inline:auto; padding-inline:var(--container-pad); }
       footer.site-footer .footer-links{ margin-top:.5rem; display:flex; justify-content:center; gap:1rem; flex-wrap:wrap; font-size:.8rem; }
       footer.site-footer .footer-links a{ color:#4b5563; text-decoration:none; }
       footer.site-footer .footer-links a:hover{ text-decoration:underline; }
     </style>
 
+    <!-- Global page helpers -->
     <style is:global>
       html { scroll-behavior: smooth; }
       :target { scroll-margin-top: calc(var(--header-h) + 12px); }
-
-      /* Edge-to-edge hero image */
       .hero-bleed{
         position:relative; left:50%; right:50%; width:calc(100vw + var(--bleed-fix)*2);
         margin-left:calc(-50vw - var(--bleed-fix)); margin-right:calc(-50vw - var(--bleed-fix));
@@ -211,14 +198,10 @@ const NAV_ORDER = [
         background-color:#e5e7eb; border-bottom:1px solid #eee; overflow:hidden;
       }
       .hero-bleed>img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-
       .container{ max-width:1200px; margin-inline:auto; padding-inline:var(--container-pad); }
     </style>
 
-    <!-- Smooth anchors (optional) -->
-    <script is:inline src="/js/smooth-anchors.js"></script>
-
-    <!-- Mobile nav logic (one dropdown at a time) -->
+    <!-- Mobile nav logic (keeps your toggleNav name) -->
     <script is:inline>
       function toggleNav(){
         const nav = document.getElementById('site-nav');
@@ -228,10 +211,9 @@ const NAV_ORDER = [
         btn.setAttribute('aria-expanded', String(open));
         if (!open) {
           nav.querySelectorAll('.menu-group.expanded').forEach(g => g.classList.remove('expanded'));
-          nav.querySelectorAll('.menu-link.has-sub[aria-expanded="true"]').forEach(a=>a.setAttribute('aria-expanded','false'));
         }
       }
-      // expose for onclick
+      // expose for the button
       window.toggleNav = toggleNav;
 
       document.addEventListener('DOMContentLoaded', () => {
@@ -240,7 +222,7 @@ const NAV_ORDER = [
 
         const isDesktop = () => matchMedia('(min-width:901px)').matches;
 
-        // Make top-level triggers toggle their dropdowns on mobile
+        // Tap-to-expand for submenus on mobile
         nav.querySelectorAll('.menu-group .menu-link.has-sub').forEach((el) => {
           if (el.dataset.wired === '1') return;
           el.dataset.wired = '1';
@@ -249,37 +231,29 @@ const NAV_ORDER = [
           el.setAttribute('aria-expanded','false');
 
           el.addEventListener('click', (e) => {
-            if (isDesktop()) return; // desktop uses hover
+            if (isDesktop()) return; // let desktop behave normally
             e.preventDefault();
             const group = el.closest('.menu-group');
             if (!group) return;
-
-            // Close any other open group first
-            nav.querySelectorAll('.menu-group.expanded').forEach(g => {
-              if (g !== group) {
-                g.classList.remove('expanded');
-                const trigger = g.querySelector('.menu-link.has-sub');
-                if (trigger) trigger.setAttribute('aria-expanded','false');
-              }
-            });
-
             const expanded = group.classList.toggle('expanded');
             el.setAttribute('aria-expanded', String(expanded));
           });
         });
 
-        // When switching to desktop, reset mobile state
+        // When resizing to desktop, reset mobile state
         addEventListener('resize', () => {
           if (isDesktop()) {
             const btn = document.getElementById('hamburger');
             nav.classList.remove('open');
             btn?.setAttribute('aria-expanded','false');
             nav.querySelectorAll('.menu-group.expanded').forEach(g => g.classList.remove('expanded'));
-            nav.querySelectorAll('.menu-link.has-sub[aria-expanded="true"]').forEach(a=>a.setAttribute('aria-expanded','false'));
           }
         }, { passive:true });
       });
     </script>
+
+    <!-- (optional) your smooth-anchors helper if you use it elsewhere -->
+    <script is:inline src="/js/smooth-anchors.js"></script>
   </head>
 
   <body class={bodyClass}>
@@ -288,13 +262,14 @@ const NAV_ORDER = [
         <div class="nav-inner">
           <a class="brand" href="/" data-astro-prefetch>Fernie Real Estate</a>
 
+          <!-- IDs are important for CSS/JS targets -->
           <button
             id="hamburger"
             class="hamburger"
             onclick="toggleNav()"
             aria-label="Open menu"
-            aria-controls="site-nav"
             aria-expanded="false"
+            aria-controls="site-nav"
           >☰</button>
 
           <nav id="site-nav" aria-label="Primary">
@@ -310,13 +285,12 @@ const NAV_ORDER = [
                         return (
                           <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
                             <a class="view-all" href="/neighbourhoods" data-astro-prefetch="hover">ALL NEIGHBOURHOODS</a>
-                            {neighbourhoods.map(n => <a href={`/neighbourhoods/${n.slug}`} data-astro-prefetch="hover">{n.title}</a>)}
+                            {neighbourhoods.map(n => <a href={`/neighbourhoods/{n.slug}`} data-astro-prefetch="hover">{n.title}</a>)}
                           </div>
                         );
                       })()}
                     </div>
                   );
-
                   case "types": return (
                     <div class="menu-group">
                       <a class="menu-link has-sub" href="/types" data-astro-prefetch="hover">Types</a>
@@ -326,13 +300,12 @@ const NAV_ORDER = [
                         return (
                           <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
                             <a class="view-all" href="/types" data-astro-prefetch="hover">ALL PROPERTY TYPES</a>
-                            {typesMenu.map(t => <a href={`/types/${t.slug}`} data-astro-prefetch="hover">{t.title}</a>)}
+                            {typesMenu.map(t => <a href={`/types/{t.slug}`} data-astro-prefetch="hover">{t.title}</a>)}
                           </div>
                         );
                       })()}
                     </div>
                   );
-
                   case "xtra": return (
                     <div class="menu-group">
                       <a class="menu-link has-sub" href="/xtraarea" data-astro-prefetch="hover">Other Areas</a>
@@ -342,13 +315,12 @@ const NAV_ORDER = [
                         return (
                           <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
                             <a class="view-all" href="/xtraarea" data-astro-prefetch="hover">ALL OTHER AREAS</a>
-                            {xtraMenu.map(x => <a href={`/xtraarea/${x.slug}`} data-astro-prefetch="hover">{x.title}</a>)}
+                            {xtraMenu.map(x => <a href={`/xtraarea/{x.slug}`} data-astro-prefetch="hover">{x.title}</a>)}
                           </div>
                         );
                       })()}
                     </div>
                   );
-
                   case "todo": return (
                     <div class="menu-group">
                       <a class="menu-link has-sub" href="/to_do" data-astro-prefetch="hover">To Do</a>
@@ -359,7 +331,6 @@ const NAV_ORDER = [
                       </div>
                     </div>
                   );
-
                   case "stay": return (
                     <div class="menu-group">
                       <a class="menu-link has-sub" href="/stay" data-astro-prefetch="hover">Stay</a>
@@ -370,9 +341,8 @@ const NAV_ORDER = [
                       </div>
                     </div>
                   );
-
-                  case "search":  return <a class="menu-link menu-leaf" href="/search"  data-astro-prefetch="hover">Search</a>;
-                  case "contact": return <a class="menu-link menu-leaf" href="/contact" data-astro-prefetch>Contact</a>;
+                  case "search":  return <a class="menu-link" href="/search"  data-astro-prefetch="hover">Search</a>;
+                  case "contact": return <a class="menu-link" href="/contact" data-astro-prefetch>Contact</a>;
                 }
               })
             }
