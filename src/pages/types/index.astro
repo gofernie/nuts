@@ -105,59 +105,7 @@ const RV_BLOCK_ID = "MQP2VMLT-J7GGZNVR";
     {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
   </div>
 
-  <!-- RealtyVis (centered with container, no bg/padding) -->
-  <section class="rv-section rv-nopad">
-    <div class="container">
-      <div id="rv-wrapper" data-rv-block-id={RV_BLOCK_ID}>
-        <!-- skeleton -->
-        <div id="rv-skeleton" aria-hidden="true" class="rv-skel">
-          <div class="bar" style="width:45%"></div>
-          <div class="card"></div>
-          <div class="card"></div>
-        </div>
-        <!-- mount point -->
-        <div id="rv-mount"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 🔧 Keep RV aligned across all breakpoints -->
-  <style is:global>
-    /* zero any theme spacing variables RV might use */
-    #rv-wrapper {
-      --rv-page-padding: 0px;
-      --rv-container-padding: 0px;
-      --rv-gutter-x: 0px;
-      --rv-gutter-inline: 0px;
-      overflow-x: clip; /* avoid subpixel nudges */
-    }
-
-    /* kill section/wrapper spacing/bg */
-    .rv-section.rv-nopad { background: transparent !important; padding: 0 !important; margin: 0 !important; }
-    .rv-section.rv-nopad #rv-wrapper {
-      background: transparent !important;
-      border: 0 !important;
-      box-shadow: none !important;
-      border-radius: 0 !important;
-      padding: 0 !important;
-      margin: 0 !important;
-      min-height: 0 !important;
-    }
-    .rv-section.rv-nopad .container { /* keep your page container padding; remove this to go edge-to-edge */
-      padding-left: 1rem;
-      padding-right: 1rem;
-    }
-
-    /* nuke RV inner gutters so edges align with .container text */
-    #rv-wrapper .rv-block,
-    #rv-wrapper .rv-block :is(.rv-gridView, .rv-filterView, .rv-results, .rv-content, .rv-items, .rv-root, .rv-container) {
-      margin-inline: 0 !important;
-      padding-inline: 0 !important;
-    }
-
-    /* ensure top is snug under the intro */
-    #rv-wrapper .rv-block:first-child { margin-top: 0 !important; padding-top: 0 !important; }
-  </style>
+  
 
   <!-- Cards grid -->
   <div class="container">

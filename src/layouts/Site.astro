@@ -73,6 +73,14 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
     <title>{seo_title}</title>
     {metaDescription && <meta name="description" content={metaDescription} />}
 
+    <!-- Inter (variable) - standard site font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
     <slot name="head" />
 
     <style>
@@ -83,7 +91,24 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
       }
       *,*::before,*::after { box-sizing:border-box; }
       html, body { height:100%; overflow-x:clip; }
-      body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+      body {
+        margin:0;
+        font-family: "Inter","Segoe UI",Roboto,Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
+        background:var(--bg); color:var(--ink);
+        -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      }
+
+      /* Typography defaults */
+      h1,h2,h3,h4,h5,h6{
+        font-family:inherit; font-weight:600; line-height:1.2; color:var(--ink);
+        margin-top:1.4em; margin-bottom:.6em;
+      }
+      p,li{
+        font-weight:400; line-height:1.6; margin:0 0 1em; color:var(--ink-muted);
+      }
+      strong{ font-weight:600; color:var(--ink); }
+      a{ color:#0971ce; text-decoration:none; }
+      a:hover{ text-decoration:underline; }
 
       header{
         position:fixed; top:0; left:0; right:0; height:var(--header-h); z-index:1000;
@@ -251,7 +276,7 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
         const CANDIDATE_SELECTORS = [
           '#rv-wrap-neigh',
           '.rv-wrap',
-          '[data-rv-block]'   // direct RealtyVis element can be treated as wrap
+          '[data-rv-block]'
         ];
 
         function getWrap(el) {
@@ -259,7 +284,6 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
           if (el.id === 'rv-wrap-neigh' || el.classList?.contains('rv-wrap')) return el;
           const wrapper = el.closest?.('#rv-wrap-neigh, .rv-wrap');
           if (wrapper) return wrapper;
-          // If the embed element itself is the container, treat it as a wrap
           el.classList?.add('rv-wrap');
           return el;
         }
@@ -272,7 +296,6 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
 
         function looksLoaded(wrap) {
           if (!wrap) return false;
-          // RealtyVis injects .rv-block; MRP uses iframes/divs; any non-trivial height counts
           return (
             (wrap.querySelector('.rv-block, iframe, [id^="mrp"], [class*="mrp"]')) &&
             wrap.offsetHeight > 120
@@ -281,7 +304,7 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
 
         function observe(wrap) {
           if (!wrap) return;
-          if (!wrap.style.minHeight) wrap.style.minHeight = '900px'; // ensure placeholder
+          if (!wrap.style.minHeight) wrap.style.minHeight = '900px';
 
           const obs = new MutationObserver(() => {
             if (looksLoaded(wrap)) {
@@ -291,7 +314,6 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
           });
           obs.observe(wrap, { childList: true, subtree: true });
 
-          // Safety timeout in case the observer misses or embed takes too long
           setTimeout(() => markLoaded(wrap), 8000);
         }
 
@@ -307,7 +329,6 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
             });
           });
 
-          // Watch future inserts (useful for dynamic pages)
           const rootObs = new MutationObserver(muts => {
             muts.forEach(m => {
               m.addedNodes.forEach(n => {
