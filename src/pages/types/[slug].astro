@@ -131,6 +131,17 @@ const pageSeoDesc  = (seo_description || summary || "").toString();
   </section>
 )}
 
+<!-- REALTYVIS EMBED -->
+{cta2 && (
+  <section class="rv-section rv-nopad">
+    <div class="container rv-capped">
+      <div id="rv-wrap-types" class="rv-wrap">
+        <div class="rv-mount" set:html={cta2}></div>
+      </div>
+    </div>
+  </section>
+)}
+
 
 
   {long_copy && (
