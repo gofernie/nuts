@@ -94,17 +94,7 @@ const pageSeoDesc  = (seo_description || summary || "").toString();
       <img src={hero} alt="" fetchpriority="high" loading="eager" decoding="async" width="2000" height="1000" />
     )}
   </section>
-<Site title="Example Page">
-  <div class="container">
-    <h1>Featured RealtyVis Block</h1>
-    <p>This block is embedded below:</p>
 
-    <!-- Embed starts here -->
-    <div data-rv-block="MQP2VMLT-14Y2W8DC"></div>
-    <script src="https://cdn.realtyvis.com/js/embed.js" async></script>
-    <!-- Embed ends here -->
-  </div>
-</Site>
   <div class="container intro">
     <h1>{title}</h1>
     {summary && <p class="copy-base">{summary}</p>}
@@ -129,15 +119,19 @@ const pageSeoDesc  = (seo_description || summary || "").toString();
     </div>
   )}
 
-  {cta1 && (
-    <div class="container">
-      <div class="cta-card">
-        <h2>Ready to explore {title} listings?</h2>
-        <p>Browse every property and get instant alerts for price changes.</p>
-        <a href={cta1} class="cta-btn"><span class="cta-text">🔎 View Listings</span></a>
+
+<!-- REALTYVIS EMBED -->
+{cta1 && (
+  <section class="rv-section rv-nopad">
+    <div class="container rv-capped">
+      <div id="rv-wrap-types" class="rv-wrap">
+        <div class="rv-mount" set:html={cta1}></div>
       </div>
     </div>
-  )}
+  </section>
+)}
+
+
 
   {long_copy && (
     <div class="container">
