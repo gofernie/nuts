@@ -1,5 +1,5 @@
 ---
-// File: src/pages/xtraarea/[slug].astro
+// src/pages/xtraarea/[slug].astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -8,22 +8,24 @@ export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_XTRAAREA_JSON;
   if (!url) return [];
 
-  let rows: any[] = [];
+  let rows:any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows =
-      Array.isArray(raw) ? raw :
-      Array.isArray(raw?.data) ? raw.data :
-      Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch {
-    return [];
-  }
+    rows = Array.isArray(raw) ? raw
+      : Array.isArray(raw?.data) ? raw.data
+      : Array.isArray(raw?.rows) ? raw.rows
+      : [];
+  } catch { return []; }
 
   const items = rows.map((r:any) => {
-    const get = (k:string) => (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+    const get = (k:string) =>
+      (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+        .toString().trim();
+
     const title = get("title"); if (!title) return null;
 
-    const computedSlug = title.toLowerCase()
+    const computedSlug = title
+      .toLowerCase()
       .replace(/&/g,"-and-")
       .replace(/[^a-z0-9]+/g,"-")
       .replace(/^-+|-+$/g,"");
@@ -35,21 +37,36 @@ export async function getStaticPaths() {
       hero_img: get("hero_img"),
       map_embed: get("map_embed"),
       long_copy: get("long_copy"),
-      cta1: get("cta1"),
+
+      // CTAs w/ fallbacks
+      cta1: get("cta1") || get("cta_html") || get("spare_1"),
+      cta2: get("cta2") || get("cta2_html") || get("spare_2"),
+
       status: get("status"),
+      // SEO
       seo_title: get("seo_title"),
       seo_description: get("seo_description"),
-      spare_1: get("spare_1"), // plain URL like https://idx.myrealpage.com/.../in.js
     };
-  }).filter((r)=> r && r.slug && r.title && r.slug.toLowerCase()!=="index" && !/^draft$/i.test(r.status||""));
+  })
+  .filter((r:any) => r && r.slug && r.title &&
+    r.slug.toLowerCase()!=="index" &&
+    !/^draft$/i.test(r.status||"") &&
+    !/^hidden$/i.test(r.status||"") &&
+    !/^inactive$/i.test(r.status||""));
 
-  return items.map((n:any)=>({
-    params:{ slug:n.slug },
-    props:{
+  return items.map((n:any) => ({
+    params: { slug: n.slug },
+    props: {
       title: n.title,
       summary: n.summary || "",
       hero: heroPath(n.hero_img),
+
+      // pass CTAs through
       cta1: n.cta1 || "",
+      cta2: n.cta2 || "",
+
+      long_copy: n.long_copy || "",
+
       map_embed: (() => {
         const v = (n.map_embed || "").trim();
         if (!v) return "";
@@ -65,23 +82,21 @@ export async function getStaticPaths() {
         }
         return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
       })(),
-      long_copy: n.long_copy || "",
+
+      // SEO
       seo_title: n.seo_title || "",
       seo_description: n.seo_description || "",
-      spare_1: n.spare_1 || "",
     }
   }));
 }
 
 const {
-  title, summary, hero, map_embed, long_copy, cta1, spare_1,
+  title, summary, hero, map_embed, long_copy, cta1, cta2,
   seo_title, seo_description
 } = Astro.props as any;
 
-const pageSeoTitle = seo_title || title || "Area";
-const pageSeoDesc  = seo_description || summary || "";
-
-const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
+const pageSeoTitle = (seo_title || title || "Area").toString();
+const pageSeoDesc  = (seo_description || summary || "").toString();
 ---
 
 <Site
@@ -90,14 +105,13 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
   seo_title={pageSeoTitle}
   seo_description={pageSeoDesc}
 >
+  <Fragment slot="head">
+    <meta name="x-debug-seo-title" content={pageSeoTitle} />
+    <meta name="x-debug-seo-desc" content={pageSeoDesc} />
+    {hero && <link rel="preload" as="image" href={hero} fetchpriority="high" />}
+  </Fragment>
 
-  {hero && (
-    <Fragment slot="head">
-      <link rel="preload" as="image" href={hero} fetchpriority="high" />
-    </Fragment>
-  )}
-
-  <!-- Hero -->
+  <!-- HERO -->
   <section class="hero-bleed">
     {hero && (
       <img
@@ -106,33 +120,17 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
         fetchpriority="high"
         loading="eager"
         decoding="async"
-        width="2000" height="1000"
+        width="2000"
+        height="1000"
       />
     )}
   </section>
 
+  <!-- Title + intro -->
   <div class="container intro">
     <h1>{title}</h1>
-    {summary && <p>{summary}</p>}
+    {summary && <p class="copy-base">{summary}</p>}
   </div>
-
-  <!-- Listings embed (LAZY LOADED, URL-only) -->
-  {spare_1 && isUrl(spare_1) && (
-    <div class="container">
-      <div class="embed-card">
-        <div id="mrp-container" class="mrp-container" aria-live="polite">
-          <!-- skeleton to avoid CLS until widget arrives -->
-          <div id="mrp-skeleton" class="mrp-skeleton" aria-hidden="true">
-            <div class="sk-row"></div>
-            <div class="sk-row"></div>
-            <div class="sk-row"></div>
-          </div>
-          <!-- store URL; JS injects the script when near viewport -->
-          <div id="mrp-embed-src" data-src={spare_1}></div>
-        </div>
-      </div>
-    </div>
-  )}
 
   {map_embed && (
     <div class="container map-wrap">
@@ -150,174 +148,53 @@ const isUrl = (v:string) => /^https?:\/\//i.test(v || "");
     </div>
   )}
 
+  <!-- REALTYVIS EMBED #1 -->
   {cta1 && (
-    <div class="container">
-      <div class="cta-card">
-        <h2>Ready to explore {title} listings?</h2>
-        <p>Browse every property and get instant alerts for price changes.</p>
-        <a href={cta1} class="cta-btn"><span class="cta-text">🔎 View Listings</span></a>
+    <section class="rv-section rv-nopad">
+      <div class="container rv-capped">
+        <div id="rv-wrap-xtra" class="rv-wrap">
+          <div class="rv-mount" set:html={cta1}></div>
+        </div>
       </div>
-    </div>
+    </section>
+  )}
+
+  <!-- REALTYVIS EMBED #2 -->
+  {cta2 && (
+    <section class="rv-section rv-nopad">
+      <div class="container rv-capped">
+        <div id="rv-wrap-xtra-2" class="rv-wrap">
+          <div class="rv-mount" set:html={cta2}></div>
+        </div>
+      </div>
+    </section>
   )}
 
   {long_copy && (
     <div class="container">
-      <article class="long-copy" set:html={long_copy}></article>
+      <article class="copy-base long-copy" set:html={long_copy}></article>
     </div>
   )}
 
-  <!-- Styles -->
   <style>
-    /* Intro width baseline */
-    .intro {
-      margin: 24px auto 20px;
-      max-width: 1200px; /* match index */
-    }
+    :root { --hero-h: clamp(300px, 38vw, 520px); }
+    .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
+
+    .copy-base { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-weight: 400; letter-spacing: 0; font-size: 1.05rem; line-height: 1.8; color: #1f2937; }
+    .copy-base p { margin: 0 0 1.25em; }
+    .copy-base h2, .copy-base h3 { font-weight: 700; color:#111827; line-height: 1.3; margin:2em 0 .75em; }
+    .copy-base h2 { font-size: 1.5rem; border-left: 4px solid #0a7bff; padding-left: .5rem; }
+    .copy-base h3 { font-size: 1.25rem; }
+
+    .intro { margin: 24px auto 20px; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
-    .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
 
-    /* Inner white card that matches intro width exactly */
-    .embed-card {
-      max-width: 1200px; /* match index */
-      margin: 32px auto;
-      background: #fff !important;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-      box-sizing: border-box;  /* padding doesn't increase total width */
-      overflow-x: hidden;
-    }
-
-    /* Keep MRP content fluid inside the card */
-    .mrp-container { background: transparent !important; }
-    .mrp-container iframe { width: 100% !important; display: block; }
-
-    /* Skeleton */
-    .mrp-skeleton { display: grid; gap: 16px; }
-    .mrp-skeleton .sk-row {
-      height: 220px;
-      border-radius: 12px;
-      background: linear-gradient(90deg, rgba(0,0,0,.06), rgba(0,0,0,.10), rgba(0,0,0,.06));
-      background-size: 200% 100%;
-      animation: sk 1.2s ease-in-out infinite;
-    }
-    @media (min-width: 769px) { .mrp-skeleton .sk-row { height: 260px; } }
-    @keyframes sk { 0%{background-position:0% 0} 100%{background-position:-200% 0} }
-
-    /* Map card */
     .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
     .map-card{ border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
 
-    /* CTA */
-    .cta-card{ background:#fff; color:#111827; border:2px solid #e5e7eb; border-radius:16px; padding:28px 20px; margin:36px 0; text-align:center; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
-    .cta-card h2{ margin:0 0 10px; font-size:1.75rem; font-weight:700; }
-    .cta-card p{ font-size:1rem; color:#374151; margin-bottom:18px; }
-    .cta-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; background:#0a7bff; color:#fff; text-decoration:none; font-weight:700; font-size:1.125rem; padding:12px 28px; border-radius:999px; box-shadow:0 4px 10px rgba(0,0,0,0.15); transition: background .15s ease, box-shadow .15s ease; }
-    .cta-btn:hover{ background:#065aa3; box-shadow:0 6px 14px rgba(0,0,0,0.25); }
+    .hero-bleed { position:relative; left:50%; right:50%; margin-left:-50vw; margin-right:-50vw; width:100vw; max-width:100vw; height:var(--hero-h); overflow:hidden; background:#e5e7eb; display:block; }
+    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
 
-    .long-copy{ margin:40px 0 48px; font-size:1.05rem; line-height:1.8; color:#1f2937; }
-    .long-copy p{ margin:0 0 1.25em; }
-    .long-copy h2,.long-copy h3{ font-weight:700; color:#111827; line-height:1.3; margin:2em 0 .75em; }
-    .long-copy h2{ font-size:1.5rem; border-left:4px solid #0a7bff; padding-left:.5rem; }
-    .long-copy h3{ font-size:1.25rem; }
+    .long-copy { margin:40px 0 48px; }
   </style>
-
-  <!-- Global: mobile one-column for MRP cards -->
-  <style is:global>
-    @media (max-width: 768px) {
-      .listing-results-view,
-      .results,
-      .resultsContainer,
-      .searchResults,
-      .mrp-grid,
-      .result-grid {
-        display: block !important;
-        grid-template-columns: 1fr !important;
-        column-gap: 0 !important;
-        row-gap: 0 !important;
-      }
-      .mrp-listing-result,
-      .mrp-listing,
-      .result,
-      .result-item,
-      .srItem,
-      .searchResultItem,
-      .listing-results-view > div,
-      .results > div,
-      .resultsContainer > div {
-        width: 100% !important;
-        max-width: 100% !important;
-        float: none !important;
-        clear: both !important;
-        display: block !important;
-        margin: 0 0 16px !important;
-        box-sizing: border-box !important;
-      }
-      .mrp-listing .photo,
-      .mrp-listing .details,
-      .mrp-listing-result .photo,
-      .mrp-listing-result .details,
-      .result .photo,
-      .result .details {
-        width: 100% !important;
-        float: none !important;
-        display: block !important;
-      }
-      .mrp-listing img,
-      .mrp-listing-result img,
-      .result img,
-      .srItem img,
-      .searchResultItem img {
-        width: 100% !important;
-        max-width: 100% !important;
-        height: auto !important;
-        display: block !important;
-      }
-    }
-  </style>
-
-  <!-- Lazy loader for the MRP script -->
-  <script>
-    (function(){
-      var container = document.getElementById('mrp-container');
-      if (!container) return;
-
-      var skeleton = document.getElementById('mrp-skeleton');
-      var srcHolder = document.getElementById('mrp-embed-src');
-      var loaded = false;
-
-      function removeSkeleton() {
-        if (skeleton && skeleton.parentNode) skeleton.parentNode.removeChild(skeleton);
-      }
-
-      function inject() {
-        if (loaded) return; loaded = true;
-        if (srcHolder && srcHolder.dataset && srcHolder.dataset.src) {
-          var s = document.createElement('script');
-          s.id = 'mrpscript';
-          s.src = srcHolder.dataset.src;
-          s.async = true;
-          s.addEventListener('load', removeSkeleton);
-          s.addEventListener('error', removeSkeleton);
-          container.appendChild(s);
-        } else {
-          removeSkeleton();
-        }
-        setTimeout(removeSkeleton, 8000); // safety
-      }
-
-      var io = ('IntersectionObserver' in window)
-        ? new IntersectionObserver(function(entries){
-            for (var i=0;i<entries.length;i++) {
-              if (entries[i].isIntersecting) { io.disconnect(); inject(); break; }
-            }
-          }, { root: null, rootMargin: '800px 0px', threshold: 0.01 })
-        : null;
-
-      if (io) io.observe(container);
-      else setTimeout(inject, 2500);
-
-      setTimeout(function(){ if(!loaded) inject(); }, 10000);
-    })();
-  </script>
 </Site>
