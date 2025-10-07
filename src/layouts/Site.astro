@@ -176,18 +176,9 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
         .menu-group:hover > .dropdown, .menu-group:focus-within > .dropdown{ opacity:1; transform:translateY(0); pointer-events:auto; }
         .dropdown > a{ text-decoration:none; }
       }
-
-
-
-
-
-    
     </style>
 
-<!-- in src/layouts/Site.astro -->
-
-
-
+    <!-- in src/layouts/Site.astro -->
     <style is:global>
       html { scroll-behavior: smooth; }
       :target { scroll-margin-top: calc(var(--header-h) + 12px); }
@@ -199,6 +190,18 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
       }
       .hero-bleed>img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
       .container{ max-width:1200px; margin-inline:auto; padding-inline:var(--container-pad); }
+
+      /* Reserve space for lazy embeds; collapse once loaded */
+      .rv-wrap,
+      #rv-wrap-neigh {
+        min-height: 900px;
+        overflow-anchor: auto;
+        transition: min-height .3s ease;
+      }
+      .rv-wrap.rv-loaded,
+      #rv-wrap-neigh.rv-loaded {
+        min-height: auto;
+      }
     </style>
 
     <!-- Plain JS (no TS) so it runs everywhere -->
@@ -240,6 +243,91 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
         group.classList.toggle('expanded', !expanded);
         link.setAttribute('aria-expanded', String(!expanded));
       }, true);
+    </script>
+
+    <!-- Global: reserve space for embeds, then collapse after load -->
+    <script is:inline>
+      (function () {
+        const CANDIDATE_SELECTORS = [
+          '#rv-wrap-neigh',
+          '.rv-wrap',
+          '[data-rv-block]'   // direct RealtyVis element can be treated as wrap
+        ];
+
+        function getWrap(el) {
+          if (!el) return null;
+          if (el.id === 'rv-wrap-neigh' || el.classList?.contains('rv-wrap')) return el;
+          const wrapper = el.closest?.('#rv-wrap-neigh, .rv-wrap');
+          if (wrapper) return wrapper;
+          // If the embed element itself is the container, treat it as a wrap
+          el.classList?.add('rv-wrap');
+          return el;
+        }
+
+        function markLoaded(wrap) {
+          if (!wrap) return;
+          wrap.classList.add('rv-loaded');
+          wrap.style.minHeight = 'auto';
+        }
+
+        function looksLoaded(wrap) {
+          if (!wrap) return false;
+          // RealtyVis injects .rv-block; MRP uses iframes/divs; any non-trivial height counts
+          return (
+            (wrap.querySelector('.rv-block, iframe, [id^="mrp"], [class*="mrp"]')) &&
+            wrap.offsetHeight > 120
+          );
+        }
+
+        function observe(wrap) {
+          if (!wrap) return;
+          if (!wrap.style.minHeight) wrap.style.minHeight = '900px'; // ensure placeholder
+
+          const obs = new MutationObserver(() => {
+            if (looksLoaded(wrap)) {
+              markLoaded(wrap);
+              obs.disconnect();
+            }
+          });
+          obs.observe(wrap, { childList: true, subtree: true });
+
+          // Safety timeout in case the observer misses or embed takes too long
+          setTimeout(() => markLoaded(wrap), 8000);
+        }
+
+        function bootstrap() {
+          const seen = new Set();
+          CANDIDATE_SELECTORS.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+              const wrap = getWrap(el);
+              if (wrap && !seen.has(wrap)) {
+                seen.add(wrap);
+                observe(wrap);
+              }
+            });
+          });
+
+          // Watch future inserts (useful for dynamic pages)
+          const rootObs = new MutationObserver(muts => {
+            muts.forEach(m => {
+              m.addedNodes.forEach(n => {
+                if (!(n instanceof Element)) return;
+                CANDIDATE_SELECTORS.forEach(sel => {
+                  if (n.matches?.(sel)) observe(getWrap(n));
+                  n.querySelectorAll?.(sel).forEach(el => observe(getWrap(el)));
+                });
+              });
+            });
+          });
+          rootObs.observe(document.documentElement, { childList: true, subtree: true });
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', bootstrap);
+        } else {
+          bootstrap();
+        }
+      })();
     </script>
   </head>
 
