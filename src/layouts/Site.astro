@@ -61,8 +61,6 @@ const xtraMenu:MenuItem[]       = await fetchMenuSafe(import.meta.env.PUBLIC_XTR
 const ROWS_PER_COL = 7;
 const colsFor = (n:number) => Math.min(6, Math.ceil(n / ROWS_PER_COL));
 const metaDescription = (seo_description || summary || "").toString().trim();
-
-/* ---------- nav order ---------- */
 const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","contact"] as const;
 ---
 
@@ -73,281 +71,155 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
     <title>{seo_title}</title>
     {metaDescription && <meta name="description" content={metaDescription} />}
 
-    <!-- Inter (variable) - standard site font -->
+    <!-- Inter font -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
     <slot name="head" />
 
     <style>
       :root {
-        --header-h: 52px;
-        --bg:#fafaf9; --ink:#111827; --ink-muted:#1f2937; --hover-bg:rgba(243,244,246,.9);
-        --hero-h:55vh; --container-pad:12px; --bleed-fix:2px;
+        --header-h:52px; --bg:#fafaf9; --ink:#111827; --ink-muted:#1f2937;
+        --hover-bg:rgba(243,244,246,.9); --hero-h:48vh;
+        --container-pad:12px; --bleed-fix:2px;
       }
-      *,*::before,*::after { box-sizing:border-box; }
-      html, body { height:100%; overflow-x:clip; }
-      body {
-        margin:0;
-        font-family: "Inter","Segoe UI",Roboto,Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
-        background:var(--bg); color:var(--ink);
-        -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      *,*::before,*::after{box-sizing:border-box;}
+      html,body{height:100%;overflow-x:clip;}
+      body{
+        margin:0;font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+        background:var(--bg);color:var(--ink);
+        -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
       }
-
-      /* Typography defaults */
-      h1,h2,h3,h4,h5,h6{
-        font-family:inherit; font-weight:600; line-height:1.2; color:var(--ink);
-        margin-top:1.4em; margin-bottom:.6em;
-      }
-      p,li{
-        font-weight:400; line-height:1.6; margin:0 0 1em; color:var(--ink-muted);
-      }
-      strong{ font-weight:600; color:var(--ink); }
-      a{ color:#0971ce; text-decoration:none; }
-      a:hover{ text-decoration:underline; }
 
       header{
-        position:fixed; top:0; left:0; right:0; height:var(--header-h); z-index:1000;
-        background:rgba(255,255,255,.84); backdrop-filter:blur(10px); border-bottom:1px solid #e5e7eb;
+        position:fixed;top:0;left:0;right:0;height:var(--header-h);z-index:1000;
+        background:rgba(255,255,255,.84);backdrop-filter:blur(10px);
+        border-bottom:1px solid #e5e7eb;
       }
       .nav-inner{
-        height:100%;
-        padding:0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-        display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:nowrap;
+        height:100%;padding:0 max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left));
+        display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:nowrap;
+      }
+      .brand{font-weight:700;font-size:1rem;color:var(--ink);text-decoration:none;padding:4px 6px;border-radius:6px;white-space:nowrap;flex:0 0 auto;}
+      .brand:hover{background:var(--hover-bg);}
+      .hamburger{display:block;margin-left:auto;background:none;border:none;font-size:1.6rem;cursor:pointer;color:var(--ink-muted);}
+      @media(min-width:901px)and(hover:hover){.hamburger{display:none;}}
+
+      #site-nav{display:none;position:absolute;top:var(--header-h);right:0;background:#fff;z-index:1200;
+        flex-direction:column;gap:0;padding:8px 12px;box-shadow:0 2px 8px rgba(0,0,0,.1);
+        width:auto;max-width:92vw;min-width:220px;}
+      #site-nav.open{display:flex;}
+      nav a{color:var(--ink-muted);padding:6px 8px;text-decoration:none;border-radius:8px;font-weight:500;display:block;}
+      nav a:hover,nav a:focus-visible{color:var(--ink);background:var(--hover-bg);}
+      .menu-group{width:100%;position:relative;margin:6px 0;}
+      .menu-link.has-sub{display:flex;align-items:center;justify-content:space-between;}
+      .menu-link.has-sub::after{content:"▾";opacity:.8;margin-left:8px;transition:transform .2s ease;}
+
+      .dropdown{position:static;display:block;overflow:hidden;max-height:0;transition:max-height .28s ease;}
+      .menu-group.expanded>.menu-link.has-sub{font-weight:600;}
+      .menu-group.expanded>.menu-link.has-sub::after{transform:rotate(180deg);}
+      .menu-group.expanded>.dropdown{
+        max-height:520px;overflow:auto;margin:6px 0 10px;padding:8px 6px;background:#fff;
+        border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.05);border:1px solid #eceef2;
+      }
+      .menu-group.expanded>.dropdown>a{display:block;padding:8px 10px;border-radius:8px;text-decoration:none;margin:0 4px;}
+      .menu-group.expanded>.dropdown>a:hover{background:#f8fafc;}
+      .menu-group.expanded>.dropdown>.view-all{
+        font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+        color:#6b7280;padding:4px 2px 6px;margin:0 6px 6px;display:block;border-bottom:1px solid #edf2f7;
       }
 
-      .brand{
-        font-weight:700; font-size:1rem; color:var(--ink);
-        text-decoration:none; padding:4px 6px; border-radius:6px; white-space:nowrap; flex:0 0 auto;
-      }
-      .brand:hover{ background:var(--hover-bg); }
-
-      /* Hamburger visible by default; hide only on real desktop-with-hover */
-      .hamburger{ display:block; margin-left:auto; background:none; border:none; font-size:1.6rem; line-height:1; cursor:pointer; color:var(--ink-muted); }
-      @media (min-width:901px) and (hover:hover){ .hamburger{ display:none; } }
-
-      /* Panel closed by default; opens with .open */
-      #site-nav{
-        display:none;
-        position:absolute; top:var(--header-h); right:0; background:#fff; z-index:1200;
-        flex-direction:column; gap:0; padding:8px 12px; box-shadow:0 2px 8px rgba(0,0,0,.1);
-        width:auto; max-width:92vw; min-width:220px;
-      }
-      #site-nav.open{ display:flex; }
-
-      /* Links */
-      nav a{
-        color:var(--ink-muted); padding:6px 8px; text-decoration:none; border-radius:8px; font-weight:500;
-        display:block; white-space:normal;
-      }
-      nav a:hover, nav a:focus-visible{ color:var(--ink); background:var(--hover-bg); }
-
-      /* Submenu (accordion default) */
-      .menu-group{ width:100%; position:relative; margin:6px 0; }
-      .menu-link.has-sub{ display:flex; align-items:center; justify-content:space-between; }
-      .menu-link.has-sub::after{ content:"▾"; opacity:.8; margin-left:8px; transition:transform .2s ease; }
-
-      /* Collapsed dropdown: flat — no pills */
-      .dropdown{
-        position:static; display:block; overflow:hidden;
-        max-height:0; transition:max-height .28s ease;
-        margin:0; padding:0; border:0; background:transparent; box-shadow:none; border-radius:0;
-      }
-
-      /* Expanded dropdown: subtle card */
-      .menu-group.expanded > .menu-link.has-sub{ font-weight:600; }
-      .menu-group.expanded > .menu-link.has-sub::after{ transform:rotate(180deg); }
-      .menu-group.expanded > .dropdown{
-        max-height:520px; overflow:auto;
-        margin:6px 0 10px 0;
-        padding:8px 6px;
-        background:#fff;
-        border-radius:12px;
-        box-shadow:0 4px 12px rgba(0,0,0,.05);
-        border:1px solid #eceef2;
-      }
-      .menu-group.expanded > .dropdown > a{
-        display:block; padding:8px 10px; border-radius:8px; text-decoration:none;
-        margin:0 4px;
-      }
-      .menu-group.expanded > .dropdown > a:hover{ background:#f8fafc; }
-      .menu-group.expanded > .dropdown > a + a{ border-top:1px solid #f2f4f7; }
-      .menu-group.expanded > .dropdown > .view-all{
-        font-size:.7rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
-        color:#6b7280; padding:4px 2px 6px; margin:0 6px 6px; display:block; border-bottom:1px solid #edf2f7;
-      }
-
-      /* Desktop-hover switches to horizontal bar + hover dropdowns */
-      @media (min-width:901px) and (hover:hover){
+      /* === Desktop hover nav with 25px buffer === */
+      @media(min-width:901px)and(hover:hover){
         #site-nav{
-          position:static; display:flex; flex-direction:row; align-items:center; gap:8px; padding:0; box-shadow:none; background:transparent;
+          position:static;display:flex;flex-direction:row;align-items:center;gap:8px;
+          padding:0;box-shadow:none;background:transparent;
         }
-        nav a{ display:inline-flex; white-space:nowrap; color:var(--ink-muted); padding:6px 8px; text-decoration:none; }
-        .menu-group{ width:auto; margin:0; }
+        nav a{display:inline-flex;white-space:nowrap;color:var(--ink-muted);padding:6px 8px;text-decoration:none;}
+        .menu-group{width:auto;margin:0;position:relative;}
+        /* invisible hover buffer under nav item */
+        .menu-group::before{
+          content:"";position:absolute;top:100%;left:-10px;right:-10px;height:25px;
+        }
         .dropdown{
-          position:absolute; left:0; top:calc(100% + 21px);
-          background:rgba(255,255,255,.9); backdrop-filter:blur(6px);
-          border:1px solid rgba(229,231,235,.7); border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.08);
-          display:grid; grid-auto-flow:column; grid-template-rows:repeat(7,auto); grid-auto-columns:max-content;
-          gap:6px 12px; padding:10px; width:max-content; max-width:92vw;
-          opacity:0; transform:translateY(-12px); pointer-events:none; transition:transform .28s cubic-bezier(.2,.7,.2,1), opacity .22s ease-out;
-          z-index:1100; max-height:none;
+          position:absolute;left:0;top:calc(100% + 21px);
+          background:rgba(255,255,255,.9);backdrop-filter:blur(6px);
+          border:1px solid rgba(229,231,235,.7);border-radius:10px;
+          box-shadow:0 6px 20px rgba(0,0,0,.08);
+          display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,auto);
+          grid-auto-columns:max-content;gap:6px 12px;padding:10px;width:max-content;max-width:92vw;
+          opacity:0;transform:translateY(-12px);pointer-events:none;
+          transition:transform .28s cubic-bezier(.2,.7,.2,1),opacity .22s ease-out;
+          z-index:1100;
         }
-        .menu-group::before{ content:""; position:absolute; top:100%; left:-12px; right:-12px; height:40px; }
-        .menu-group:hover > .dropdown, .menu-group:focus-within > .dropdown{ opacity:1; transform:translateY(0); pointer-events:auto; }
-        .dropdown > a{ text-decoration:none; }
+        .menu-group:hover>.dropdown,
+        .menu-group:focus-within>.dropdown{opacity:1;transform:translateY(0);pointer-events:auto;}
+        .menu-group:hover>.dropdown::before,
+        .menu-group:focus-within>.dropdown::before{
+          content:"";position:absolute;left:0;right:0;top:-10px;height:10px;
+        }
       }
     </style>
 
-    <!-- in src/layouts/Site.astro -->
     <style is:global>
-      html { scroll-behavior: smooth; }
-      :target { scroll-margin-top: calc(var(--header-h) + 12px); }
-      .hero-bleed{
-        position:relative; left:50%; right:50%; width:calc(100vw + var(--bleed-fix)*2);
-        margin-left:calc(-50vw - var(--bleed-fix)); margin-right:calc(-50vw - var(--bleed-fix));
-        min-height:var(--hero-h); padding-top:var(--header-h);
-        background-color:#e5e7eb; border-bottom:1px solid #eee; overflow:hidden;
-      }
-      .hero-bleed>img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-      .container{ max-width:1200px; margin-inline:auto; padding-inline:var(--container-pad); }
-
-      /* Reserve space for lazy embeds; collapse once loaded */
-      .rv-wrap,
-      #rv-wrap-neigh {
-        min-height: 900px;
-        overflow-anchor: auto;
-        transition: min-height .3s ease;
-      }
-      .rv-wrap.rv-loaded,
-      #rv-wrap-neigh.rv-loaded {
-        min-height: auto;
-      }
+      html{scroll-behavior:smooth;}
+      :target{scroll-margin-top:calc(var(--header-h) + 12px);}
+      .hero-bleed{position:relative;left:50%;right:50%;width:calc(100vw + var(--bleed-fix)*2);
+        margin-left:calc(-50vw - var(--bleed-fix));margin-right:calc(-50vw - var(--bleed-fix));
+        min-height:var(--hero-h);padding-top:var(--header-h);
+        background-color:#e5e7eb;border-bottom:1px solid #eee;overflow:hidden;}
+      .hero-bleed>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+      .container{max-width:1200px;margin-inline:auto;padding-inline:var(--container-pad);}
+      .rv-wrap,#rv-wrap-neigh{min-height:900px;overflow-anchor:auto;transition:min-height .3s ease;}
+      .rv-wrap.rv-loaded,#rv-wrap-neigh.rv-loaded{min-height:auto;}
     </style>
 
-    <!-- Plain JS (no TS) so it runs everywhere -->
     <script is:inline>
-      // Toggle the mobile panel
       function toggleNav(){
-        var nav = document.getElementById('site-nav');
-        var btn = document.getElementById('hamburger');
-        if(!nav || !btn) return;
-        var open = nav.classList.toggle('open');
-        btn.setAttribute('aria-expanded', String(open));
-        if (!open) {
-          Array.prototype.forEach.call(
-            nav.querySelectorAll('.menu-group.expanded'),
-            function(g){ g.classList.remove('expanded'); }
-          );
+        const nav=document.getElementById('site-nav');
+        const btn=document.getElementById('hamburger');
+        if(!nav||!btn)return;
+        const open=nav.classList.toggle('open');
+        btn.setAttribute('aria-expanded',String(open));
+        if(!open){
+          nav.querySelectorAll('.menu-group.expanded').forEach(g=>g.classList.remove('expanded'));
         }
       }
-
-      // Submenu tap-to-expand on mobile/no-hover (single-open)
-      document.addEventListener('click', function(e){
-        var t = e.target;
-        var link = t && t.closest ? t.closest('.menu-link.has-sub') : null;
-        if (!link) return;
-
-        // On desktop-with-hover, let hover handle it
-        if (window.matchMedia('(min-width:901px) and (hover:hover)').matches) return;
-
+      document.addEventListener('click',e=>{
+        const link=e.target.closest?.('.menu-link.has-sub');if(!link)return;
+        if(window.matchMedia('(min-width:901px) and (hover:hover)').matches)return;
         e.preventDefault();
-        var nav = document.getElementById('site-nav');
-        var group = link.closest('.menu-group');
-        if (!nav || !group) return;
-
-        var expanded = group.classList.contains('expanded');
-        Array.prototype.forEach.call(
-          nav.querySelectorAll('.menu-group.expanded'),
-          function(g){ if (g !== group) g.classList.remove('expanded'); }
-        );
-        group.classList.toggle('expanded', !expanded);
-        link.setAttribute('aria-expanded', String(!expanded));
-      }, true);
+        const nav=document.getElementById('site-nav');
+        const group=link.closest('.menu-group');if(!nav||!group)return;
+        const expanded=group.classList.contains('expanded');
+        nav.querySelectorAll('.menu-group.expanded').forEach(g=>{if(g!==group)g.classList.remove('expanded');});
+        group.classList.toggle('expanded',!expanded);
+        link.setAttribute('aria-expanded',String(!expanded));
+      },true);
     </script>
 
-    <!-- Global: reserve space for embeds, then collapse after load -->
     <script is:inline>
-      (function () {
-        const CANDIDATE_SELECTORS = [
-          '#rv-wrap-neigh',
-          '.rv-wrap',
-          '[data-rv-block]'
-        ];
-
-        function getWrap(el) {
-          if (!el) return null;
-          if (el.id === 'rv-wrap-neigh' || el.classList?.contains('rv-wrap')) return el;
-          const wrapper = el.closest?.('#rv-wrap-neigh, .rv-wrap');
-          if (wrapper) return wrapper;
-          el.classList?.add('rv-wrap');
-          return el;
+      (function(){
+        const SEL=['#rv-wrap-neigh','.rv-wrap','[data-rv-block]'];
+        function getWrap(el){if(!el)return null;if(el.id==='rv-wrap-neigh'||el.classList?.contains('rv-wrap'))return el;
+          const w=el.closest?.('#rv-wrap-neigh,.rv-wrap');if(w)return w;el.classList?.add('rv-wrap');return el;}
+        function markLoaded(w){if(!w)return;w.classList.add('rv-loaded');w.style.minHeight='auto';}
+        function looksLoaded(w){return w&&(w.querySelector('.rv-block,iframe,[id^="mrp"],[class*="mrp"]'))&&w.offsetHeight>120;}
+        function observe(w){if(!w)return;if(!w.style.minHeight)w.style.minHeight='900px';
+          const obs=new MutationObserver(()=>{if(looksLoaded(w)){markLoaded(w);obs.disconnect();}});
+          obs.observe(w,{childList:true,subtree:true});setTimeout(()=>markLoaded(w),8000);}
+        function boot(){
+          const seen=new Set();
+          SEL.forEach(sel=>document.querySelectorAll(sel).forEach(el=>{const w=getWrap(el);if(w&&!seen.has(w)){seen.add(w);observe(w);}}));
+          const ro=new MutationObserver(muts=>muts.forEach(m=>m.addedNodes.forEach(n=>{
+            if(!(n instanceof Element))return;
+            SEL.forEach(sel=>{if(n.matches?.(sel))observe(getWrap(n));
+              n.querySelectorAll?.(sel).forEach(el=>observe(getWrap(el)));});
+          })));
+          ro.observe(document.documentElement,{childList:true,subtree:true});
         }
-
-        function markLoaded(wrap) {
-          if (!wrap) return;
-          wrap.classList.add('rv-loaded');
-          wrap.style.minHeight = 'auto';
-        }
-
-        function looksLoaded(wrap) {
-          if (!wrap) return false;
-          return (
-            (wrap.querySelector('.rv-block, iframe, [id^="mrp"], [class*="mrp"]')) &&
-            wrap.offsetHeight > 120
-          );
-        }
-
-        function observe(wrap) {
-          if (!wrap) return;
-          if (!wrap.style.minHeight) wrap.style.minHeight = '900px';
-
-          const obs = new MutationObserver(() => {
-            if (looksLoaded(wrap)) {
-              markLoaded(wrap);
-              obs.disconnect();
-            }
-          });
-          obs.observe(wrap, { childList: true, subtree: true });
-
-          setTimeout(() => markLoaded(wrap), 8000);
-        }
-
-        function bootstrap() {
-          const seen = new Set();
-          CANDIDATE_SELECTORS.forEach(sel => {
-            document.querySelectorAll(sel).forEach(el => {
-              const wrap = getWrap(el);
-              if (wrap && !seen.has(wrap)) {
-                seen.add(wrap);
-                observe(wrap);
-              }
-            });
-          });
-
-          const rootObs = new MutationObserver(muts => {
-            muts.forEach(m => {
-              m.addedNodes.forEach(n => {
-                if (!(n instanceof Element)) return;
-                CANDIDATE_SELECTORS.forEach(sel => {
-                  if (n.matches?.(sel)) observe(getWrap(n));
-                  n.querySelectorAll?.(sel).forEach(el => observe(getWrap(el)));
-                });
-              });
-            });
-          });
-          rootObs.observe(document.documentElement, { childList: true, subtree: true });
-        }
-
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', bootstrap);
-        } else {
-          bootstrap();
-        }
+        if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
       })();
     </script>
   </head>
@@ -357,94 +229,77 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
       <header>
         <div class="nav-inner">
           <a class="brand" href="/" data-astro-prefetch>Fernie Real Estate</a>
-
-          <button
-            id="hamburger"
-            type="button"
-            class="hamburger"
-            onclick="toggleNav()"
-            aria-label="Open menu"
-            aria-expanded="false"
-            aria-controls="site-nav"
-          >☰</button>
-
+          <button id="hamburger" class="hamburger" onclick="toggleNav()" aria-label="Open menu" aria-expanded="false" aria-controls="site-nav">☰</button>
           <nav id="site-nav" aria-label="Primary">
             {
-              NAV_ORDER.map((key) => {
-                switch (key) {
-                  case "neighbourhoods": return (
-                    <div class="menu-group">
-                      <a class="menu-link has-sub" href="/neighbourhoods" data-astro-prefetch="hover">Neighbourhoods</a>
-                      {(() => {
-                        const cols = colsFor(neighbourhoods.length + 1);
-                        const wide = cols > 1 ? "wide" : "";
-                        return (
-                          <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                            <a class="view-all" href="/neighbourhoods" data-astro-prefetch="hover">ALL NEIGHBOURHOODS</a>
-                            {neighbourhoods.map(n => (
-                              <a href={joinPath("/neighbourhoods", n.slug)} data-astro-prefetch="hover">{n.title}</a>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                  case "types": return (
-                    <div class="menu-group">
-                      <a class="menu-link has-sub" href="/types" data-astro-prefetch="hover">Types</a>
-                      {(() => {
-                        const cols = colsFor(typesMenu.length + 1);
-                        const wide = cols > 1 ? "wide" : "";
-                        return (
-                          <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                            <a class="view-all" href="/types" data-astro-prefetch="hover">ALL PROPERTY TYPES</a>
-                            {typesMenu.map(t => (
-                              <a href={joinPath("/types", t.slug)} data-astro-prefetch="hover">{t.title}</a>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                  case "xtra": return (
-                    <div class="menu-group">
-                      <a class="menu-link has-sub" href="/xtraarea" data-astro-prefetch="hover">Other Areas</a>
-                      {(() => {
-                        const cols = colsFor(xtraMenu.length + 1);
-                        const wide = cols > 1 ? "wide" : "";
-                        return (
-                          <div class={`dropdown ${wide}`} style={`--cols:${cols};`}>
-                            <a class="view-all" href="/xtraarea" data-astro-prefetch="hover">ALL OTHER AREAS</a>
-                            {xtraMenu.map(x => (
-                              <a href={joinPath("/xtraarea", x.slug)} data-astro-prefetch="hover">{x.title}</a>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  );
-                  case "todo": return (
-                    <div class="menu-group">
-                      <a class="menu-link has-sub" href="/to_do" data-astro-prefetch="hover">To Do</a>
-                      <div class="dropdown" style="--cols:1;">
-                        <a class="view-all" href="/to_do" data-astro-prefetch="hover">ALL THINGS TO DO</a>
-                        <a href="/to_do#summer" data-astro-prefetch="hover">Summer</a>
-                        <a href="/to_do#winter" data-astro-prefetch="hover">Winter</a>
+              NAV_ORDER.map((key)=>{
+                switch(key){
+                  case "neighbourhoods":
+                    return(
+                      <div class="menu-group">
+                        <a class="menu-link has-sub" href="/neighbourhoods">Neighbourhoods</a>
+                        {(()=>{
+                          const cols=colsFor(neighbourhoods.length+1);return(
+                            <div class="dropdown" style={`--cols:${cols};`}>
+                              <a class="view-all" href="/neighbourhoods">ALL NEIGHBOURHOODS</a>
+                              {neighbourhoods.map(n=><a href={joinPath("/neighbourhoods",n.slug)}>{n.title}</a>)}
+                            </div>
+                          );
+                        })()}
                       </div>
-                    </div>
-                  );
-                  case "stay": return (
-                    <div class="menu-group">
-                      <a class="menu-link has-sub" href="/stay" data-astro-prefetch="hover">Stay</a>
-                      <div class="dropdown" style="--cols:1;">
-                        <a class="view-all" href="/stay" data-astro-prefetch="hover">ALL PLACES TO STAY</a>
-                        <a href="/stay#hotels" data-astro-prefetch="hover">Hotels</a>
-                        <a href="/stay#airbnb" data-astro-prefetch="hover">Airbnb</a>
+                    );
+                  case "types":
+                    return(
+                      <div class="menu-group">
+                        <a class="menu-link has-sub" href="/types">Types</a>
+                        {(()=>{
+                          const cols=colsFor(typesMenu.length+1);return(
+                            <div class="dropdown" style={`--cols:${cols};`}>
+                              <a class="view-all" href="/types">ALL PROPERTY TYPES</a>
+                              {typesMenu.map(t=><a href={joinPath("/types",t.slug)}>{t.title}</a>)}
+                            </div>
+                          );
+                        })()}
                       </div>
-                    </div>
-                  );
-                  case "search":  return <a class="menu-link" href="/search"  data-astro-prefetch="hover">Search</a>;
-                  case "contact": return <a class="menu-link" href="/contact" data-astro-prefetch>Contact</a>;
+                    );
+                  case "xtra":
+                    return(
+                      <div class="menu-group">
+                        <a class="menu-link has-sub" href="/xtraarea">Other Areas</a>
+                        {(()=>{
+                          const cols=colsFor(xtraMenu.length+1);return(
+                            <div class="dropdown" style={`--cols:${cols};`}>
+                              <a class="view-all" href="/xtraarea">ALL OTHER AREAS</a>
+                              {xtraMenu.map(x=><a href={joinPath("/xtraarea",x.slug)}>{x.title}</a>)}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  case "todo":
+                    return(
+                      <div class="menu-group">
+                        <a class="menu-link has-sub" href="/to_do">To Do</a>
+                        <div class="dropdown">
+                          <a class="view-all" href="/to_do">ALL THINGS TO DO</a>
+                          <a href="/to_do#summer">Summer</a>
+                          <a href="/to_do#winter">Winter</a>
+                        </div>
+                      </div>
+                    );
+                  case "stay":
+                    return(
+                      <div class="menu-group">
+                        <a class="menu-link has-sub" href="/stay">Stay</a>
+                        <div class="dropdown">
+                          <a class="view-all" href="/stay">ALL PLACES TO STAY</a>
+                          <a href="/stay#hotels">Hotels</a>
+                          <a href="/stay#airbnb">Airbnb</a>
+                        </div>
+                      </div>
+                    );
+                  case "search":return <a class="menu-link" href="/search">Search</a>;
+                  case "contact":return <a class="menu-link" href="/contact">Contact</a>;
                 }
               })
             }
@@ -452,16 +307,14 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
         </div>
       </header>
     )}
-
     <main><slot /></main>
-
     <footer class="site-footer">
       <div class="container">
-        <p>&copy; {new Date().getFullYear()} Fernie Real Estate. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} Fernie Real Estate</p>
         <div class="footer-links">
-          <a href="/privacy" data-astro-prefetch>Privacy Policy</a>
-          <a href="/terms" data-astro-prefetch>Terms of Use</a>
-          <a href="/contact" data-astro-prefetch>Contact</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/contact">Contact</a>
         </div>
       </div>
     </footer>
