@@ -1,5 +1,5 @@
 ---
-// src/layouts/Site.astro
+/* File: src/layouts/Site.astro */
 const {
   title = "Fernie Real Estate",
   seo_title = title,
@@ -78,10 +78,19 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
     <style>
       :root {
         --header-h: 52px;
-        --bg:#24818d0a; --ink:#111827; --ink-muted:#1f2937; --hover-bg:rgba(243,244,246,.9);
-        /* unified hero controls */
-        --hero-h:77vh;       /* default hero height */
+
+        /* Colors */
+        --bg:#e49e1c0a; --ink:#111827; --ink-muted:#1f2937; --hover-bg:rgba(243,244,246,.9);
+
+        /* ===== HERO controls (viewport-based) ===== */
+        --hero-h:65vh;       /* default hero height */
         --hero-h-sm:44vh;    /* small screens */
+
+        /* ===== MAP controls (independent from hero) ===== */
+        /* change these without touching hero sizes */
+        --map-h: clamp(420px, 50vh, 760px);
+        --map-h-sm: clamp(360px, 60vh, 640px);
+
         --container-pad:12px; --bleed-fix:2px;
       }
       *,*::before,*::after { box-sizing:border-box; }
@@ -195,7 +204,7 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
         margin-left:calc(-50vw - var(--bleed-fix));
         margin-right:calc(-50vw - var(--bleed-fix));
 
-        /* HEIGHT: one source of truth */
+        /* HEIGHT: one source of truth (hero-only) */
         height: clamp(var(--hero-h-sm), 65vh, var(--hero-h));
         padding-top: var(--header-h);   /* keeps content below fixed header */
         background-color:#e5e7eb;
@@ -215,13 +224,22 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
 
       .container{ max-width:1200px; margin-inline:auto; padding-inline:var(--container-pad); }
 
-      /* Reserve space for lazy embeds; collapse once loaded */
+      /* ===== RealtyVis / Map / Embed wrapper =====
+         Now uses independent map vars, not hero vars. */
       .rv-wrap,
       #rv-wrap-neigh {
-        min-height: 900px;
+        min-height: var(--map-h);
         overflow-anchor: auto;
         transition: min-height .3s ease;
       }
+      @media (max-width: 900px) {
+        .rv-wrap,
+        #rv-wrap-neigh {
+          min-height: var(--map-h-sm);
+        }
+      }
+
+      /* When loaded, your observer will add .rv-loaded and you can collapse if desired */
       .rv-wrap.rv-loaded,
       #rv-wrap-neigh.rv-loaded {
         min-height: auto;
@@ -305,7 +323,7 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
 
         function observe(wrap) {
           if (!wrap) return;
-          if (!wrap.style.minHeight) wrap.style.minHeight = '900px'; // ensure placeholder
+          if (!wrap.style.minHeight) wrap.style.minHeight = 'var(--map-h)'; // ensure placeholder
 
           const obs = new MutationObserver(() => {
             if (looksLoaded(wrap)) {
@@ -315,8 +333,8 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
           });
           obs.observe(wrap, { childList: true, subtree: true });
 
-          // Safety timeout in case the observer misses or embed takes too long
-          setTimeout(() => markLoaded(wrap), 8000);
+          // Safety timeout; shorten if you want faster collapse
+          setTimeout(() => markLoaded(wrap), 6000);
         }
 
         function bootstrap() {
@@ -414,7 +432,6 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
     background-color: #fafaf9;
   }
 </style>
-
 
   </head>
 
