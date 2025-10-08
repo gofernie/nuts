@@ -87,6 +87,7 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
         --hero-h-sm:44vh;    /* small screens */
 
         /* ===== MAP controls (independent from hero) ===== */
+        /* change these without touching hero sizes */
         --map-h: clamp(420px, 50vh, 760px);
         --map-h-sm: clamp(360px, 60vh, 640px);
 
@@ -223,7 +224,8 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
 
       .container{ max-width:1200px; margin-inline:auto; padding-inline:var(--container-pad); }
 
-      /* ===== RealtyVis / Map / Embed wrapper ===== */
+      /* ===== RealtyVis / Map / Embed wrapper =====
+         Now uses independent map vars, not hero vars. */
       .rv-wrap,
       #rv-wrap-neigh {
         min-height: var(--map-h);
@@ -236,10 +238,28 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
           min-height: var(--map-h-sm);
         }
       }
+
+      /* When loaded, your observer will add .rv-loaded and you can collapse if desired */
       .rv-wrap.rv-loaded,
       #rv-wrap-neigh.rv-loaded {
         min-height: auto;
       }
+
+      /* ===== Unified body copy (summary & long copy) ===== */
+      .summary,
+      .long-copy,
+      .long-copy p {
+        font-family: inherit;
+        font-size: clamp(1rem, 0.98rem + 0.2vw, 1.05rem);
+        font-weight: 400;
+        line-height: 1.65;
+        color: var(--ink);
+        margin: 0 0 1em;
+      }
+      /* In case summary contains <p> or spans with styles from CMS */
+      .summary * { font: inherit; color: inherit; }
+      /* Tighten spacing when summary precedes the long copy block */
+      .summary + .long-copy { margin-top: -0.25em; }
     </style>
 
     <!-- Plain JS (no TS) so it runs everywhere -->
@@ -329,7 +349,7 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
           });
           obs.observe(wrap, { childList: true, subtree: true });
 
-          // Safety timeout
+          // Safety timeout; shorten if you want faster collapse
           setTimeout(() => markLoaded(wrap), 6000);
         }
 
@@ -345,7 +365,7 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
             });
           });
 
-          // Watch future inserts
+          // Watch future inserts (useful for dynamic pages)
           const rootObs = new MutationObserver(muts => {
             muts.forEach(m => {
               m.addedNodes.forEach(n => {
@@ -368,91 +388,67 @@ const NAV_ORDER = ["neighbourhoods","types","xtra","todo","stay","search","conta
       })();
     </script>
 
-    <!-- RealtyVis listing grid polish -->
     <style is:global>
-      /* ===== RealtyVis Listing Grid Enhancement ===== */
-      .rv-block .rv-listingGrid,
-      .rv-block [class*="rv-listingGrid"] {
-        display: grid !important;
-        gap: 1rem !important;
-        align-items: stretch;
-      }
-      .rv-block .rv-listingGrid > *,
-      .rv-block [class*="rv-listingGrid"] > * {
-        background: #ffffff00;
-        border: 0px solid #e5e7eb;
-        border-radius: 5px;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-        overflow: hidden;
-        transition: transform 0.25s ease, box-shadow 0.25s ease;
-      }
-      .rv-block .rv-listingGrid > *:hover,
-      .rv-block [class*="rv-listingGrid"] > *:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-      }
-      @media (max-width: 900px) {
-        .rv-block .rv-listingGrid,
-        .rv-block [class*="rv-listingGrid"] {
-          gap: 0.8rem !important;
-        }
-      }
-      @media (max-width: 600px) {
-        .rv-block .rv-listingGrid,
-        .rv-block [class*="rv-listingGrid"] {
-          gap: 0.6rem !important;
-        }
-      }
-      .rv-block img { border-radius: 5px; }
-      .rv-block h2, .rv-block h3, .rv-block h4 { margin-top: 0.5em; margin-bottom: 0.4em; }
+  /* ===== RealtyVis Listing Grid Enhancement ===== */
 
-      /* Optional: soft grey page background for contrast */
-      body { background-color: #fafaf9; }
-    </style>
+  /* Apply spacing to all RV listing grids (any class variant) */
+  .rv-block .rv-listingGrid,
+  .rv-block [class*="rv-listingGrid"] {
+    display: grid !important;
+    gap: 1rem !important;
+    align-items: stretch;
+  }
 
-    <!-- 🔚 FINAL OVERRIDES: make summary & long-copy identical -->
-    <style is:global>
-      /* === Force-identical summary & long-copy text (wins over everything) === */
-      :where(.summary),
-      :where(.long-copy) {
-        --copy-size: clamp(1.02rem, 0.98rem + 0.28vw, 1.12rem);
-        --copy-lh: 1.65;
-        --copy-color: var(--ink);
-        font-family: inherit !important;
-        font-size: var(--copy-size) !important;
-        line-height: var(--copy-lh) !important;
-        font-weight: 400 !important;
-        color: var(--copy-color) !important;
-        margin: 0 0 1em !important;
-      }
-      :where(.summary p),
-      :where(.long-copy p) {
-        font: inherit !important;
-        color: inherit !important;
-        margin: 0 0 1em !important;
-      }
-      :where(.summary strong, .summary em, .summary a,
-             .long-copy strong, .long-copy em, .long-copy a) {
-        color: inherit !important;
-        font-weight: inherit !important;
-      }
-      /* If Tailwind Typography (.prose) is applied, neutralize it just in these blocks */
-      :where(.summary.prose p),
-      :where(.long-copy.prose p) {
-        font: inherit !important;
-        color: inherit !important;
-        margin: 0 0 1em !important;
-      }
-      /* Tighten spacing when summary precedes the long copy */
-      .summary + .long-copy { margin-top: -0.25em !important; }
+  /* Polished card styling */
+  .rv-block .rv-listingGrid > *,
+  .rv-block [class*="rv-listingGrid"] > * {
+    background: #ffffff00;
+    border: 0px solid #e5e7eb;
+    border-radius: 5px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
 
-      /* Optional: heading normalization inside long-copy */
-      .long-copy h2, .long-copy h3, .long-copy h4 {
-        font-weight: 600;
-        color: var(--ink);
-        margin: 1.2em 0 0.6em;
-      }
-    </style>
+  /* Hover lift effect */
+  .rv-block .rv-listingGrid > *:hover,
+  .rv-block [class*="rv-listingGrid"] > *:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 900px) {
+    .rv-block .rv-listingGrid,
+    .rv-block [class*="rv-listingGrid"] {
+      gap: 0.8rem !important;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .rv-block .rv-listingGrid,
+    .rv-block [class*="rv-listingGrid"] {
+      gap: 0.6rem !important;
+    }
+  }
+
+  /* Optional: give embedded “card” images consistent rounding */
+  .rv-block img {
+    border-radius: 5px;
+  }
+
+  /* Tighten heading and text spacing within listings */
+  .rv-block h2, .rv-block h3, .rv-block h4 {
+    margin-top: 0.5em;
+    margin-bottom: 0.4em;
+  }
+
+  /* Optional: soft grey page background for contrast */
+  body {
+    background-color: #fafaf9;
+  }
+</style>
+
   </head>
 
   <body class={bodyClass}>
