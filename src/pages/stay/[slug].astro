@@ -30,7 +30,6 @@ export async function getStaticPaths() {
       long_copy: get("long_copy"),
       cta1: get("cta1"),
       status: get("status"),
-      // ✅ pull SEO fields
       seo_title: get("seo_title"),
       seo_description: get("seo_description"),
     };
@@ -59,7 +58,6 @@ export async function getStaticPaths() {
         }
         return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
       })(),
-      // ✅ pass SEO through
       seo_title: n.seo_title || "",
       seo_description: n.seo_description || "",
     }
@@ -71,7 +69,6 @@ const {
   seo_title, seo_description
 } = Astro.props as any;
 
-// ✅ compute values that will ALWAYS be passed to <Site>
 const pageSeoTitle = (seo_title || title || "Stay").toString();
 const pageSeoDesc  = (seo_description || summary || "").toString();
 ---
@@ -83,22 +80,31 @@ const pageSeoDesc  = (seo_description || summary || "").toString();
   seo_description={pageSeoDesc}
 >
   <Fragment slot="head">
-    <meta name="x-debug-seo-title" content={pageSeoTitle} />
-    <meta name="x-debug-seo-desc" content={pageSeoDesc} />
     {hero && <link rel="preload" as="image" href={hero} fetchpriority="high" />}
   </Fragment>
 
+  <!-- HERO -->
   <section class="hero-bleed">
     {hero && (
-      <img src={hero} alt="" fetchpriority="high" loading="eager" decoding="async" width="2000" height="1000" />
+      <img
+        src={hero}
+        alt=""
+        fetchpriority="high"
+        loading="eager"
+        decoding="async"
+        width="2000"
+        height="1000"
+      />
     )}
   </section>
 
+  <!-- INTRO -->
   <div class="container intro">
     <h1>{title}</h1>
-    {summary && <p class="copy-base">{summary}</p>}
+    {summary && <div class="summary" set:html={summary}></div>}
   </div>
 
+  <!-- MAP -->
   {map_embed && (
     <div class="container map-wrap">
       <h2>Explore on the Map</h2>
@@ -115,6 +121,7 @@ const pageSeoDesc  = (seo_description || summary || "").toString();
     </div>
   )}
 
+  <!-- CTA -->
   {cta1 && (
     <div class="container">
       <div class="cta-card">
@@ -125,31 +132,75 @@ const pageSeoDesc  = (seo_description || summary || "").toString();
     </div>
   )}
 
+  <!-- LONG COPY -->
   {long_copy && (
     <div class="container">
-      <article class="copy-base long-copy" set:html={long_copy}></article>
+      <div class="long-copy" set:html={long_copy}></div>
     </div>
   )}
 
   <style>
-    :root { --hero-h: clamp(300px, 38vw, 520px); }
+    /* Keep global hero control from Site.astro */
     .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
-    .copy-base { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-weight: 400; letter-spacing: 0; font-size: 1.05rem; line-height: 1.8; color: #1f2937; }
-    .copy-base p { margin: 0 0 1.25em; }
-    .copy-base h2, .copy-base h3 { font-weight: 700; color:#111827; line-height: 11.3; margin:2em 0 .75em; }
-    .copy-base h2 { font-size: 1.5rem; border-left: 4px solid #0a7bff; padding-left: .5rem; }
-    .copy-base h3 { font-size: 1.25rem; }
+
     .intro { margin: 24px auto 20px; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
+
+    /* Summary now rendered as HTML — inherits font rules from Site.astro */
+    /* Do NOT style .summary or p here. Global summary/long-copy CSS handles that. */
+
     .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
     .map-card{ border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
-    .cta-card{ background:#fff; color:#111827; border:2px solid #e5e7eb; border-radius:16px; padding:28px 20px; margin:36px 0; text-align:center; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
+
+    .cta-card{
+      background:#fff;
+      color:#111827;
+      border:2px solid #e5e7eb;
+      border-radius:16px;
+      padding:28px 20px;
+      margin:36px 0;
+      text-align:center;
+      box-shadow:0 6px 18px rgba(0,0,0,0.08);
+    }
     .cta-card h2{ margin:0 0 10px; font-size:1.75rem; font-weight:700; }
     .cta-card p{ font-size:1rem; color:#374151; margin-bottom:18px; }
-    .cta-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; background:#0a7bff; color:#fff; text-decoration:none; font-weight:700; font-size:1.125rem; padding:12px 28px; border-radius:999px; box-shadow:0 4px 10px rgba(0,0,0,0.15); transition: background .15s ease, box-shadow .15s ease; }
+    .cta-btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      background:#0a7bff;
+      color:#fff;
+      text-decoration:none;
+      font-weight:700;
+      font-size:1.125rem;
+      padding:12px 28px;
+      border-radius:999px;
+      box-shadow:0 4px 10px rgba(0,0,0,0.15);
+      transition: background .15s ease, box-shadow .15s ease;
+    }
     .cta-btn:hover{ background:#065aa3; box-shadow:0 6px 14px rgba(0,0,0,0.25); }
-    .hero-bleed { position:relative; left:50%; right:50%; margin-left:-50vw; margin-right:-50vw; width:100vw; max-width:100vw; height:var(--hero-h); overflow:hidden; background:#e5e7eb; display:block; }
-    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
-    .long-copy { margin:40px 0 48px; }
+
+    .long-copy {
+      font-size: 1.05rem;
+      line-height: 1.8;
+      color: #1f2937;
+    }
+    .long-copy h2, .long-copy h3 {
+      font-weight: 700;
+      color:#111827;
+      line-height: 1.3;
+    }
+    .long-copy h2 {
+      font-size: 1.5rem;
+      border-left: 4px solid #0a7bff;
+      padding-left: .5rem;
+      margin: 1.8em 0 0.6em;
+    }
+    .long-copy h3 {
+      font-size: 1.25rem;
+      margin: 1.2em 0 0.4em;
+    }
+    .long-copy h3 + p { margin-top: .25em; }
   </style>
 </Site>

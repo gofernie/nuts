@@ -66,7 +66,7 @@ try {
     normalized.find(r => !!r.cta1) ??
     null;
 
-  // Visible cards only (no index/drafts)
+  // Visible cards only (no index/drafts/hidden/inactive)
   items = normalized.filter(
     (r) =>
       r.slug && r.title &&
@@ -103,7 +103,7 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     </Fragment>
   )}
 
-  <!-- HERO -->
+  <!-- HERO (height is controlled globally in Site.astro via --hero-h / --hero-h-sm) -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -118,10 +118,12 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     )}
   </section>
 
-  <!-- H1 + intro -->
+  <!-- H1 + intro summary (HTML) -->
   <div class="container intro">
     <h1>{header?.title || pageSeoTitle}</h1>
-    {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
+    {(header?.summary || pageSeoDesc) && (
+      <div class="summary" set:html={(header?.summary || pageSeoDesc)}></div>
+    )}
   </div>
 
   <div class="container">
@@ -159,7 +161,12 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
                 </div>
                 <div class="body">
                   <strong>{n.title}</strong>
-                  {n.summary && <p>{(n.summary).split(/\s+/).slice(0,10).join(" ") + ((n.summary).split(/\s+/).length>10 ? "…" : "")}</p>}
+                  {n.summary && (
+                    <p>
+                      {(n.summary).split(/\s+/).slice(0,10).join(" ")}
+                      {(n.summary).split(/\s+/).length > 10 ? "…" : ""}
+                    </p>
+                  )}
                 </div>
               </a>
             );
@@ -174,7 +181,9 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
 
     .intro { margin-top: 24px; margin-bottom: 20px; text-align: left; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px 0; color: #111827; }
-    .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
+
+    /* IMPORTANT: do not style .intro p — summary is HTML via .summary and
+       picks up global summary/long-copy rules from Site.astro */
 
     .grid-wrap { margin-top: 24px; }
     .grid {

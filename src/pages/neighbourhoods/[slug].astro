@@ -1,5 +1,5 @@
 ---
-// File: src/pages/neighbourhoods/[slug].astro
+/* File: src/pages/neighbourhoods/[slug].astro */
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -159,7 +159,7 @@ const pageSeoDesc  = seo_description || summary || "";
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
   </Fragment>
 
-  <!-- HERO -->
+  <!-- HERO (height controlled globally in Site.astro via --hero-h / --hero-h-sm) -->
   <section class="hero-bleed">
     {hero && (
       <img
@@ -176,7 +176,10 @@ const pageSeoDesc  = seo_description || summary || "";
   <!-- INTRO -->
   <div class="container intro">
     <h1>{title}</h1>
-    {summary && <p>{summary}</p>}
+    {summary && (
+      /* Render summary as HTML, so it uses the same global styles as long-copy */
+      <div class="summary" set:html={summary}></div>
+    )}
   </div>
 
   <!-- MAP -->
@@ -201,23 +204,18 @@ const pageSeoDesc  = seo_description || summary || "";
     <h2>Browse {title} Listings</h2>
   </div>
 
-<!-- REALTYVIS EMBED -->
-{cta_html && (
-  <section class="rv-section rv-nopad">
-    <div class="container rv-capped">
-      <div id="rv-wrap-types" class="rv-wrap">
-        <div class="rv-mount" set:html={cta_html}></div>
-      </div>
-    </div>
-  </section>
-)}
-
- 
-  <!-- LONG COPY -->
-  {long_copy && (
-    <section class="long-wrap">
-      <div class="container long">
-        <div class="long-copy" set:html={formatLongCopy(long_copy)}></div>
+  <!-- REALTYVIS + LONG COPY (both within a capped container) -->
+  {(cta_html || long_copy) && (
+    <section class="content-wrap">
+      <div class="container">
+        {cta_html && (
+          <div id="rv-wrap-types" class="rv-wrap rv-nopad">
+            <div class="rv-mount" set:html={cta_html}></div>
+          </div>
+        )}
+        {long_copy && (
+          <div class="long-copy" set:html={formatLongCopy(long_copy)}></div>
+        )}
       </div>
     </section>
   )}
@@ -232,17 +230,15 @@ const pageSeoDesc  = seo_description || summary || "";
       --para-spacing: 1.35em;
     }
 
+    /* Typography base (let Site.astro own summary/long-copy vars) */
     body, .intro, .long-copy { font-family: var(--font-body); color: var(--text-color); }
 
     .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
 
     .intro { margin: 32px auto 24px; }
     .intro h1 { font-size: 2.25rem; font-weight: 600; color: var(--heading-color); margin-bottom: .5em; }
-    .intro p {
-      font-size: var(--font-size-base);
-      line-height: var(--line-height);
-      margin: 0 0 var(--para-spacing);
-    }
+
+    /* Do NOT style .intro p anymore; summary is a <div class="summary"> rendered as HTML. */
 
     .map-wrap { margin-bottom: 60px; }
     .map-card { border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
@@ -250,20 +246,38 @@ const pageSeoDesc  = seo_description || summary || "";
     .rv-section.rv-nopad { background: transparent; padding: 0; margin-top: 30px; }
     .container.rv-capped { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
 
-    .long-wrap { background: #fafaf9; padding: clamp(32px, 5vw, 60px) 0; }
-    .container.long { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+    /* Content wrapper uses site background; container caps width */
+    .content-wrap { background: var(--bg); padding: 0; }
 
     .long-copy {
       font-size: var(--font-size-base);
       line-height: var(--line-height);
       color: var(--text-color);
     }
+
     .long-copy p { margin: 0 0 var(--para-spacing); }
+
+    /* Headings inside long copy — smaller gaps as requested */
     .long-copy h2, .long-copy h3 {
-      font-weight: 600; color: var(--heading-color); line-height: 1.3; margin: 2em 0 .75em;
+      font-weight: 600;
+      color: var(--heading-color);
+      line-height: 1.3;
     }
-    .long-copy h2 { font-size: 1.5rem; border-left: 4px solid #0a7bff; padding-left: .5rem; }
-    .long-copy h3 { font-size: 1.25rem; }
+
+    .long-copy h2 {
+      font-size: 1.5rem;
+      margin: 1.8em 0 0.6em;         /* slightly tighter */
+      border-left: 4px solid #0a7bff;
+      padding-left: .5rem;
+    }
+
+    .long-copy h3 {
+      font-size: 1.25rem;
+      margin: 1.2em 0 0.4em;         /* tighter than before */
+    }
+
+    /* Reduce gap between h3 and the following paragraph */
+    .long-copy h3 + p { margin-top: .25em; }
   </style>
 
   <!-- Optional: keep RV embed perfectly flush & stable -->

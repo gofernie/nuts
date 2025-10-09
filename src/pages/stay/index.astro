@@ -1,4 +1,5 @@
 ---
+// src/pages/stay/index.astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -103,8 +104,8 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-  <!-- HERO (matches neighbourhoods via .hero-bleed) -->
-  <section class="hero-bleed">
+  <!-- BOXED HERO -->
+  <section class="hero-bleed hero-bleed--boxed">
     {heroSrc && (
       <img
         src={heroSrc}
@@ -118,13 +119,13 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
     )}
   </section>
 
-  <!-- H1 + intro — same spacing/typography as neighbourhoods -->
+  <!-- INTRO -->
   <div class="container intro">
     <h1>{header?.title || "Places to Stay in Fernie"}</h1>
-    {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
+    {(header?.summary || pageSeoDesc) && (
+      <div class="summary" set:html={header?.summary || pageSeoDesc}></div>
+    )}
   </div>
-
-  
 
   <div class="container">
     {error && <p class="error">Error: {error}</p>}
@@ -179,21 +180,9 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
   </div>
 
   <style>
-    /* Global container/intro — identical to neighbourhoods */
-    .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 1rem; }
-    .intro { margin-top: 24px; margin-bottom: 20px; text-align: left; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px 0; color: #111827; }
-    .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
-
-    /* RV section uses full-width soft bg but inner container stays 1200px */
-    .rv-section { background:#fafaf9; padding: 2.5rem 0; }
-    .rv-wrapper {
-      background:#fff;
-      border-radius: 1rem;
-      box-shadow: 0 2px 10px rgba(0,0,0,.05);
-      padding: 1.25rem;
-      border: 1px solid #eee;
-    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+    .intro { margin: 24px auto 20px; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
 
     .group { margin: 50px 0; }
     .group-title { margin: 0 0 10px; font-size: 1.4rem; font-weight: 800; color:#111827; }
@@ -205,8 +194,10 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
 
     .card {
       display:flex; flex-direction:column; background:#fff; border-radius:12px; overflow:hidden;
-      border:1px solid #eee; text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,0.05);
-      transform:translateY(0); transition: transform .25s ease, box-shadow .25s ease;
+      border:1px solid #eee; text-decoration:none; color:inherit;
+      box-shadow:0 1px 3px rgba(0,0,0,0.05);
+      transform:translateY(0);
+      transition: transform .25s ease, box-shadow .25s ease;
     }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 

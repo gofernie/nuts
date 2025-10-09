@@ -124,7 +124,6 @@ function parseCard(
   const clean = (raw || "").trim();
   if (!clean) return { ...fallback };
 
-  // JSON option
   if (clean.startsWith("{")) {
     try {
       const obj = JSON.parse(clean);
@@ -137,7 +136,6 @@ function parseCard(
     } catch {}
   }
 
-  // Pipe: title | href | copy | img
   if (clean.includes("|")) {
     const [t, h, c, i] = clean.split("|").map((s) => s.trim());
     return {
@@ -148,7 +146,6 @@ function parseCard(
     };
   }
 
-  // URL-only or Title-only
   try {
     const u = new URL(clean);
     return { title: fallback.title, href: u.toString(), copy: fallback.copy || "", img: fallback.img || "" };
@@ -179,6 +176,10 @@ const cardC = parseCard(card_3, {
 });
 
 const isExternal = (href: string) => /^https?:\/\//i.test(href);
+
+/* 👇 CHOOSE THIS PAGE’S HERO HEIGHT (local, bulletproof) */
+const HERO_H   = "50vh";
+const HERO_HSM = "38vh";
 ---
 <Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
   {hero && (
@@ -187,27 +188,18 @@ const isExternal = (href: string) => /^https?:\/\//i.test(href);
     </Fragment>
   )}
 
-  <!-- LCP hero -->
-  <section class="hero-bleed">
+  <!-- LCP hero: inline CSS vars override everything -->
+  <section class="hero-bleed" style={`--hero-h:${HERO_H}; --hero-h-sm:${HERO_HSM};`}>
     {hero && <img src={hero} alt="" fetchpriority="high" loading="eager" decoding="async" width="2000" height="1000" />}
   </section>
 
-<div class="container intro">
-  <h1 id="top">{title || "To Do"}</h1>
+  <!-- INTRO -->
+  <div class="container intro">
+    <h1>{title}</h1>
+    {summary && <div class="summary" set:html={summary}></div>}
+  </div>
 
-  <!-- Summary -->
-  {summary
-    ? <div class="summary" set:html={summary}></div>   /* accepts HTML from Column K */
-    : <p class="summary">{/* fallback plain text if you don't have summary var */}Fat biking in Fernie is an exhilarating way to explore the valley’s snow-covered trails…</p>
-  }
-</div>
-
-
-
-
-
-
-  <!-- ✅ Quick Cards with neighbourhood-style tile look -->
+  <!-- Quick Cards -->
   <section class="container quick-cards" aria-label="Quick actions">
     <div class="qc-grid">
       {[cardA, cardB, cardC].map((card) => (
@@ -218,11 +210,7 @@ const isExternal = (href: string) => /^https?:\/\//i.test(href);
           rel={isExternal(card.href) ? "noopener" : undefined}
           data-astro-prefetch={!isExternal(card.href) ? true : undefined}
         >
-          <div
-            class="qc-media"
-            style={card.img ? `--qc-img:url('${card.img}')` : undefined}
-            aria-hidden="true"
-          />
+          <div class="qc-media" style={card.img ? `--qc-img:url('${card.img}')` : undefined} aria-hidden="true" />
           <div class="qc-body">
             <h3 class="qc-title">{card.title}</h3>
             {card.copy && <p class="qc-copy">{card.copy}</p>}
@@ -231,10 +219,6 @@ const isExternal = (href: string) => /^https?:\/\//i.test(href);
       ))}
     </div>
   </section>
-
-
-
- 
 
   {long_copy && (
     <div class="container">
@@ -245,76 +229,30 @@ const isExternal = (href: string) => /^https?:\/\//i.test(href);
   <style>
     .intro { margin: 24px auto 20px; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
-    .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
+    .intro > p { font-size: 1rem; line-height:1.6; color:#1f2937; }
 
-    /* === Quick Cards styled like all-neighbourhood tiles === */
     .quick-cards { margin: 18px auto 10px; }
     .qc-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
-    @media (min-width: 720px) { .qc-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 720px) { .qc-grid { grid-template-columns: repeat(3,1fr); } }
 
     .qc-card {
-      display: grid;
-      grid-template-rows: auto 1fr;
-      background: #fff;
-      border: 1px solid #e6e6e6;
-      border-radius: 16px;
-      overflow: hidden; /* rounded image corners like screenshot */
-      text-decoration: none;
-      color: inherit;
-      box-shadow: 0 1px 2px rgba(0,0,0,.04); /* tiny base shadow */
-      transition:
-        transform .22s cubic-bezier(.2,.7,.2,1),
-        box-shadow .22s ease,
-        border-color .22s ease;
+      display: grid; grid-template-rows: auto 1fr;
+      background:#fff; border:1px solid #e6e6e6; border-radius:16px; overflow:hidden;
+      text-decoration:none; color:inherit;
+      box-shadow:0 1px 2px rgba(0,0,0,.04);
+      transition: transform .22s cubic-bezier(.2,.7,.2,1), box-shadow .22s ease, border-color .22s ease;
     }
-    .qc-card:hover {
-      transform: translateY(-6px);
-      box-shadow: 0 10px 24px rgba(17,24,39,.08), 0 3px 6px rgba(17,24,39,.06);
-      border-color: #e3e7ee;
-    }
-    .qc-card:active { transform: translateY(-2px); }
+    .qc-card:hover { transform:translateY(-6px); box-shadow:0 10px 24px rgba(17,24,39,.08),0 3px 6px rgba(17,24,39,.06); border-color:#e3e7ee; }
+    .qc-card:active { transform:translateY(-2px); }
 
-    /* 16:9 media like neighbourhood cards; uses CSS var when image provided */
     .qc-media {
-      aspect-ratio: 16 / 9;
-      background:
-        var(--qc-img) no-repeat center / cover,
-        radial-gradient(120% 120% at 10% 0%, #f1f5f9, #eaeef4);
+      aspect-ratio:16/9;
+      background: var(--qc-img) no-repeat center / cover,
+                  radial-gradient(120% 120% at 10% 0%,#f1f5f9,#eaeef4);
     }
-
-    .qc-body { padding: 14px 16px 16px; }
-    .qc-title {
-      margin: 0 0 6px;
-      font-size: 1.05rem;
-      font-weight: 800;
-      color: #0f172a;
-    }
-    .qc-copy {
-      margin: 0;
-      font-size: .96rem;
-      line-height: 1.5;
-      color: #475569; /* muted */
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden; /* neat two-line ellipsis like your tiles */
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .qc-card { transition: none; }
-      .qc-card:hover, .qc-card:active { transform: none; }
-    }
-
-    /* Map + CTA and long copy unchanged */
-    .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
-    .map-card{ border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
-
-    .cta-card{ background:#fff; color:#111827; border:2px solid #e5e7eb; border-radius:16px; padding:28px 20px; margin:36px 0; text-align:center; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
-    .cta-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; background:#0a7bff; color:#fff; text-decoration:none; font-weight:700; font-size:1.125rem; padding:12px 28px; border-radius:999px; box-shadow:0 4px 10px rgba(0,0,0,0.15); transition: background .15s ease, box-shadow .15s ease; }
-    .cta-btn:hover{ background:#065aa3; box-shadow:0 6px 14px rgba(0,0,0,0.25); }
-
-    .long-copy{ margin:40px 0 48px; font-size:1.05rem; line-height:1.8; color:#1f2937; }
-    .long-copy h2{ font-size:1.5rem; border-left:4px solid #0a7bff; padding-left:.5rem; margin:2em 0 .75em; }
-    .long-copy h3{ font-size:1.25rem; font-weight:700; }
+   .qc-body { padding:14px 16px 16px; }
+   .qc-title { margin:0 0 6px; font-size:1.05rem; font-weight:800; color:#0f172a; }
+   .qc-copy { margin:0; font-size:.96rem; line-height:1.5; color:#475569;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   </style>
 </Site>
