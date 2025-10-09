@@ -192,10 +192,20 @@ const isExternal = (href: string) => /^https?:\/\//i.test(href);
     {hero && <img src={hero} alt="" fetchpriority="high" loading="eager" decoding="async" width="2000" height="1000" />}
   </section>
 
-  <div class="container intro">
-    <h1 id="top">{title}</h1>
-    {summary && <p>{summary}</p>}
-  </div>
+<div class="container intro">
+  <h1 id="top">{title || "To Do"}</h1>
+
+  <!-- Summary -->
+  {summary
+    ? <div class="summary" set:html={summary}></div>   /* accepts HTML from Column K */
+    : <p class="summary">{/* fallback plain text if you don't have summary var */}Fat biking in Fernie is an exhilarating way to explore the valley’s snow-covered trails…</p>
+  }
+</div>
+
+
+
+
+
 
   <!-- ✅ Quick Cards with neighbourhood-style tile look -->
   <section class="container quick-cards" aria-label="Quick actions">
@@ -222,33 +232,9 @@ const isExternal = (href: string) => /^https?:\/\//i.test(href);
     </div>
   </section>
 
-  {map_embed && (
-    <div class="container map-wrap">
-      <h2>Explore on the Map</h2>
-      <div class="map-card">
-        <iframe
-          src={map_embed}
-          title={`Map of ${title}`}
-          loading="lazy"
-          allowfullscreen
-          referrerpolicy="no-referrer-when-downgrade"
-          style="width:100%; height: min(720px, var(--hero-h)); border:0; display:block;"
-        ></iframe>
-      </div>
-    </div>
-  )}
 
-  {cta1 && (
-    <div class="container">
-      <div class="cta-card">
-        <h2>Ready to tackle {title}?</h2>
-        <p>Open the checklist or jump straight to the related listings.</p>
-        <a href={cta1} class="cta-btn" data-astro-prefetch>
-          <span class="cta-text">✅ Open Action</span>
-        </a>
-      </div>
-    </div>
-  )}
+
+ 
 
   {long_copy && (
     <div class="container">
