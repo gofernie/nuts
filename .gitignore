@@ -26,3 +26,6 @@ pnpm-debug.log*
 certs/*
 
 certs/*
+
+# Local Netlify folder
+.netlify
