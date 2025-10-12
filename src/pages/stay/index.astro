@@ -1,4 +1,5 @@
 ---
+/* File: src/pages/stay/index.astro */
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -13,11 +14,11 @@ type Row = {
   status?: string;
   seo_title?: string;
   seo_description?: string;
-  category?: string;
+  category?: string; // "hotel" | "airbnb"
   slug?: string;
   sort?: number;
-  spare_1?: string; // hotels copy
-  spare_2?: string; // airbnb copy
+  spare_1?: string; // hotels copy (header)
+  spare_2?: string; // airbnb copy (header)
 };
 
 let items: Row[] = [];
@@ -25,6 +26,28 @@ let header: Row | null = null;
 let error: string | null = null;
 let hotelsCopy: string | null = null;
 let airbnbsCopy: string | null = null;
+
+/* ---------- helpers ---------- */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function randomHeightClass(): string {
+  // bias toward base/sm for calmer rhythm
+  const bag = ["h-base","h-base","h-sm","h-sm","h-md","h-md","h-lg"];
+  return bag[Math.floor(Math.random() * bag.length)];
+}
+const resolveImg = (v?: string) => {
+  const s = (v || "").trim();
+  if (!s) return "";
+  if (/^(https?:)?\/\//i.test(s)) return s;
+  if (s.startsWith("/")) return s;
+  return heroPath(s);
+};
 
 try {
   if (!url) throw new Error("Missing PUBLIC_STAY_JSON in .env (restart dev).");
@@ -81,12 +104,11 @@ try {
     if (!r.slug || !r.title) return false;
     if (header && r === header) return false;
     const s = (r.status ?? "").toLowerCase();
-    return !["draft","hidden","inactive"].includes(s);
+    return !["draft","hidden","inactive"].includes(s) && !!r.category;
   });
 
   items.sort((a,b) => (a.sort! - b.sort!) || a.title!.localeCompare(b.title!));
 
-  // take spare_1 and spare_2 from header row
   if (header) {
     hotelsCopy = header.spare_1 || null;
     airbnbsCopy = header.spare_2 || null;
@@ -99,11 +121,20 @@ const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
 const pageSeoTitle = header?.seo_title || header?.title || "Places to Stay";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
 
-const hotels   = items.filter(i => i.category === "hotel");
-const airbnbs  = items.filter(i => i.category === "airbnb");
+/* Randomized groups for organic layout */
+const hotels  = shuffle(items.filter(i => i.category === "hotel"));
+const airbnbs = shuffle(items.filter(i => i.category === "airbnb"));
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
+
+  {heroSrc && (
+    <Fragment slot="head">
+      <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
+    </Fragment>
+  )}
+
+  <!-- HERO -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -118,12 +149,13 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
     )}
   </section>
 
-  <div class="container intro">
-    <h1>{header?.title || "Places to Stay in Fernie"}</h1>
-    {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
-  </div>
-
+  <!-- Single container holding intro + both sections -->
   <div class="container">
+    <header class="intro">
+      <h1>{header?.title || "Places to Stay in Fernie"}</h1>
+      {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
+    </header>
+
     {error && <p class="error">Error: {error}</p>}
     {!error && items.length === 0 && (
       <p>No stays yet. Check <code>PUBLIC_STAY_JSON</code> and your sheet’s <code>status</code>/<code>slug</code>/<code>category</code> columns.</p>
@@ -133,20 +165,41 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
       <section class="group anchor-target" id="hotels">
         <h2 class="group-title">Hotels</h2>
         {hotelsCopy && <div class="group-copy" set:html={hotelsCopy}></div>}
-        <div class="grid">
-          {hotels.map((n) => (
-            <a class="card" href={`/stay/${n.slug}`}>
-              <div class="thumb">
-                {n.hero_img ? (
-                  <img src={heroPath(n.hero_img)} alt={n.title} loading="lazy" decoding="async" />
-                ) : <div class="ph" aria-hidden="true">No image</div>}
-              </div>
-              <div class="body">
-                <strong>{n.title}</strong>
-                {n.summary && <p>{n.summary.split(/\s+/).slice(0,10).join(" ") + (n.summary.split(/\s+/).length>10 ? "…" : "")}</p>}
-              </div>
-            </a>
-          ))}
+        <div class="masonry">
+          {hotels.map((n) => {
+            const primary = resolveImg(n.hero_img);
+            const altBase = primary.includes("/images/")
+              ? primary.replace("/images/", "/img/")
+              : primary.replace("/img/", "/images/");
+            const filename = (primary.split("/").pop() || "").trim();
+            const finalFallback = filename ? `/img/hero/${filename}` : "";
+
+            const hClass = randomHeightClass();
+
+            return (
+              <a class={`card ${hClass}`} href={`/stay/${n.slug}`}>
+                <div class="thumb">
+                  {primary ? (
+                    <img
+                      src={primary}
+                      alt={n.title}
+                      loading="lazy"
+                      decoding="async"
+                      onerror={`if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
+                                else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
+                                else { const ph = document.createElement('div'); ph.className='ph'; ph.setAttribute('aria-hidden','true'); ph.textContent='No image'; this.replaceWith(ph); }`}
+                    />
+                  ) : <div class="ph" aria-hidden="true">No image</div>}
+                  <div class="overlay"><div class="title">{n.title}</div></div>
+                </div>
+                <div class="body">
+                  {n.summary
+                    ? <p>{n.summary.split(/\s+/).slice(0,18).join(" ") + (n.summary.split(/\s+/).length>18 ? "…" : "")}</p>
+                    : <p>{n.title}</p>}
+                </div>
+              </a>
+            );
+          })}
         </div>
       </section>
     )}
@@ -155,54 +208,119 @@ const airbnbs  = items.filter(i => i.category === "airbnb");
       <section class="group anchor-target" id="airbnb">
         <h2 class="group-title">Airbnb & Cabins</h2>
         {airbnbsCopy && <div class="group-copy" set:html={airbnbsCopy}></div>}
-        <div class={`grid ${airbnbs.length === 1 ? 'single' : ''}`}>
-          {airbnbs.map((n) => (
-            <a class="card" href={`/stay/${n.slug}`}>
-              <div class="thumb">
-                {n.hero_img ? (
-                  <img src={heroPath(n.hero_img)} alt={n.title} loading="lazy" decoding="async" />
-                ) : <div class="ph" aria-hidden="true">No image</div>}
-              </div>
-              <div class="body">
-                <strong>{n.title}</strong>
-                {n.summary && <p>{n.summary.split(/\s+/).slice(0,10).join(" ") + (n.summary.split(/\s+/).length>10 ? "…" : "")}</p>}
-              </div>
-            </a>
-          ))}
+        <div class="masonry">
+          {airbnbs.map((n) => {
+            const primary = resolveImg(n.hero_img);
+            const altBase = primary.includes("/images/")
+              ? primary.replace("/images/", "/img/")
+              : primary.replace("/img/", "/images/");
+            const filename = (primary.split("/").pop() || "").trim();
+            const finalFallback = filename ? `/img/hero/${filename}` : "";
+
+            const hClass = randomHeightClass();
+
+            return (
+              <a class={`card ${hClass}`} href={`/stay/${n.slug}`}>
+                <div class="thumb">
+                  {primary ? (
+                    <img
+                      src={primary}
+                      alt={n.title}
+                      loading="lazy"
+                      decoding="async"
+                      onerror={`if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
+                                else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
+                                else { const ph = document.createElement('div'); ph.className='ph'; ph.setAttribute('aria-hidden','true'); ph.textContent='No image'; this.replaceWith(ph); }`}
+                    />
+                  ) : <div class="ph" aria-hidden="true">No image</div>}
+                  <div class="overlay"><div class="title">{n.title}</div></div>
+                </div>
+                <div class="body">
+                  {n.summary
+                    ? <p>{n.summary.split(/\s+/).slice(0,18).join(" ") + (n.summary.split(/\s+/).length>18 ? "…" : "")}</p>
+                    : <p>{n.title}</p>}
+                </div>
+              </a>
+            );
+          })}
         </div>
       </section>
     )}
   </div>
 
   <style>
-    .container { max-width: 1200px; margin-left: auto; margin-right: auto; padding: 0 1rem; }
-    .intro { margin-top: 24px; margin-bottom: 20px; text-align: left; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px 0; color: #111827; }
-    .intro p { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
+    .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
 
-    .group { margin: 50px 0; }
+    .intro { margin: 20px 0 12px; text-align: left; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 6px; color: #111827; }
+    .intro p  { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
+
+    .group { margin: 42px 0; }
     .group-title { margin: 0 0 10px; font-size: 1.4rem; font-weight: 800; color:#111827; }
-    .group-copy { margin: 0 0 16px; font-size: 1rem; line-height: 1.6; color: #444; }
+    .group-copy { margin: 0 0 14px; font-size: 1rem; line-height: 1.6; color: #444; }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-    .grid.single { grid-template-columns: clamp(240px, 45vw, 320px); justify-content: start; }
-    .grid.single > .card { max-width: 320px; }
+    /* ===== Masonry via CSS Multi-Columns ===== */
+    :where(.masonry) {
+      column-count: 3 !important;
+      column-gap: 16px !important;
+    }
+    @media (max-width: 1100px) { :where(.masonry){ column-count: 2 !important; } }
+    @media (max-width: 640px)  { :where(.masonry){ column-count: 1 !important; } }
 
-    .card {
-      display:flex; flex-direction:column; background:#fff; border-radius:12px; overflow:hidden;
-      border:1px solid #eee; text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,0.05);
+    /* Column items (cards) */
+    .masonry > .card {
+      display: inline-block !important;
+      width: 100% !important;
+      margin: 0 0 16px !important;
+      break-inside: avoid !important;
+      -webkit-column-break-inside: avoid !important;
+      -moz-column-break-inside: avoid !important;
+      column-break-inside: avoid !important;
+
+      background:#fff; border-radius:14px; overflow:hidden; border:1px solid #eee;
+      text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,0.05);
       transform:translateY(0); transition: transform .25s ease, box-shadow .25s ease;
     }
-    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+    .masonry > .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 
-    .thumb { aspect-ratio:16/9; background:#f6f6f6; display:grid; place-items:center; }
-    .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+    /* Variable image heights (randomized via classes) */
+    .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
+    .card.h-base .thumb { height: clamp(180px, 26vw, 320px); }
+    .card.h-sm   .thumb { height: clamp(150px, 22vw, 260px); }
+    .card.h-md   .thumb { height: clamp(220px, 30vw, 380px); }
+    .card.h-lg   .thumb { height: clamp(280px, 36vw, 460px); }
 
-    .ph { font-size:12px; color:#999; }
-    .body { padding:12px; }
-    .body p { margin:.4rem 0 0 0; color:#555; font-size:.95rem; line-height:1.35; }
+    .thumb img {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      transition: transform .35s ease;
+    }
+    .masonry > .card:hover .thumb img { transform: scale(1.03); }
+
+    /* Overlay title on image */
+    .overlay {
+      position: absolute; inset: 0;
+      display: flex; align-items: flex-end;
+      pointer-events: none;
+      background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
+    }
+    .overlay .title {
+      color: #fff; font-weight: 800; letter-spacing: .2px;
+      font-size: clamp(1rem, 1.6vw, 1.3rem);
+      padding: 12px 14px;
+      text-shadow: 0 1px 2px rgba(0,0,0,.45);
+    }
+
+    .body { padding: 10px 12px 14px; }
+    .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
+
+    .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
+
+    /* Page hero */
+    .hero-bleed { position:relative; left:50%; right:50%; margin-left:-50vw; margin-right:-50vw; width:100vw; max-width:100vw; height: clamp(300px, 38vw, 520px); overflow:hidden; background:#e5e7eb; display:block; }
+    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
 
     .error { color:#b00; }
-    .anchor-target { scroll-margin-top: calc(var(--header-h) + 25px); }
+    .anchor-target { scroll-margin-top: calc(var(--header-h, 52px) + 25px); }
   </style>
 </Site>

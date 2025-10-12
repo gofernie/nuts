@@ -93,7 +93,6 @@ try {
       !/^inactive$/i.test(r.status ?? "")
   );
 
-  // Keep your baseline ordering (sheet order), then we'll shuffle for display only
 } catch (e:any) {
   error = e?.message || String(e);
 }
@@ -140,13 +139,13 @@ const randomized = shuffle(items);
     )}
   </section>
 
-  <!-- H1 + intro -->
-  <div class="container intro">
-    <h1>{header?.title || pageSeoTitle}</h1>
-    {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
-  </div>
-
+  <!-- Single container holding intro + cards -->
   <div class="container">
+    <header class="intro">
+      <h1>{header?.title || pageSeoTitle}</h1>
+      {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
+    </header>
+
     {error ? (
       <p class="error">Error: {error}</p>
     ) : randomized.length === 0 ? (
@@ -196,8 +195,8 @@ const randomized = shuffle(items);
   <style>
     .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
 
-    .intro { margin: 24px 0 20px; text-align: left; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color: #111827; }
+    .intro { margin: 20px 0 12px; text-align: left; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 6px; color: #111827; }
     .intro p  { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
 
     /* ===== Masonry via CSS Multi-Columns ===== */
