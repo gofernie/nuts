@@ -1,30 +1,27 @@
 ---
-// File: src/pages/xtraarea/index.astro
+/* File: src/pages/xtraarea/index.astro */
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
 const url = import.meta.env.PUBLIC_XTRAAREA_JSON;
-const PATH_BASE = "/xtraarea";
 
 type Row = {
-  slug?: string;
+  raw_slug?: string;
   title?: string;
   summary?: string;
   hero_img?: string;
   status?: string;
   seo_title?: string;
   seo_description?: string;
-  cta1?: string;
-  cta2?: string;
-  cta3?: string;
+  slug?: string;
 };
 
 let items: Row[] = [];
 let header: Row | null = null;
 let error: string | null = null;
 
-/* ---------- helpers ---------- */
+/* ----------------- helpers ----------------- */
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -52,58 +49,49 @@ try {
   const rows: any[] =
     Array.isArray(raw) ? raw :
     Array.isArray(raw?.data) ? raw.data :
-    Array.isArray(raw?.rows) ? raw.rows :
-    [];
+    Array.isArray(raw?.rows) ? raw.rows : [];
 
   const get = (r:any,k:string)=>
     (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
-  const slugify = (v:string) =>
-    (v ?? "").toLowerCase().trim()
-      .replace(/&/g,"-and-")
-      .replace(/[^a-z0-9]+/g,"-")
-      .replace(/^-+|-+$/g,"");
-
   const normalize = (r:any): Row => {
     const title = get(r,"title");
-    const computedSlug = slugify(title || "");
+    const raw_slug = get(r,"slug");
+    const computedSlug = (title||"").toLowerCase()
+      .replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
     return {
-      slug: get(r,"slug") || computedSlug,
+      raw_slug,
       title,
       summary: get(r,"summary"),
       hero_img: get(r,"hero_img"),
       status: get(r,"status"),
       seo_title: get(r,"seo_title"),
       seo_description: get(r,"seo_description"),
-      cta1: get(r,"cta1"),
-      cta2: get(r,"cta2"),
-      cta3: get(r,"cta3"),
+      slug: raw_slug || computedSlug,
     };
   };
 
   const normalized = rows.map(normalize);
 
   header =
-    normalized.find(r => (r.slug ?? "").toLowerCase() === "index") ??
-    normalized.find(r => !!r.cta1) ??
-    null;
+    normalized.find(r => (r.raw_slug ?? "").toLowerCase() === "index") ??
+    normalized.find(r => (r.status ?? "").toLowerCase() === "header") ??
+    normalized.find(r => !r.raw_slug) ?? null;
 
-  items = normalized.filter(
-    (r) =>
-      r.slug && r.title &&
-      r.slug.toLowerCase()!=="index" &&
-      !/^draft$/i.test(r.status ?? "") &&
-      !/^hidden$/i.test(r.status ?? "") &&
-      !/^inactive$/i.test(r.status ?? "")
-  );
-
+  items = normalized.filter((r) => {
+    if (!r.slug || !r.title) return false;
+    if (header && r === header) return false;
+    const s = (r.status ?? "").toLowerCase();
+    return !["draft","hidden","inactive"].includes(s);
+  });
 } catch (e:any) {
   error = e?.message || String(e);
 }
 
-const heroSrc = resolveImg(header?.hero_img);
+const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
 const pageSeoTitle = header?.seo_title || header?.title || "Other Areas";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
+
 const randomized = shuffle(items);
 ---
 
@@ -115,7 +103,6 @@ const randomized = shuffle(items);
     </Fragment>
   )}
 
-  <!-- HERO -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -130,7 +117,6 @@ const randomized = shuffle(items);
     )}
   </section>
 
-  <!-- Intro + Cards -->
   <div class="container">
     <header class="intro">
       <h1>{header?.title || pageSeoTitle}</h1>
@@ -140,9 +126,9 @@ const randomized = shuffle(items);
     {error ? (
       <p class="error">Error: {error}</p>
     ) : randomized.length === 0 ? (
-      <p>No areas yet. Check your <code>PUBLIC_XTRAAREA_JSON</code> URL or add rows to your sheet.</p>
+      <p>No extra areas yet.</p>
     ) : (
-      <section id="xtra-masonry" class="masonry">
+      <section class="cards-grid">
         {randomized.map((n) => {
           const primary = resolveImg(n.hero_img);
           const altBase = primary.includes("/images/")
@@ -154,7 +140,7 @@ const randomized = shuffle(items);
           const hClass = randomHeightClass();
 
           return (
-            <a class={`card ${hClass}`} href={`${PATH_BASE}/${n.slug}`}>
+            <a class={`card ${hClass}`} href={`/xtraarea/${n.slug}`}>
               <div class="thumb">
                 {primary ? (
                   <img
@@ -164,16 +150,17 @@ const randomized = shuffle(items);
                     decoding="async"
                     onerror={`if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
                               else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
-                              else { const ph = document.createElement('div'); ph.className = 'ph'; ph.setAttribute('aria-hidden','true'); ph.textContent = 'No image'; this.replaceWith(ph); }`}
+                              else { const ph = document.createElement('div'); ph.className='ph'; ph.setAttribute('aria-hidden','true'); ph.textContent='No image'; this.replaceWith(ph); }`}
                   />
                 ) : (
                   <div class="ph" aria-hidden="true">No image</div>
                 )}
                 <div class="overlay"><div class="title">{n.title}</div></div>
               </div>
+
               <div class="body">
                 {n.summary
-                  ? <p>{(n.summary).split(/\s+/).slice(0,18).join(" ") + ((n.summary).split(/\s+/).length>18 ? "…" : "")}</p>
+                  ? <p>{n.summary.split(/\s+/).slice(0,18).join(" ") + (n.summary.split(/\s+/).length>18 ? "…" : "")}</p>
                   : <p>{n.title}</p>}
               </div>
             </a>
@@ -184,30 +171,26 @@ const randomized = shuffle(items);
   </div>
 
   <style>
-    .container { max-width: 1280px; margin-inline: auto; padding: 0 1rem; }
+    /* Wider container to fit 3 columns comfortably */
+    .container { max-width: 1200px; margin-inline: auto; padding: 0 16px; }
 
     .intro { margin: 20px 0 12px; text-align: left; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 6px; color: #111827; }
     .intro p  { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
 
-    /* ===== FORCE 3 columns always ===== */
-    #xtra-masonry {
-      columns: 3 auto !important;
-      -webkit-columns: 3 auto !important;
-      -moz-columns: 3 auto !important;
-      column-gap: 16px !important;
-      display: block !important;
-      width: 100% !important;
-      column-fill: balance !important;
+    /* ===== HARD-LOCKED 3-UP GRID ===== */
+    .cards-grid {
+      display: grid !important;                  /* beat any global .grid overrides */
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      align-items: start;
     }
-    #xtra-masonry > .card {
-      display: inline-block !important;
-      width: 100% !important;
-      margin: 0 0 16px !important;
-      break-inside: avoid !important;
-      -webkit-column-break-inside: avoid !important;
-      column-break-inside: avoid !important;
+    @media (max-width: 1100px) { .cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px)  { .cards-grid { grid-template-columns: 1fr; } }
 
+    /* Cards */
+    .card {
+      display: block;
       background: #fff;
       border-radius: 14px;
       overflow: hidden;
@@ -218,8 +201,9 @@ const randomized = shuffle(items);
       transform: translateY(0);
       transition: transform .25s ease, box-shadow .25s ease;
     }
-    #xtra-masonry > .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 
+    /* Variable image heights (organic stagger) */
     .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
     .card.h-base .thumb { height: clamp(180px, 26vw, 320px); }
     .card.h-sm   .thumb { height: clamp(150px, 22vw, 260px); }
@@ -231,8 +215,9 @@ const randomized = shuffle(items);
       width: 100%; height: 100%; object-fit: cover; display: block;
       transition: transform .35s ease;
     }
-    #xtra-masonry > .card:hover .thumb img { transform: scale(1.03); }
+    .card:hover .thumb img { transform: scale(1.03); }
 
+    /* Overlay title */
     .overlay {
       position: absolute; inset: 0;
       display: flex; align-items: flex-end;
@@ -251,9 +236,10 @@ const randomized = shuffle(items);
 
     .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
 
+    /* Page hero */
     .hero-bleed { position:relative; left:50%; right:50%; margin-left:-50vw; margin-right:-50vw; width:100vw; max-width:100vw; height: clamp(300px, 38vw, 520px); overflow:hidden; background:#e5e7eb; display:block; }
     .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
 
-    .error { color: #b00; }
+    .error { color:#b00; }
   </style>
 </Site>
