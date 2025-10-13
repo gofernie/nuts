@@ -74,6 +74,14 @@ const {
 // ✅ Compute SEO fallbacks
 const pageSeoTitle = seo_title || title || "Neighbourhood";
 const pageSeoDesc  = seo_description || summary || "";
+
+// ✅ RealtyVis script URL from env (set in your .env as PUBLIC_RV_SCRIPT="https://<your RV script>.js")
+const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "";
+const rawCta = (cta1 || "").trim();
+
+// identify type of CTA: an RV block id, or HTML snippet
+const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
+const isHtml = !!rawCta && !isRvId;
 ---
 
 <Site
@@ -105,40 +113,110 @@ const pageSeoDesc  = seo_description || summary || "";
 
   <div class="container intro">
     <h1>{title}</h1>
-
     <article class="long-copy" set:html={summary}></article>
   </div>
 
-
-
-  
-{(() => {
-  const raw = (cta1 || "").trim();
-  if (!raw) return null;
-
-  // If the cell contains just an RV block ID like "MQP2VMLT-DBXANUXX"
-  const isId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(raw);
-
-  if (isId) {
-    return (
-      <div class="container cta">
-        <div data-rv-block={raw}></div>
+  <!-- =========================
+       LAZY RealtyVis embed
+       ========================= -->
+  {rawCta && (
+    <div class="container cta">
+      <div
+        class="rv-lazy-shell"
+        data-rv-ready="false"
+        data-rv-script={RV_SCRIPT}
+        {...(isRvId ? { 'data-rv-id': rawCta } : {})}
+        {...(isHtml ? { 'data-rv-html': rawCta } : {})}
+      >
+        <div class="rv-skeleton">
+          <div class="rv-skel-bar"></div>
+          <div class="rv-skel-grid">
+            <div class="rv-skel-card"></div>
+            <div class="rv-skel-card"></div>
+            <div class="rv-skel-card"></div>
+          </div>
+          <button class="rv-load-btn" type="button">Load listings</button>
+        </div>
       </div>
-    );
-  }
-
-  // Otherwise treat it as HTML (strip any <script> tags just in case)
-  const safeHtml = raw.replace(/<script[\s\S]*?<\/script>/gi, "");
-  return <div class="container cta" set:html={safeHtml}></div>;
-})()}
-
-
+    </div>
+  )}
 
   {long_copy && (
     <div class="container">
       <article class="long-copy" set:html={long_copy}></article>
     </div>
   )}
+
+  <!-- Client-side lazy loader -->
+  <script is:inline>
+    (() => {
+      const shells = Array.from(document.querySelectorAll('.rv-lazy-shell'));
+      if (!shells.length) return;
+
+      const loadShell = (el) => {
+        if (!el || el.dataset.rvReady === "true") return;
+        const scriptUrl = (el.getAttribute('data-rv-script') || "").trim();
+        const rvId = el.getAttribute('data-rv-id');
+        const rvHtml = el.getAttribute('data-rv-html');
+
+        // replace skeleton with actual embed payload
+        if (rvId) {
+          // ID mode: we inject the container + script tag
+          el.innerHTML = `
+            <div data-rv-block="${rvId}"></div>
+          `;
+          // ensure script is present (load once)
+          if (scriptUrl && !window.__rvScriptLoading) {
+            window.__rvScriptLoading = true;
+            const s = document.createElement('script');
+            s.src = scriptUrl;
+            s.async = true;
+            s.onload = () => {
+              window.__rvScriptLoaded = true;
+              // Some libraries need a manual “scan”/“init” – call if present.
+              try { window.RealtyVis && window.RealtyVis.scan && window.RealtyVis.scan(); } catch {}
+            };
+            document.head.appendChild(s);
+          } else if (window.__rvScriptLoaded) {
+            try { window.RealtyVis && window.RealtyVis.scan && window.RealtyVis.scan(); } catch {}
+          }
+        } else if (rvHtml) {
+          // HTML mode: inject raw HTML (kept as-is so scripts load only now)
+          el.innerHTML = rvHtml;
+        }
+
+        el.dataset.rvReady = "true";
+      };
+
+      // Fallback click (for browsers without IO, or user wants to force-load)
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.rv-load-btn');
+        if (!btn) return;
+        const shell = btn.closest('.rv-lazy-shell');
+        loadShell(shell);
+      });
+
+      // IntersectionObserver lazy-load
+      if ('IntersectionObserver' in window) {
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              loadShell(entry.target);
+              io.unobserve(entry.target);
+            }
+          });
+        }, { rootMargin: '200px 0px' });
+
+        shells.forEach((el) => io.observe(el));
+      } else {
+        // No IO support: keep the button fallback visible
+        shells.forEach((el) => {
+          const btn = el.querySelector('.rv-load-btn');
+          if (btn) btn.style.display = 'inline-flex';
+        });
+      }
+    })();
+  </script>
 
   <style>
     .intro { margin: 24px auto 20px; }
@@ -160,5 +238,17 @@ const pageSeoDesc  = seo_description || summary || "";
     .long-copy h2,.long-copy h3{ font-weight:700; color:#111827; line-height:1.3; margin:2em 0 .75em; }
     .long-copy h2{ font-size:1.5rem; border-left:4px solid #0a7bff; padding-left:.5rem; }
     .long-copy h3{ font-size:1.25rem; }
+
+    /* --- Lazy RV skeleton & button --- */
+    .rv-lazy-shell{ position:relative; padding:16px; border:1px dashed #e5e7eb; border-radius:14px; min-height:180px; }
+    .rv-skeleton{ display:flex; flex-direction:column; gap:14px; align-items:flex-start; }
+    .rv-skel-bar{ width:180px; height:16px; border-radius:6px; background:linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
+    .rv-skel-grid{ display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:12px; width:100%; }
+    .rv-skel-card{ height:120px; border-radius:12px; background:linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
+    .rv-load-btn{ display:none; padding:10px 16px; border-radius:999px; border:1px solid #d1d5db; background:#fff; font-weight:600; cursor:pointer; }
+    @keyframes skel { 0%{background-position:-200px 0} 100%{background-position:200px 0} }
+    @media (max-width: 900px){
+      .rv-skel-grid{ grid-template-columns: repeat(2,minmax(0,1fr)); }
+    }
   </style>
 </Site>
