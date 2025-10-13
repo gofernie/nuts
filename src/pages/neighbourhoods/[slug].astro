@@ -105,10 +105,11 @@ const pageSeoDesc  = seo_description || summary || "";
 
   <div class="container intro">
     <h1>{title}</h1>
-    {summary && <p>{summary}</p>}
+
+    <article class="long-copy" set:html={summary}></article>
   </div>
 
-  
+
 
   
 {(() => {
