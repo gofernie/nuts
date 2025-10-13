@@ -12,6 +12,7 @@
     "astro": "^5.14.0"
   },
   "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.1.0",
     "netlify-cli": "^23.9.1"
   }
 }
