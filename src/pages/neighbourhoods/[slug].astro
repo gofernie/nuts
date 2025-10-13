@@ -108,21 +108,7 @@ const pageSeoDesc  = seo_description || summary || "";
     {summary && <p>{summary}</p>}
   </div>
 
-  {map_embed && (
-    <div class="container map-wrap">
-      <h2>Explore on the Map</h2>
-      <div class="map-card">
-        <iframe
-          src={map_embed}
-          title={`Map of ${title}`}
-          loading="lazy"
-          allowfullscreen
-          referrerpolicy="no-referrer-when-downgrade"
-          style="width:100%; height: min(720px, var(--hero-h)); border:0; display:block;"
-        ></iframe>
-      </div>
-    </div>
-  )}
+  
 
   
 {(() => {
