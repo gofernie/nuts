@@ -18,28 +18,23 @@ const seo_description =
     <link rel="preload" as="image" href={hero} fetchpriority="high" />
   </Fragment>
 
-  <!-- Match global hero height via .hero-bleed from Site.astro -->
-  <section class="hero-bleed">
-    <img
-      src={hero}
-      alt=""
-      fetchpriority="high"
-      loading="eager"
-      decoding="async"
-      width="2000"
-      height="1000"
-    />
-  </section>
 
-  <div class="container intro">
-    <h1>{pageTitle}</h1>
-    <p>{pageSummary}</p>
-  </div>
 
-  <!-- 🏡 RealtyVis Embed -->
-  <div class="container search-card">
-    <RealtyVis id="MQP2VMLT-HDQLLMRY" />
-  </div>
+
+
+<div class="container cta">
+  <div data-rv-block="MQP2VMLT-HDQLLMRY"></div>
+</div>
+
+<style>
+  .cta {
+    margin-top: 100px;   /* 👈 this adds the top space */
+    margin-bottom: 24px; /* optional */
+    text-align: center;
+  }
+</style>
+
+
 
   <style>
     .intro {
