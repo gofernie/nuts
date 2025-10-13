@@ -95,18 +95,16 @@ const NAV_ORDER = [
         --header-h: 52px;
         --bg:#78777c10; --ink:#271f11; --ink-muted:#1f2937; --hover-bg:rgba(243,244,246,.9);
         --hero-h:70vh; --container-pad:12px; --bleed-fix:2px;
-
-        /* ✅ Global container width (adjust once, applies everywhere) */
         --container-max: 1200px;
       }
       *,*::before,*::after { box-sizing:border-box; }
       html, body { height:100%; overflow-x:clip; }
       body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); }
 
-      /* ✅ visible focus ring for keyboard users (helps Lighthouse) */
+      /* Keyboard focus (helps Lighthouse) */
       :focus-visible { outline:3px solid #005fcc; outline-offset:2px; }
 
-      /* ===== Skip link styles ===== */
+      /* Skip link */
       .skip-link {
         position:absolute; left:-9999px; top:auto; overflow:hidden; z-index:10000;
       }
@@ -122,38 +120,29 @@ const NAV_ORDER = [
       .nav-inner{
         width:100%; height:100%;
         padding:0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-        display:flex; align-items:center; justify-content:space-between; /* ✅ logo left, nav right */
+        display:flex; align-items:center; justify-content:space-between;
         gap:10px; flex-wrap:nowrap;
       }
 
-      /* ✅ brand stays on one line and never shrinks */
       .brand{
         font-weight:700; font-size:1rem; color:var(--ink);
         text-decoration:none; padding:4px 6px; border-radius:6px;
-        white-space: nowrap;             /* keep name on one line */
-        flex: 0 0 auto;                  /* do not shrink */
+        white-space: nowrap; flex: 0 0 auto;
       }
       .brand:hover{ background:var(--hover-bg); }
 
-      /* nav sits on the right and can shrink */
       nav{
         display:flex; align-items:center; gap:8px;
-        flex: 1 1 auto;                  /* allow shrinking */
-        min-width: 0;                    /* enable flex-shrink in Chrome */
-        justify-content:flex-end;        /* ✅ right-align menu */
+        flex: 1 1 auto; min-width: 0; justify-content:flex-end;
       }
 
-      /* keep nav items single-line and center label + chevron */
       nav a{
         color:var(--ink-muted); padding:6px 8px; text-decoration:none; border-radius:8px; font-weight:500;
         display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
       }
       nav a:hover, nav a:focus-visible{ color:var(--ink); background:var(--hover-bg); }
       .hamburger{ display:none; background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--ink-muted); }
-
       .menu-group{ position:relative; margin:0 2px; }
-
-      /* ✅ Chevron fix: never wraps, stays inline with text */
       .menu-link.has-sub{ display:inline-flex; align-items:center; gap:3px; white-space:nowrap; }
       .menu-link.has-sub::after{ content:"▾"; display:inline; line-height:1; opacity:.8; }
 
@@ -203,7 +192,6 @@ const NAV_ORDER = [
 
       footer.site-footer{ width:100%; background:rgba(255,255,255,0.9); backdrop-filter:blur(6px);
         border-top:1px solid #e5e7eb; padding:1rem 0; margin-top:3rem; text-align:center; font-size:.875rem; color:#4b5563; }
-      /* ✅ Align footer content to the same global container width */
       footer.site-footer .container{ max-width:var(--container-max); margin-inline:auto; padding-inline:var(--container-pad); }
       footer.site-footer .footer-links{ margin-top:.5rem; display:flex; justify-content:center; gap:1rem; flex-wrap:wrap; font-size:.8rem; }
       footer.site-footer .footer-links a{ color:#4b5563; text-decoration:none; }
@@ -219,7 +207,6 @@ const NAV_ORDER = [
         background-color:#e5e7eb; border-bottom:1px solid #eee; overflow:hidden; }
       .hero-bleed>img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 
-      /* ✅ Fixed: was `2.container{...}`; now applies globally */
       .container{ max-width:var(--container-max); margin-inline:auto; padding-inline:var(--container-pad); }
     </style>
 
@@ -242,16 +229,14 @@ const NAV_ORDER = [
     <script is:inline src="/js/smooth-anchors.js"></script>
   </head>
   <body class={bodyClass}>
-    <!-- ✅ Skip link (now targets #main) -->
+    <!-- Skip link -->
     <a class="skip-link" href="#main">Skip to main content</a>
 
     {showHeader && (
-      <!-- Landmark -->
       <header role="banner">
         <div class="nav-inner">
           <a class="brand" href="/" data-astro-prefetch>Fernie Real Estate</a>
           <button class="hamburger" onclick="toggleNav()" aria-label="Open menu" aria-expanded="false">☰</button>
-          <!-- Landmark -->
           <nav aria-label="Primary">
             {
               NAV_ORDER.map((key) => {
@@ -331,12 +316,10 @@ const NAV_ORDER = [
       </header>
     )}
 
-    <!-- Landmark -->
     <main id="main" role="main">
       <slot />
     </main>
 
-    <!-- Landmark -->
     <footer class="site-footer" role="contentinfo">
       <div class="container">
         <p>&copy; {new Date().getFullYear()} Fernie Real Estate. All rights reserved.</p>
@@ -348,7 +331,7 @@ const NAV_ORDER = [
       </div>
     </footer>
 
-    <!-- ✅ RealtyVis loader (global, once) -->
+    <!-- RealtyVis loader (global, once) -->
     <script is:inline>
       if (typeof window !== "undefined" && !window.__rvLoaded) {
         const s = document.createElement("script");
@@ -357,6 +340,39 @@ const NAV_ORDER = [
         document.body.appendChild(s);
         window.__rvLoaded = true;
       }
+    </script>
+
+    <!-- ✅ A11y fixer: give titles to map/3rd-party iframes that forget them -->
+    <script is:inline>
+      (function () {
+        const DEFAULTS = [
+          { test: /google\.com\/maps|maps\.google/i, title: "Embedded Google Map" },
+          { test: /realtyvis|cdn\.realtyvis/i,       title: "Embedded RealtyVis content" },
+        ];
+        function ensureTitle(frame) {
+          if (!(frame instanceof HTMLIFrameElement)) return;
+          if (frame.hasAttribute("title") && frame.getAttribute("title")?.trim()) return;
+          const src = frame.getAttribute("src") || "";
+          const match = DEFAULTS.find(d => d.test.test(src));
+          const t = frame.getAttribute("data-title")
+            || (match ? match.title : "Embedded content");
+          frame.setAttribute("title", t);
+        }
+        // Initial pass
+        document.querySelectorAll("iframe").forEach(ensureTitle);
+        // Watch for injected iframes (e.g., RealtyVis)
+        const mo = new MutationObserver((muts) => {
+          for (const m of muts) {
+            m.addedNodes?.forEach((n) => {
+              if (n instanceof HTMLIFrameElement) ensureTitle(n);
+              else if (n instanceof HTMLElement) n.querySelectorAll?.("iframe").forEach(ensureTitle);
+            });
+          }
+        });
+        mo.observe(document.documentElement, { subtree: true, childList: true });
+        // Also re-run after window load in case late scripts inject frames
+        window.addEventListener("load", () => document.querySelectorAll("iframe").forEach(ensureTitle));
+      })();
     </script>
   </body>
 </html>
