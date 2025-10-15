@@ -130,7 +130,7 @@ const NAV_ORDER = [
       .brand:hover{ background:var(--hover-bg); }
 
       nav{
-        display:flex; align-items:center; gap:20px;
+        display:flex; align-items:center; gap:15px;
         flex: 1 1 auto; min-width: 0; justify-content:flex-end;
       }
 
@@ -197,7 +197,7 @@ const NAV_ORDER = [
     {showHeader && (
       <header role="banner">
         <div class="nav-inner">
-          <a class="brand" href="/" data-astro-prefetch>Fernie Real Estate</a>
+          <a class="brand" href="/" data-astro-prefetch>Fernie.Homes</a>
           <button class="hamburger" onclick="toggleNav()" aria-label="Open menu" aria-expanded="false">☰</button>
           <nav aria-label="Primary">
             {
@@ -206,7 +206,7 @@ const NAV_ORDER = [
                   case "neighbourhoods":
                     return <a class="menu-link" href="/neighbourhoods" data-astro-prefetch="hover">Neighbourhoods</a>;
                   case "types":
-                    return <a class="menu-link" href="/types" data-astro-prefetch="hover">Types</a>;
+                    return <a class="menu-link" href="/types" data-astro-prefetch="hover">Property Types</a>;
                   case "xtra":
                     return <a class="menu-link" href="/xtraarea" data-astro-prefetch="hover">Other Areas</a>;
                   case "todo":
