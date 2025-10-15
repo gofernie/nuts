@@ -1,5 +1,5 @@
 ---
-/* File: src/pages/types/index.astro */
+// File: src/pages/types/index.astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -15,9 +15,6 @@ type Row = {
   status?: string;
   seo_title?: string;
   seo_description?: string;
-  cta1?: string;
-  cta2?: string;
-  cta3?: string;
 };
 
 let items: Row[] = [];
@@ -34,7 +31,6 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 function randomHeightClass(): string {
-  // bias toward base/sm for calmer rhythm
   const bag = ["h-base","h-base","h-sm","h-sm","h-md","h-md","h-lg"];
   return bag[Math.floor(Math.random() * bag.length)];
 }
@@ -43,63 +39,49 @@ try {
   if (!url) throw new Error("Missing PUBLIC_TYPES_JSON in .env (restart dev).");
   const raw = await getJson<any>(url);
 
-  const rows: any[] =
+  const rows:any[] =
     Array.isArray(raw) ? raw :
     Array.isArray(raw?.data) ? raw.data :
-    Array.isArray(raw?.rows) ? raw.rows :
-    [];
+    Array.isArray(raw?.rows) ? raw.rows : [];
 
   const get = (r:any,k:string)=>
     (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
-  const slugify = (v:string) =>
-    (v ?? "").toLowerCase().trim()
-      .replace(/&/g,"-and-")
-      .replace(/[^a-z0-9]+/g,"-")
-      .replace(/^-+|-+$/g,"");
+  const slugify = (v:string)=> (v??"").toLowerCase().trim()
+    .replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
 
   const normalize = (r:any): Row => {
     const title = get(r,"title");
-    const computedSlug = slugify(title || "");
     return {
-      slug: get(r,"slug") || computedSlug,
+      slug: get(r,"slug") || slugify(title || ""),
       title,
       summary: get(r,"summary"),
       hero_img: get(r,"hero_img"),
       status: get(r,"status"),
       seo_title: get(r,"seo_title"),
       seo_description: get(r,"seo_description"),
-      cta1: get(r,"cta1"),
-      cta2: get(r,"cta2"),
-      cta3: get(r,"cta3"),
     };
   };
 
   const normalized = rows.map(normalize);
 
-  // Prefer explicit index row; otherwise first row with cta1 (legacy) or null
   header =
-    normalized.find(r => (r.slug ?? "").toLowerCase() === "index") ??
-    normalized.find(r => !!r.cta1) ??
-    null;
+    normalized.find(r => (r.slug ?? "").toLowerCase()==="index") ??
+    normalized.find(r => !!r.summary) ?? null;
 
-  // Visible cards only (no index/drafts)
-  items = normalized.filter(
-    (r) =>
-      r.slug && r.title &&
-      r.slug.toLowerCase()!=="index" &&
-      !/^draft$/i.test(r.status ?? "") &&
-      !/^hidden$/i.test(r.status ?? "") &&
-      !/^inactive$/i.test(r.status ?? "")
+  items = normalized.filter(r =>
+    r.slug && r.title &&
+    r.slug.toLowerCase()!=="index" &&
+    !/^draft$/i.test(r.status ?? "") &&
+    !/^hidden$/i.test(r.status ?? "") &&
+    !/^inactive$/i.test(r.status ?? "")
   );
-
 } catch (e:any) {
   error = e?.message || String(e);
 }
 
-// Resolve images
-const resolveImg = (v?: string) => {
-  const s = (v || "").trim();
+const resolveImg = (v?:string) => {
+  const s=(v||"").trim();
   if (!s) return "";
   if (/^(https?:)?\/\//i.test(s)) return s;
   if (s.startsWith("/")) return s;
@@ -107,12 +89,8 @@ const resolveImg = (v?: string) => {
 };
 
 const heroSrc = resolveImg(header?.hero_img);
-
-// SEO
 const pageSeoTitle = header?.seo_title || header?.title || "Property Types";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
-
-/* Randomize for organic layout */
 const randomized = shuffle(items);
 ---
 
@@ -151,30 +129,20 @@ const randomized = shuffle(items);
     ) : randomized.length === 0 ? (
       <p>No property types yet. Check your <code>PUBLIC_TYPES_JSON</code> URL or add rows to your sheet.</p>
     ) : (
-      <section class="masonry">
+      <!-- Inline grid for hard 4-column layout -->
+      <section
+        id="typesGrid"
+        style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
+
         {randomized.map((n) => {
           const primary = resolveImg(n.hero_img);
-          const altBase = primary.includes("/images/")
-            ? primary.replace("/images/", "/img/")
-            : primary.replace("/img/", "/images/");
-          const filename = (primary.split("/").pop() || "").trim();
-          const finalFallback = filename ? `/img/hero/${filename}` : "";
-
           const hClass = randomHeightClass();
 
           return (
             <a class={`card ${hClass}`} href={`${PATH_BASE}/${n.slug}`}>
               <div class="thumb">
                 {primary ? (
-                  <img
-                    src={primary}
-                    alt={n.title}
-                    loading="lazy"
-                    decoding="async"
-                    onerror={`if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
-                              else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
-                              else { const ph = document.createElement('div'); ph.className = 'ph'; ph.setAttribute('aria-hidden','true'); ph.textContent = 'No image'; this.replaceWith(ph); }`}
-                  />
+                  <img src={primary} alt={n.title} loading="lazy" decoding="async" />
                 ) : (
                   <div class="ph" aria-hidden="true">No image</div>
                 )}
@@ -195,75 +163,82 @@ const randomized = shuffle(items);
   <style>
     .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
 
-    .intro { margin: 20px 0 12px; text-align: left; }
+    .intro { margin: 20px 0 30px; text-align: left; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 6px; color: #111827; }
     .intro p  { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
 
-    /* ===== Masonry via CSS Multi-Columns ===== */
-    :where(.masonry) {
-      column-count: 3 !important;
-      column-gap: 16px !important;
+    /* === Types grid layout === */
+    #typesGrid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
     }
-    @media (max-width: 1100px) { :where(.masonry){ column-count: 2 !important; } }
-    @media (max-width: 640px)  { :where(.masonry){ column-count: 1 !important; } }
+    @media (max-width: 1100px){ #typesGrid { grid-template-columns: repeat(3, 1fr) !important; } }
+    @media (max-width: 900px) { #typesGrid { grid-template-columns: repeat(2, 1fr) !important; } }
+    @media (max-width: 640px) { #typesGrid { grid-template-columns: 1fr !important; } }
 
-    /* Column items (cards) */
-    .masonry > .card {
-      display: inline-block !important;
-      width: 100% !important;
-      margin: 0 0 16px !important;
-      break-inside: avoid !important;
-      -webkit-column-break-inside: avoid !important;
-      -moz-column-break-inside: avoid !important;
-      column-break-inside: avoid !important;
-
-      background: #fff;
-      border-radius: 14px;
-      overflow: hidden;
-      border: 1px solid #eee;
+    /* === Card visuals === */
+    #typesGrid > .card {
+      display: block !important;
+      margin: 0 !important;
       text-decoration: none;
       color: inherit;
+      background: #fff;
+      border: 1px solid #eee;
+      border-radius: 14px;
+      overflow: hidden;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
       transform: translateY(0);
       transition: transform .25s ease, box-shadow .25s ease;
     }
-    .masonry > .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+    #typesGrid > .card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    }
 
-    /* Variable image heights (randomized via classes) */
-    .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
-    .card.h-base .thumb { height: clamp(180px, 26vw, 320px); }
-    .card.h-sm   .thumb { height: clamp(150px, 22vw, 260px); }
-    .card.h-md   .thumb { height: clamp(220px, 30vw, 380px); }
-    .card.h-lg   .thumb { height: clamp(280px, 36vw, 460px); }
+    #typesGrid .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
+    #typesGrid .card.h-base .thumb { height: clamp(170px, 22vw, 300px); }
+    #typesGrid .card.h-sm   .thumb { height: clamp(140px, 19vw, 240px); }
+    #typesGrid .card.h-md   .thumb { height: clamp(200px, 26vw, 350px); }
+    #typesGrid .card.h-lg   .thumb { height: clamp(260px, 32vw, 430px); }
 
-    .thumb img {
+    #typesGrid .thumb img {
       position: absolute; inset: 0;
       width: 100%; height: 100%; object-fit: cover; display: block;
       transition: transform .35s ease;
     }
-    .masonry > .card:hover .thumb img { transform: scale(1.03); }
+    #typesGrid > .card:hover .thumb img { transform: scale(1.03); }
 
-    /* Overlay title on image */
-    .overlay {
+    #typesGrid .overlay {
       position: absolute; inset: 0;
       display: flex; align-items: flex-end;
       pointer-events: none;
       background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
     }
-    .overlay .title {
+    #typesGrid .overlay .title {
       color: #fff; font-weight: 800; letter-spacing: .2px;
       font-size: clamp(1rem, 1.6vw, 1.3rem);
       padding: 12px 14px;
       text-shadow: 0 1px 2px rgba(0,0,0,.45);
     }
 
-    .body { padding: 10px 12px 14px; }
-    .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
+    #typesGrid .body { padding: 10px 12px 14px; }
+    #typesGrid .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
 
-    .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
+    #typesGrid .ph {
+      position: absolute; inset: 0;
+      display: grid; place-items: center;
+      font-size: 12px; color: #999; background: #f6f6f6;
+    }
 
     /* Page hero */
-    .hero-bleed { position:relative; left:50%; right:50%; margin-left:-50vw; margin-right:-50vw; width:100vw; max-width:100vw; height: clamp(300px, 38vw, 520px); overflow:hidden; background:#e5e7eb; display:block; }
+    .hero-bleed {
+      position:relative; left:50%; right:50%;
+      margin-left:-50vw; margin-right:-50vw;
+      width:100vw; max-width:100vw;
+      height: clamp(300px, 38vw, 520px);
+      overflow:hidden; background:#e5e7eb; display:block;
+    }
     .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
 
     .error { color: #b00; }
