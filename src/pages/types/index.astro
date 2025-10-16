@@ -4,17 +4,21 @@ import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-const url = import.meta.env.PUBLIC_TYPES_JSON;
+const url       = import.meta.env.PUBLIC_TYPES_JSON;
 const PATH_BASE = "/types";
 
 type Row = {
   slug?: string;
   title?: string;
   summary?: string;
+  long_copy?: string;        // 👈 add this
   hero_img?: string;
   status?: string;
   seo_title?: string;
   seo_description?: string;
+  cta1?: string;
+  cta2?: string;
+  cta3?: string;
 };
 
 let items: Row[] = [];
@@ -22,66 +26,72 @@ let header: Row | null = null;
 let error: string | null = null;
 
 /* ---------- helpers ---------- */
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-function randomHeightClass(): string {
-  const bag = ["h-base","h-base","h-sm","h-sm","h-md","h-md","h-lg"];
-  return bag[Math.floor(Math.random() * bag.length)];
-}
+const get = (r:any,k:string)=>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+
+const slugify = (v:string) =>
+  (v ?? "").toLowerCase().trim()
+    .replace(/&/g,"-and-")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"");
+
+const normalize = (r:any): Row => {
+  const title = get(r,"title");
+  const computedSlug = slugify(title || "");
+  return {
+    slug: get(r,"slug") || computedSlug,
+    title,
+    summary: get(r,"summary"),
+    long_copy: get(r,"long_copy"),            // 👈 read long_copy (col L)
+    hero_img: get(r,"hero_img"),
+    status: get(r,"status"),
+    seo_title: get(r,"seo_title"),
+    seo_description: get(r,"seo_description"),
+    cta1: get(r,"cta1"),
+    cta2: get(r,"cta2"),
+    cta3: get(r,"cta3"),
+  };
+};
 
 try {
   if (!url) throw new Error("Missing PUBLIC_TYPES_JSON in .env (restart dev).");
   const raw = await getJson<any>(url);
 
-  const rows:any[] =
+  const rows: any[] =
     Array.isArray(raw) ? raw :
     Array.isArray(raw?.data) ? raw.data :
-    Array.isArray(raw?.rows) ? raw.rows : [];
-
-  const get = (r:any,k:string)=>
-    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-
-  const slugify = (v:string)=> (v??"").toLowerCase().trim()
-    .replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
-
-  const normalize = (r:any): Row => {
-    const title = get(r,"title");
-    return {
-      slug: get(r,"slug") || slugify(title || ""),
-      title,
-      summary: get(r,"summary"),
-      hero_img: get(r,"hero_img"),
-      status: get(r,"status"),
-      seo_title: get(r,"seo_title"),
-      seo_description: get(r,"seo_description"),
-    };
-  };
+    Array.isArray(raw?.rows) ? raw.rows :
+    [];
 
   const normalized = rows.map(normalize);
 
-  header =
-    normalized.find(r => (r.slug ?? "").toLowerCase()==="index") ??
-    normalized.find(r => !!r.summary) ?? null;
+  // Robust header detection
+  const bySlugIndex   = normalized.find(r => (r.slug ?? "").toLowerCase().trim()   === "index");
+  const byTitleIndex  = normalized.find(r => (r.title ?? "").toLowerCase().trim()  === "index");
+  const byStatusIndex = normalized.find(r => (r.status ?? "").toLowerCase().trim() === "index");
+  const byTitlePT     = normalized.find(r => (r.title ?? "").toLowerCase().trim()  === "property types");
+  const withContent   = normalized.find(r => !!(r.long_copy || r.summary || r.seo_description));
 
-  items = normalized.filter(r =>
+  header = bySlugIndex ?? byTitleIndex ?? byStatusIndex ?? byTitlePT ?? withContent ?? null;
+
+  // Visible cards only (no index/drafts/hidden/inactive)
+  items = normalized.filter((r) =>
     r.slug && r.title &&
-    r.slug.toLowerCase()!=="index" &&
+    (r.slug ?? "").toLowerCase().trim()   !== "index" &&
+    (r.title ?? "").toLowerCase().trim()  !== "index" &&
+    (r.status ?? "").toLowerCase().trim() !== "index" &&
     !/^draft$/i.test(r.status ?? "") &&
     !/^hidden$/i.test(r.status ?? "") &&
     !/^inactive$/i.test(r.status ?? "")
   );
+
 } catch (e:any) {
   error = e?.message || String(e);
 }
 
-const resolveImg = (v?:string) => {
-  const s=(v||"").trim();
+// Resolve images
+const resolveImg = (v?: string) => {
+  const s = (v || "").trim();
   if (!s) return "";
   if (/^(https?:)?\/\//i.test(s)) return s;
   if (s.startsWith("/")) return s;
@@ -89,9 +99,14 @@ const resolveImg = (v?:string) => {
 };
 
 const heroSrc = resolveImg(header?.hero_img);
-const pageSeoTitle = header?.seo_title || header?.title || "Property Types";
-const pageSeoDesc  = header?.seo_description || header?.summary || "";
-const randomized = shuffle(items);
+
+// ✅ Intro priority: long_copy → summary → seo_description
+const heroH1       = header?.title || "Property Types";
+const introText    = (header?.long_copy || header?.summary || header?.seo_description || "").trim();
+const pageSeoTitle = header?.seo_title || heroH1;
+// ✅ Meta description comes strictly from seo_description (sheet column)
+const pageSeoDesc  = (header?.seo_description || "").trim();
+
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
@@ -117,32 +132,46 @@ const randomized = shuffle(items);
     )}
   </section>
 
-  <!-- Single container holding intro + cards -->
   <div class="container">
     <header class="intro">
-      <h1>{header?.title || pageSeoTitle}</h1>
-      {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
+      <h1>{heroH1}</h1>
+      {introText && (
+        <div class="prose prose--compact">
+          <!-- set:html lets your spreadsheet include light markup like <p> -->
+          <p set:html={introText}></p>
+        </div>
+      )}
     </header>
 
     {error ? (
       <p class="error">Error: {error}</p>
-    ) : randomized.length === 0 ? (
+    ) : items.length === 0 ? (
       <p>No property types yet. Check your <code>PUBLIC_TYPES_JSON</code> URL or add rows to your sheet.</p>
     ) : (
-      <!-- Inline grid for hard 4-column layout -->
-      <section
-        id="typesGrid"
-        style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
-
-        {randomized.map((n) => {
+      <section class="grid">
+        {items.map((n) => {
           const primary = resolveImg(n.hero_img);
-          const hClass = randomHeightClass();
+          const altBase = primary.includes("/images/")
+            ? primary.replace("/images/", "/img/")
+            : primary.replace("/img/", "/images/");
+          const filename = (primary.split("/").pop() || "").trim();
+          const finalFallback = filename ? `/img/hero/${filename}` : "";
 
           return (
-            <a class={`card ${hClass}`} href={`${PATH_BASE}/${n.slug}`}>
+            <a class="card" href={`${PATH_BASE}/${n.slug}`}>
               <div class="thumb">
                 {primary ? (
-                  <img src={primary} alt={n.title} loading="lazy" decoding="async" />
+                  <img
+                    src={primary}
+                    alt={n.title}
+                    loading="lazy"
+                    decoding="async"
+                    onerror={`
+                      if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
+                      else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
+                      else { const ph = document.createElement('div'); ph.className = 'ph'; ph.setAttribute('aria-hidden','true'); ph.textContent = 'No image'; this.replaceWith(ph); }
+                    `}
+                  />
                 ) : (
                   <div class="ph" aria-hidden="true">No image</div>
                 )}
@@ -165,73 +194,57 @@ const randomized = shuffle(items);
 
     .intro { margin: 20px 0 30px; text-align: left; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 6px; color: #111827; }
-    .intro p  { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
 
-    /* === Types grid layout === */
-    #typesGrid {
+    .prose {
+      max-width: 70ch;
+      font-size: 1rem;
+      line-height: 1.65;
+      color: #1f2937;
+    }
+    .prose--compact p { margin: 0; }
+    .intro .prose { max-width: 100%; } /* full width intro */
+
+    /* Grid: 3 → 2 → 1 */
+    .grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 16px;
     }
-    @media (max-width: 1100px){ #typesGrid { grid-template-columns: repeat(3, 1fr) !important; } }
-    @media (max-width: 900px) { #typesGrid { grid-template-columns: repeat(2, 1fr) !important; } }
-    @media (max-width: 640px) { #typesGrid { grid-template-columns: 1fr !important; } }
+    @media (max-width: 900px)  { .grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    @media (max-width: 640px)  { .grid { grid-template-columns: 1fr; } }
 
-    /* === Card visuals === */
-    #typesGrid > .card {
-      display: block !important;
-      margin: 0 !important;
-      text-decoration: none;
-      color: inherit;
+    .card {
+      display: flex; flex-direction: column;
       background: #fff;
-      border: 1px solid #eee;
-      border-radius: 14px;
-      overflow: hidden;
+      border-radius: 14px; overflow: hidden;
+      border: 1px solid #eee; text-decoration: none; color: inherit;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
       transform: translateY(0);
       transition: transform .25s ease, box-shadow .25s ease;
     }
-    #typesGrid > .card:hover {
-      transform: translateY(-6px);
-      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
-    }
+    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 
-    #typesGrid .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
-    #typesGrid .card.h-base .thumb { height: clamp(170px, 22vw, 300px); }
-    #typesGrid .card.h-sm   .thumb { height: clamp(140px, 19vw, 240px); }
-    #typesGrid .card.h-md   .thumb { height: clamp(200px, 26vw, 350px); }
-    #typesGrid .card.h-lg   .thumb { height: clamp(260px, 32vw, 430px); }
+    .thumb { position: relative; background: #f6f6f6; overflow: hidden; aspect-ratio: 16 / 10; }
+    .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
+    .card:hover .thumb img { transform: scale(1.03); }
 
-    #typesGrid .thumb img {
-      position: absolute; inset: 0;
-      width: 100%; height: 100%; object-fit: cover; display: block;
-      transition: transform .35s ease;
-    }
-    #typesGrid > .card:hover .thumb img { transform: scale(1.03); }
-
-    #typesGrid .overlay {
-      position: absolute; inset: 0;
-      display: flex; align-items: flex-end;
+    .overlay {
+      position: absolute; inset: 0; display: flex; align-items: flex-end;
       pointer-events: none;
       background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
     }
-    #typesGrid .overlay .title {
+    .overlay .title {
       color: #fff; font-weight: 800; letter-spacing: .2px;
       font-size: clamp(1rem, 1.6vw, 1.3rem);
       padding: 12px 14px;
       text-shadow: 0 1px 2px rgba(0,0,0,.45);
     }
 
-    #typesGrid .body { padding: 10px 12px 14px; }
-    #typesGrid .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
+    .body { padding: 10px 12px 14px; }
+    .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
 
-    #typesGrid .ph {
-      position: absolute; inset: 0;
-      display: grid; place-items: center;
-      font-size: 12px; color: #999; background: #f6f6f6;
-    }
+    .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
 
-    /* Page hero */
     .hero-bleed {
       position:relative; left:50%; right:50%;
       margin-left:-50vw; margin-right:-50vw;
