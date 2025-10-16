@@ -1,18 +1,19 @@
 ---
-/* File: src/pages/neighbourhood_type/[slug].astro] */
+/* File: src/pages/neighbourhood_type/[slug].astro */
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
 /* ---------------- getStaticPaths ---------------- */
 export async function getStaticPaths() {
-  const url = import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON; // ➜ view_neighbourhood_type
+  const url = import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON; // e.g. .../exec?tab=neighbourhood_type_view
   if (!url) return [];
 
-  let rows:any[] = [];
+  let rows: any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw
+    rows = Array.isArray(raw)
+      ? raw
       : Array.isArray(raw?.data) ? raw.data
       : Array.isArray(raw?.rows) ? raw.rows
       : [];
@@ -34,16 +35,21 @@ export async function getStaticPaths() {
 
   const items = rows
     .map((r:any) => {
+      const city = get(r, "city");
+      const hood = get(r, "neighbourhood") || get(r, "area"); // tolerate either header
+      const type = get(r, "type");
+
       const explicit = get(r, "slug");
-      const fallback = slugify(
-        [get(r,"city"), get(r,"area"), get(r,"type")].filter(Boolean).join(" ")
-      );
+      const fallback = slugify([city, hood, type].filter(Boolean).join(" "));
       const slug = explicit || fallback;
-      const title = get(r, "title") || [get(r,"area"), get(r,"type"), get(r,"city")].filter(Boolean).join(" • ");
-      if (!slug || !title) return null;
+
+      if (!slug) return null; // don't require title to emit the path
       return { params: { slug }, props: { row: r } };
     })
     .filter(Boolean);
+
+  // Debug: see what static paths are emitted
+  console.log("neighbourhood_type slugs =>", items.map(i => i.params.slug));
 
   return items;
 }
@@ -55,30 +61,27 @@ const get = (k:string) =>
     .toString()
     .trim();
 
-const title          = get("title") || [get("area"), get("type"), get("city")].filter(Boolean).join(" • ");
-const summary        = get("summary");
-const hero_img       = heroPath(get("hero_img"));
-const seo_title      = get("seo_title") || title;
-const seo_description= get("seo_description") || summary;
+const title = get("title") || [get("neighbourhood") || get("area"), get("type"), get("city")].filter(Boolean).join(" • ");
+const summary = get("summary");
+const hero_img = heroPath(get("hero_img"));
+const seo_title = get("seo_title") || title;
+const seo_description = get("seo_description") || summary;
 
 /* IDX embed support:
    - If you store a RealtyVis block id in `embed_id`, we render <div class="rv-block" data-id="...">
    - If you store a full embed script/iframe in `embed_code` or `spare_1`, we safely inject it.
 */
-const embed_id       = get("embed_id");
-const embed_code     = get("embed_code") || get("spare_1");
+const embed_id = get("embed_id");
+const embed_code = get("embed_code") || get("spare_1");
 
 /* Optional quick facts cards: pipe format "Title|Body|Image|Href"
-   Put in `card_1`, `card_2`, `card_3` columns if you like.
+   e.g., "Rental Rules|Most buildings allow STRs|/heroes/rentals.webp|/contact"
 */
-function parseCard(raw="") {
-  const [title="", body="", img="", href=""] = raw.split("|").map(s => s.trim());
-  return { title, body, img: heroPath(img), href };
+function parseCard(raw = "") {
+  const [t = "", b = "", img = "", href = ""] = raw.split("|").map((s) => s.trim());
+  return { title: t, body: b, img: heroPath(img), href };
 }
-const cards = ["card_1","card_2","card_3"]
-  .map(k => get(k))
-  .filter(Boolean)
-  .map(parseCard);
+const cards = ["card_1", "card_2", "card_3"].map(get).filter(Boolean).map(parseCard);
 ---
 
 <Site title={seo_title} seo_title={seo_title} seo_description={seo_description}>
@@ -96,16 +99,14 @@ const cards = ["card_1","card_2","card_3"]
       <section aria-label="Listings" class="mb-12">
         <h2 class="h2">Listings</h2>
         {embed_id && <div class="rv-block" data-id={embed_id}></div>}
-        {!embed_id && embed_code && (
-          <div class="embed" set:html={embed_code}></div>
-        )}
+        {!embed_id && embed_code && <div class="embed" set:html={embed_code}></div>}
       </section>
     )}
 
     {/* Optional quick facts / CTAs */}
     {cards.length > 0 && (
       <section aria-label="Highlights" class="cards">
-        {cards.map(({title,body,img,href}) => (
+        {cards.map(({ title, body, img, href }) => (
           <a class="card" href={href || "#"} aria-label={title}>
             {img && <img src={img} alt={title} loading="lazy" />}
             <div class="card-body">
@@ -128,12 +129,12 @@ const cards = ["card_1","card_2","card_3"]
 
     .cards {
       display: grid;
-      grid-template-columns: repeat(1, minmax(0,1fr));
+      grid-template-columns: repeat(1, minmax(0, 1fr));
       gap: 20px;
       margin-top: 1.25rem;
     }
     @media (min-width: 720px) {
-      .cards { grid-template-columns: repeat(3, minmax(0,1fr)); }
+      .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     .card {
       display: grid;
