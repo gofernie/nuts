@@ -1,37 +1,41 @@
 ---
 import { onMount } from 'astro/client';
 
+// props
 const {
   blockId,
+  // RealtyVis' official embed script:
   scriptUrl = "https://cdn.realtyvis.com/js/embed.js",
   minHeight = "900px",
 } = Astro.props;
 
+// container where we'll inject the div[data-rv-block]
 let container: HTMLDivElement | null = null;
 
-async function loadScriptOnce() {
-  const existing = document.querySelector(`script[src="${scriptUrl}"]`);
-  if (existing) return;
-
-  await new Promise((resolve, reject) => {
+async function loadScriptOnce(url: string) {
+  // already present?
+  if (document.querySelector(`script[src="${url}"]`)) return;
+  await new Promise<void>((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = scriptUrl;
+    s.src = url;
     s.async = true;
-    s.onload = resolve;
-    s.onerror = reject;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Failed to load RealtyVis script"));
     document.body.appendChild(s);
   });
 }
 
-function retryInit(maxTries = 30, intervalMs = 200) {
-  return new Promise((resolve, reject) => {
+function waitAndInit(maxTries = 40, intervalMs = 150) {
+  // retry for ~6s total
+  return new Promise<void>((resolve, reject) => {
     let tries = 0;
     const timer = setInterval(() => {
-      if (window?.RealtyVis?.init) {
+      const api = (window as any)?.RealtyVis;
+      if (api?.init) {
         clearInterval(timer);
         try {
-          window.RealtyVis.init();
-          resolve(true);
+          api.init(); // 🔑 FIRE THE EMBED
+          resolve();
         } catch (e) {
           reject(e);
         }
@@ -45,26 +49,28 @@ function retryInit(maxTries = 30, intervalMs = 200) {
 
 onMount(async () => {
   try {
-    // 1. Load the script
-    await loadScriptOnce();
+    // 1) make sure script is loaded
+    await loadScriptOnce(scriptUrl);
 
-    // 2. Inject the embed div
+    // 2) inject the block div
     if (container && blockId) {
+      // clear any previous children (hot-reloads, etc.)
+      container.innerHTML = "";
       const div = document.createElement('div');
       div.setAttribute('data-rv-block', blockId);
       container.appendChild(div);
     }
 
-    // 3. Retry init until it's available
-    await retryInit();
+    // 3) wait for API and init
+    await waitAndInit();
   } catch (err) {
     console.error("[RealtyVis Lazy Load Error]", err);
   }
 });
 ---
 
-<div bind:this={container} style={`min-height:${minHeight};background:#f6f6f6;`} >
-  <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;">
+<div bind:this={container} style={`min-height:${minHeight};background:#f6f6f6;`}>
+  <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;font:14px/1.2 system-ui;">
     Loading listings…
   </div>
 </div>
