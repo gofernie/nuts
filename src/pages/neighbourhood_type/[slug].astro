@@ -1,151 +1,203 @@
 ---
-/* File: src/pages/neighbourhood_type/[slug].astro */
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
+import RealtyVis from "../../components/RealtyVis.astro";
 
-/* ---------------- getStaticPaths ---------------- */
+/* =======================
+   getStaticPaths
+======================= */
 export async function getStaticPaths() {
-  const url = import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON; // e.g. .../exec?tab=neighbourhood_type_view
-  if (!url) return [];
+  const url = import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON;
+  if (!url) {
+    console.warn("[neighbourhood_type] Missing PUBLIC_NEIGHBOURHOOD_TYPE_JSON");
+    return [];
+  }
 
   let rows: any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows
-      : [];
-  } catch {
+    rows =
+      Array.isArray(raw) ? raw :
+      Array.isArray(raw?.data) ? raw.data :
+      Array.isArray(raw?.rows) ? raw.rows :
+      [];
+  } catch (e) {
+    console.error("[neighbourhood_type] fetch error", e);
     return [];
   }
 
-  const get = (r:any, k:string) =>
+  const get = (r: any, k: string) =>
     (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
       .toString()
       .trim();
 
-  const slugify = (s:string) =>
-    String(s || "")
-      .toLowerCase()
-      .replace(/&/g, "-and-")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
   const items = rows
-    .map((r:any) => {
-      const city = get(r, "city");
-      const hood = get(r, "neighbourhood") || get(r, "area"); // tolerate either header
-      const type = get(r, "type");
+    .map((r: any) => {
+      const title = get(r, "title");
+      if (!title) return null;
 
-      const explicit = get(r, "slug");
-      const fallback = slugify([city, hood, type].filter(Boolean).join(" "));
-      const slug = explicit || fallback;
+      const explicitSlug = get(r, "slug");
+      const computedSlug = title
+        .toLowerCase()
+        .replace(/&/g, "-and-")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
 
-      if (!slug) return null; // don't require title to emit the path
-      return { params: { slug }, props: { row: r } };
+      const slug = (explicitSlug || computedSlug).toLowerCase();
+
+      return {
+        slug,
+        title,
+        summary: get(r, "summary"),
+        hero_img: get(r, "hero_img"),
+        long_copy: get(r, "long_copy"),
+        cta1: get(r, "cta1"), // RealtyVis Block ID
+        map_embed: get(r, "map_embed"),
+        status: get(r, "status"),
+        seo_title: get(r, "seo_title"),
+        seo_description: get(r, "seo_description"),
+      };
     })
-    .filter(Boolean);
+    .filter(
+      (r) =>
+        r &&
+        r.slug &&
+        r.title &&
+        r.slug !== "index" &&
+        !/^draft$/i.test(r.status || "") &&
+        !/^hidden$/i.test(r.status || "") &&
+        !/^inactive$/i.test(r.status || "")
+    );
 
-  // Debug: see what static paths are emitted
-  console.log("neighbourhood_type slugs =>", items.map(i => i.params.slug));
+  console.log(
+    `[neighbourhood_type] built ${items.length} paths`,
+    items.slice(0, 5).map((x) => x.slug)
+  );
 
-  return items;
+  return items.map((n: any) => ({
+    params: { slug: n.slug },
+    props: {
+      title: n.title,
+      summary: n.summary || "",
+      hero: heroPath(n.hero_img),
+      long_copy: n.long_copy || "",
+      cta1: n.cta1 || "",
+      map_embed: (() => {
+        const v = (n.map_embed || "").trim();
+        if (!v) return "";
+        const m = v.match(/src="([^"]+)"/i);
+        if (m?.[1]) return m[1];
+        if (v.includes("google.com/maps") && v.includes("embed")) return v;
+        if (v.includes("google.com/maps")) {
+          try {
+            const u = new URL(v);
+            const q = u.search ? `${u.search}&output=embed` : "?output=embed";
+            return `https://www.google.com/maps${q}`;
+          } catch {}
+        }
+        return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
+      })(),
+      seo_title: n.seo_title || "",
+      seo_description: n.seo_description || "",
+    },
+  }));
 }
 
-/* ---------------- page props/helpers ---------------- */
-const { row } = Astro.props;
-const get = (k:string) =>
-  (row?.[k] ?? row?.[k?.toLowerCase?.()] ?? row?.[k?.toUpperCase?.()] ?? "")
-    .toString()
-    .trim();
+/* =======================
+   Props
+======================= */
+const {
+  title,
+  summary,
+  hero,
+  long_copy,
+  cta1,
+  map_embed,
+  seo_title,
+  seo_description,
+} = Astro.props as any;
 
-const title = get("title") || [get("neighbourhood") || get("area"), get("type"), get("city")].filter(Boolean).join(" • ");
-const summary = get("summary");
-const hero_img = heroPath(get("hero_img"));
-const seo_title = get("seo_title") || title;
-const seo_description = get("seo_description") || summary;
-
-/* IDX embed support:
-   - If you store a RealtyVis block id in `embed_id`, we render <div class="rv-block" data-id="...">
-   - If you store a full embed script/iframe in `embed_code` or `spare_1`, we safely inject it.
-*/
-const embed_id = get("embed_id");
-const embed_code = get("embed_code") || get("spare_1");
-
-/* Optional quick facts cards: pipe format "Title|Body|Image|Href"
-   e.g., "Rental Rules|Most buildings allow STRs|/heroes/rentals.webp|/contact"
-*/
-function parseCard(raw = "") {
-  const [t = "", b = "", img = "", href = ""] = raw.split("|").map((s) => s.trim());
-  return { title: t, body: b, img: heroPath(img), href };
-}
-const cards = ["card_1", "card_2", "card_3"].map(get).filter(Boolean).map(parseCard);
+const pageSeoTitle = (seo_title || title || "Neighbourhood Type").toString();
+const pageSeoDesc = (seo_description || summary || "").toString();
 ---
 
-<Site title={seo_title} seo_title={seo_title} seo_description={seo_description}>
-  <!-- full-bleed hero driven by your <Hero> component -->
-  <Hero slot="hero" row={{ ...row, hero_img }} />
+<Site
+  showHeader={true}
+  title={title}
+  seo_title={pageSeoTitle}
+  seo_description={pageSeoDesc}
+>
+  <!-- Preload hero -->
+  <Fragment slot="head">
+    <meta name="x-debug-seo-title" content={pageSeoTitle} />
+    <meta name="x-debug-seo-desc" content={pageSeoDesc} />
+    {hero && <link rel="preload" as="image" href={hero} fetchpriority="high" />}
+  </Fragment>
 
-  <section class="container page">
-    <header class="lead">
-      <h1 class="h1">{title}</h1>
-      {summary && <p class="summary">{summary}</p>}
-    </header>
-
-    {/* IDX / Listings */}
-    {(embed_id || embed_code) && (
-      <section aria-label="Listings" class="mb-12">
-        <h2 class="h2">Listings</h2>
-        {embed_id && <div class="rv-block" data-id={embed_id}></div>}
-        {!embed_id && embed_code && <div class="embed" set:html={embed_code}></div>}
-      </section>
-    )}
-
-    {/* Optional quick facts / CTAs */}
-    {cards.length > 0 && (
-      <section aria-label="Highlights" class="cards">
-        {cards.map(({ title, body, img, href }) => (
-          <a class="card" href={href || "#"} aria-label={title}>
-            {img && <img src={img} alt={title} loading="lazy" />}
-            <div class="card-body">
-              <h3 class="h3">{title}</h3>
-              {body && <p>{body}</p>}
-            </div>
-          </a>
-        ))}
-      </section>
+  <!-- HERO -->
+  <section class="hero-bleed">
+    {hero && (
+      <img
+        src={hero}
+        alt={title}
+        fetchpriority="high"
+        loading="eager"
+        decoding="async"
+        width="2000"
+        height="1000"
+        style="width:100%;height:100%;object-fit:cover;object-position:center"
+      />
     )}
   </section>
 
+  <!-- INTRO -->
+  <div class="container intro">
+    <h1>{title}</h1>
+    {summary && <p class="copy-base summary">{summary}</p>}
+  </div>
+
+  <!-- LISTINGS -->
+  <RealtyVis blockId={cta1} />
+
+  <!-- MAP -->
+  {map_embed && (
+    <div class="container map-wrap">
+      <h2>Explore on the Map</h2>
+      <div class="map-card">
+        <iframe
+          src={map_embed}
+          title={`Map of ${title}`}
+          loading="lazy"
+          allowfullscreen
+          referrerpolicy="no-referrer-when-downgrade"
+          style="width:100%; height: var(--map-h, 520px); border:0; display:block;"
+        ></iframe>
+      </div>
+    </div>
+  )}
+
+  <!-- LONG COPY -->
+  {long_copy && (
+    <div class="container">
+      <article class="copy-base long-copy" set:html={long_copy}></article>
+    </div>
+  )}
+
   <style>
-    .page { margin-block: 2rem 3rem; }
-    .lead .h1 { font-size: clamp(1.8rem, 1.2rem + 2vw, 2.4rem); margin: 0 0 .5rem; }
-    .lead .summary { font-size: 1.125rem; opacity: .9; margin: 0 0 1.5rem; }
+    .intro { margin: 24px auto 20px; }
+    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
+    .summary { font-size: 1.125rem; color: #374151; margin-top: 8px; }
 
-    .h2 { font-size: 1.5rem; margin: 0 0 .75rem; }
-    .h3 { font-size: 1.125rem; margin: 0 0 .25rem; }
+    .copy-base { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-weight: 400; letter-spacing: 0; font-size: 1.05rem; line-height: 1.8; color: #1f2937; }
+    .copy-base p { margin: 0 0 1.25em; }
+    .copy-base h2, .copy-base h3 { font-weight: 700; color:#111827; line-height: 1.3; margin:2em 0 .75em; }
+    .copy-base h2 { font-size: 1.5rem; border-left: 4px solid #0a7bff; padding-left: .5rem; }
+    .copy-base h3 { font-size: 1.25rem; }
 
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(1, minmax(0, 1fr));
-      gap: 20px;
-      margin-top: 1.25rem;
-    }
-    @media (min-width: 720px) {
-      .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    }
-    .card {
-      display: grid;
-      grid-template-rows: auto 1fr;
-      text-decoration: none;
-      border-radius: 14px;
-      overflow: clip;
-      box-shadow: 0 6px 18px rgba(0,0,0,.08);
-      background: #fff;
-    }
-    .card img { width: 100%; height: 200px; object-fit: cover; display: block; }
-    .card-body { padding: 14px; color: inherit; }
+    .map-wrap h2 { font-size:1.25rem; margin:8px 0 12px; color:#111827; }
+    .map-card { border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
+
+    .long-copy { margin:40px 0 48px; }
   </style>
 </Site>

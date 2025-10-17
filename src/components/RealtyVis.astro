@@ -1,0 +1,32 @@
+---
+const { blockId, class: extraClass = "" } = Astro.props;
+---
+
+{blockId && (
+  <div class={`realtyvis-wrap ${extraClass}`}>
+    <div class="realtyvis-inner">
+      <div data-rv-block={blockId}></div>
+    </div>
+  </div>
+)}
+
+<script is:inline src="https://search.realtyvis.ca/embed.js"></script>
+
+<style>
+  .realtyvis-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 40px 0;
+  }
+
+  .realtyvis-inner {
+    width: 100%;
+    max-width: 1200px;  /* 👈 fixed width like the rest of your content */
+    margin: 0 auto;
+  }
+
+  [data-rv-block] {
+    display: block;
+    width: 100%;
+  }
+</style>
