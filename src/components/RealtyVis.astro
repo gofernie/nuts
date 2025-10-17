@@ -1,32 +1,136 @@
 ---
-const { blockId, class: extraClass = "" } = Astro.props;
+/**
+ * Lightweight, defensive RealtyVis wrapper.
+ *
+ * Props:
+ * - blockId?: string   // preferred: the RV block id
+ * - scriptUrl?: string // URL to the RV loader script (falls back to env)
+ * - embedUrl?: string  // optional: if you store a direct embed URL, we iframe it
+ * - minHeight?: string // skeleton height to reserve space (e.g. "900px")
+ */
+
+interface Props {
+  blockId?: string;
+  scriptUrl?: string;
+  embedUrl?: string;
+  minHeight?: string;
+}
+const {
+  blockId = "",
+  scriptUrl = import.meta.env.PUBLIC_RV_SCRIPT || "",
+  embedUrl = "",
+  minHeight = "900px",
+} = Astro.props;
+
+/** Util: mark we’ve already appended the loader script (avoid duplicates) */
+const SCRIPT_FLAG_ID = "rv-loader-script";
 ---
 
-{blockId && (
-  <div class={`realtyvis-wrap ${extraClass}`}>
-    <div class="realtyvis-inner">
-      <div data-rv-block={blockId}></div>
-    </div>
-  </div>
-)}
+<div class="rv-shell not-prose">
+  <!-- Skeleton / reserved space to avoid CLS -->
+  <div class="rv-skeleton" style={`min-height:${minHeight};`} aria-hidden="true"></div>
 
-<script is:inline src="https://search.realtyvis.ca/embed.js"></script>
+  {/*
+    Two loading strategies:
+    1) If embedUrl is provided, we lazy iframe it and stop.
+    2) Else, we insert the global RV script once and render the block container.
+  */}
+  {embedUrl ? (
+    <iframe
+      src={embedUrl}
+      title="RealtyVis Listings"
+      loading="lazy"
+      referrerpolicy="no-referrer-when-downgrade"
+      style="width:100%;min-height:900px;border:0;display:block;"
+    />
+  ) : (
+    <div class="rv-host">
+      <div class="rv-block" data-rv-block-id={blockId}></div>
+      <script is:inline>
+        (() => {
+          const blockId = {JSON.stringify(blockId)};
+          const scriptUrl = {JSON.stringify(scriptUrl)};
+          if (!blockId) return;
+
+          // If a direct embed script isn’t known, try to render via global once loaded.
+          function ensureScript() {
+            return new Promise((resolve, reject) => {
+              // already added?
+              if (document.getElementById({JSON.stringify(SCRIPT_FLAG_ID)})) {
+                return resolve(void 0);
+              }
+              if (!scriptUrl) return resolve(void 0); // allow “HTML-only” installs
+
+              const s = document.createElement("script");
+              s.id = {JSON.stringify(SCRIPT_FLAG_ID)};
+              s.src = scriptUrl;
+              s.async = true;
+              s.onload = () => resolve(void 0);
+              s.onerror = () => reject(new Error("Failed to load RealtyVis script"));
+              document.head.appendChild(s);
+            });
+          }
+
+          function tryRender() {
+            // Adapt this call to your vendor’s API if different
+            if (window && (window as any).RealtyVis && (window as any).RealtyVis.render) {
+              try {
+                (window as any).RealtyVis.render({ blockId });
+              } catch (e) {
+                console.warn("RealtyVis.render error", e);
+              }
+              return true;
+            }
+            return false;
+          }
+
+          (async () => {
+            try {
+              await ensureScript();
+              // Try immediately, or poll a few times if the global takes a moment
+              if (!tryRender()) {
+                let attempts = 0;
+                const t = setInterval(() => {
+                  attempts++;
+                  if (tryRender() || attempts > 40) clearInterval(t);
+                }, 125);
+              }
+            } catch (e) {
+              console.warn(e);
+            }
+          })();
+        })();
+      </script>
+    </div>
+  )}
+</div>
 
 <style>
-  .realtyvis-wrap {
-    display: flex;
-    justify-content: center;
-    margin: 40px 0;
+  .rv-shell { width: 100%; }
+  .rv-skeleton {
+    background: linear-gradient(90deg, #f2f2f2 0%, #fafafa 20%, #f2f2f2 40%);
+    background-size: 200% 100%;
+    animation: rv-shimmer 1.5s infinite linear;
+    border-radius: 16px;
+  }
+  @keyframes rv-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 
-  .realtyvis-inner {
-    width: 100%;
-    max-width: 1200px;  /* 👈 fixed width like the rest of your content */
-    margin: 0 auto;
+  /* Optional: if you target RealtyVis grid classes */
+  .rv-block .rv-listingGrid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 20px;
   }
-
-  [data-rv-block] {
-    display: block;
-    width: 100%;
+  @media (min-width: 640px) {
+    .rv-block .rv-listingGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1024px) {
+    .rv-block .rv-listingGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1280px) {
+    .rv-block .rv-listingGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
 </style>

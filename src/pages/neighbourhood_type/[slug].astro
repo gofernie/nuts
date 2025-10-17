@@ -1,215 +1,149 @@
 ---
+// File: src/pages/neighbourhood_type/[slug].astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import RealtyVis from "../../components/RealtyVis.astro";
 
-/* ---------- small utils ---------- */
-function unescapeHtml(s: string = "") {
-  return s
-    .replaceAll("&lt;","<").replaceAll("&gt;",">")
-    .replaceAll("&amp;","&").replaceAll("&quot;",'"').replaceAll("&#39;","'");
-}
-function stripTags(s: string = "") {
-  return s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-}
+/* --------------- helpers (define BEFORE any use) --------------- */
+const getField = (r:any, k:string) =>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
-/* ---------- build static paths (no dev cache) ---------- */
+const slugify = (s:string) =>
+  s.toLowerCase()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+/* --------------- data --------------- */
 export async function getStaticPaths() {
-  const candidates = [
-    import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON,
-    import.meta.env.PUBLIC_TYPES_JSON,
-    import.meta.env.PUBLIC_SHEET_JSON,
-  ].filter(Boolean) as string[];
+  // Keep SOURCE_URL here so it's always in scope
+  const SOURCE_URL =
+    import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON ||
+    import.meta.env.PUBLIC_CITY_TYPES_JSON ||
+    import.meta.env.PUBLIC_TYPES_JSON ||
+    import.meta.env.PUBLIC_SHEET_JSON ||
+    "";
 
-  let rows: any[] = [];
-  for (const url of candidates) {
-    try {
-      const raw = await getJson<any>(url);
-      const list =
-        Array.isArray(raw) ? raw :
-        Array.isArray(raw?.data) ? raw.data :
-        Array.isArray(raw?.rows) ? raw.rows : [];
-      if (list.length) { rows = list; break; }
-    } catch {}
+  if (!SOURCE_URL) return [];
+
+  let rows:any[] = [];
+  try {
+    const raw = await getJson<any>(SOURCE_URL);
+    rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data) ? raw.data
+      : Array.isArray(raw?.rows) ? raw.rows
+      : [];
+  } catch {
+    return [];
   }
-  if (!rows.length) return [];
 
-  const items = rows.map((r:any) => {
-    const title = (r?.title ?? r?.TITLE ?? "").toString().trim();
-    if (!title) return null;
+  const items = rows
+    .map((r:any) => {
+      const rawSlug = getField(r, "slug");
+      const title = getField(r, "title");
+      const slug = rawSlug || (title ? slugify(title) : "");
+      if (!slug) return null;
+      return { params: { slug }, props: { row: r } };
+    })
+    .filter(Boolean);
 
-    const explicit = (r?.slug ?? r?.SLUG ?? "").toString().trim();
-    const computed = title.toLowerCase()
-      .replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
-    const slug = (explicit || computed).toLowerCase();
-
-    const status = (r?.status ?? r?.STATUS ?? "").toString().trim().toLowerCase();
-    if (["draft","hidden","inactive"].includes(status) || slug==="index") return null;
-
-    const hero_img  = (r?.hero_img ?? r?.HERO_IMG ?? "").toString().trim();
-    const summary   = (r?.summary ?? r?.SUMMARY ?? "").toString().trim();
-    const long_copy = (r?.long_copy ?? r?.LONG_COPY ?? "").toString().trim();
-    const cta1      = (r?.cta1 ?? r?.CTA1 ?? "").toString().trim();
-    const map_raw   = (r?.map_embed ?? r?.MAP_EMBED ?? "").toString().trim();
-    const seo_title = (r?.seo_title ?? r?.SEO_TITLE ?? "").toString().trim();
-    const seo_desc  = (r?.seo_description ?? r?.SEO_DESCRIPTION ?? "").toString().trim();
-
-    const props = {
-      title,
-      summary,
-      hero: heroPath(hero_img),
-      long_copy,
-      cta1,
-      map_embed: (() => {
-        const v = map_raw;
-        if (!v) return "";
-        const m = v.match(/src="([^"]+)"/i);
-        if (m?.[1]) return m[1];
-        if (v.includes("google.com/maps") && v.includes("embed")) return v;
-        if (v.includes("google.com/maps")) {
-          try {
-            const u = new URL(v);
-            const q = u.search ? `${u.search}&output=embed` : "?output=embed";
-            return `https://www.google.com/maps${q}`;
-          } catch {}
-        }
-        return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
-      })(),
-      seo_title,
-      seo_description: seo_desc,
-    };
-
-    return { slug, props };
-  }).filter(Boolean) as Array<{slug:string; props:any}>;
-
-  return items.map(n => ({ params:{ slug:n.slug }, props:n.props }));
+  return items;
 }
 
-/* ---------- page props ---------- */
-const {
-  title,
-  summary,
-  hero,
-  long_copy,
-  cta1,
-  map_embed,
-  seo_title,
-  seo_description,
-} = Astro.props as any;
+export async function get({ props }) {
+  const row = props?.row || {};
+  const title = getField(row, "title") || "Neighbourhood Type";
+  const summary = getField(row, "summary");
 
-const summaryHtml  = unescapeHtml(summary);
-const longCopyHtml = unescapeHtml(long_copy);
-const pageSeoTitle = (seo_title || title || "Neighbourhood Type").toString();
-const pageSeoDesc  = (seo_description || stripTags(summaryHtml) || "").slice(0,160);
+  // RealtyVis config from row/env
+  const rvBlock =
+    getField(row, "rv_block") ||
+    getField(row, "rv_block_id") ||
+    getField(row, "rvblock") ||
+    getField(row, "block_id");
 
-/* ---------- Buttons config for the Ski Hill trio ---------- */
-const currentSlug = (Astro.params?.slug || "").toLowerCase();
-// Detect the ski-hill cluster and derive the base "fernie-ski-hill"
-const SKI_TYPES = ["condos","townhomes","homes"];
-const baseMatch = currentSlug.match(/^(.*?)(?:-(condos|townhome|townhomes|homes))$/);
-const skiBase   = baseMatch ? baseMatch[1] : ""; // e.g. "fernie-ski-hill"
-const showSkiButtons = Boolean(skiBase); // only on those three pages
+  const rvScript =
+    getField(row, "rv_script") ||
+    (import.meta.env.PUBLIC_RV_SCRIPT || "");
 
-// Build link objects with active-state
-const skiButtons = showSkiButtons
-  ? SKI_TYPES.map((t) => {
-      const target = `/neighbourhood_type/${skiBase}-${t}`;
-      const isActive = currentSlug === `${skiBase}-${t}`;
-      return { href: target, label: t[0].toUpperCase()+t.slice(1), active: isActive };
-    })
-  : [];
+  const maybeUrl =
+    getField(row, "rv_url") ||
+    getField(row, "embed_url") ||
+    getField(row, "spare_1");
+
+  const rvEmbedUrl = /^https?:\/\//i.test(maybeUrl) ? maybeUrl : "";
+
+  return { props: { row, title, summary, rvBlock, rvScript, rvEmbedUrl } };
+}
 ---
 
-<Site
-  showHeader={true}
-  title={title}
-  seo_title={pageSeoTitle}
-  seo_description={pageSeoDesc}
->
-  {hero && (
-    <Fragment slot="head">
-      <link rel="preload" as="image" href={hero} fetchpriority="high" />
-    </Fragment>
-  )}
-
+<Site title={title} seo_title={title} seo_description={summary}>
   <!-- HERO -->
-  <section class="hero-bleed">
-    {hero && (
+  <div slot="hero" class="hero">
+    <picture>
       <img
-        src={hero}
+        src={heroPath(Astro.props.row?.hero_img)}
         alt={title}
-        fetchpriority="high"
         loading="eager"
-        decoding="async"
-        width="2000" height="1000"
-        style="width:100%;height:100%;object-fit:cover;object-position:center"
+        fetchpriority="high"
+        style="width:100%;height:50vh;object-fit:cover;object-position:center;"
       />
-    )}
-  </section>
-
-  <!-- INTRO -->
-  <div class="container intro">
-    <h1>{title}</h1>
-
-    {summaryHtml && <div class="copy-base summary" set:html={summaryHtml}></div>}
-
-    {showSkiButtons && (
-      <div class="ski-hill-buttons" style="margin-top:16px">
-        {skiButtons.map(b => (
-          <a
-            href={b.href}
-            class={`btn-link${b.active ? " btn-active" : ""}`}
-            aria-current={b.active ? "page" : undefined}
-          >{b.label}</a>
-        ))}
-      </div>
-    )}
+    </picture>
+    <div class="hero-overlay">
+      <h1 class="hero-title">{title}</h1>
+      {summary && <p class="hero-summary">{summary}</p>}
+    </div>
   </div>
 
-  <!-- LISTINGS -->
-  <RealtyVis blockId={cta1} />
+  <main class="wrap">
+    {summary && (
+      <section class="prose mb-10">
+        <p>{summary}</p>
+      </section>
+    )}
 
-  <!-- MAP (optional) -->
-  {map_embed && (
-    <div class="container map-wrap">
-      <h2>Explore on the Map</h2>
-      <div class="map-card">
-        <iframe
-          src={map_embed}
-          title={`Map of ${title}`}
-          loading="lazy"
-          allowfullscreen
-          referrerpolicy="no-referrer-when-downgrade"
-          style="width:100%; height: var(--map-h, 520px); border:0; display:block;"
-        ></iframe>
-      </div>
-    </div>
-  )}
-
-  <!-- LONG COPY -->
-  {longCopyHtml && (
-    <div class="container">
-      <article class="copy-base long-copy" set:html={longCopyHtml}></article>
-    </div>
-  )}
-
-  <style>
-    .intro { margin: 24px auto 20px; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
-
-    .copy-base { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-weight: 400; letter-spacing: 0; font-size: 1.05rem; line-height: 1.8; color: #1f2937; }
-    .copy-base p { margin: 0 0 1.25em; }
-    .copy-base h2, .copy-base h3 { font-weight: 700; color:#111827; line-height: 1.3; margin:2em 0 .75em; }
-    .copy-base h2 { font-size: 1.5rem; border-left: 4px solid #0a7bff; padding-left: .5rem; }
-    .copy-base h3 { font-size: 1.25rem; }
-
-    .map-wrap h2 { font-size:1.25rem; margin:8px 0 12px; color:#111827; }
-    .map-card { border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
-
-    .long-copy { margin:40px 0 48px; }
-
-    /* Small active-state tweak for the buttons (base styles live in Site.astro) */
-    .btn-active { box-shadow: 0 0 0 2px #065aa3 inset; }
-  </style>
+    <!-- REALTYVIS (lazy hydration on scroll) -->
+    {(Astro.props.rvEmbedUrl || Astro.props.rvBlock) ? (
+      <section id="listings" class="mb-16">
+        <h2 class="h2 mb-4">Current Listings</h2>
+        <RealtyVis
+          client:visible
+          blockId={Astro.props.rvBlock}
+          scriptUrl={Astro.props.rvScript}
+          embedUrl={Astro.props.rvEmbedUrl}
+          minHeight="900px"
+        />
+      </section>
+    ) : (
+      <section class="mb-16">
+        <div class="note">
+          <strong>No RealtyVis config found.</strong>
+          Add <code>rv_block</code> (or <code>rv_url</code>) to this row, or set <code>PUBLIC_RV_SCRIPT</code> in your <code>.env</code>.
+        </div>
+      </section>
+    )}
+  </main>
 </Site>
+
+<style>
+  .wrap { max-width: var(--container-max, 1250px); margin-inline: auto; padding-inline: var(--container-pad, 20px); }
+
+  .hero { position: relative; }
+  .hero-overlay {
+    position: absolute; inset: 0;
+    display: grid; place-items: end start;
+    padding: clamp(12px, 3vw, 28px);
+    background: linear-gradient(180deg, rgba(0,0,0,0.0) 30%, rgba(0,0,0,0.35) 75%);
+  }
+  .hero-title {
+    color: white; font-size: clamp(24px, 4vw, 44px); line-height: 1.05; margin: 0 0 6px 0;
+  }
+  .hero-summary { color: #eef0f2; max-width: 70ch; margin: 0; }
+
+  .note {
+    background: #fff8e1; border: 1px solid #ffe19c; color: #7c5b00;
+    padding: 12px 14px; border-radius: 10px;
+  }
+</style>
