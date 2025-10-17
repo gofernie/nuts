@@ -88,8 +88,7 @@ const NAV_ORDER = [
       }
     </style>
 
-    <style>
-.ski-hill-buttons {
+    <style>.ski-hill-buttons {
   display: flex;
   gap: 16px;
   justify-content: center;
@@ -97,7 +96,8 @@ const NAV_ORDER = [
   margin-top: 20px;
 }
 
-.ski-hill-buttons .btn-link {
+.ski-hill-buttons a,
+.btn-link {
   display: inline-block;
   background: #0a7bff;
   color: #fff;
@@ -109,10 +109,12 @@ const NAV_ORDER = [
   transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
-.ski-hill-buttons .btn-link:hover {
+.ski-hill-buttons a:hover,
+.btn-link:hover {
   background: #065aa3;
   box-shadow: 0 4px 10px rgba(0,0,0,0.15);
 }
+
 
 
       :root {
