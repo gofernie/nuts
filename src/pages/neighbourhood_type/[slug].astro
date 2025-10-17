@@ -1,62 +1,87 @@
 ---
+// File: src/pages/neighbourhood_type/[slug].astro
+/** Render at request time (no getStaticPaths). */
+export const prerender = false;
+
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-/* ---------- getStaticPaths ---------- */
-export async function getStaticPaths() {
-  const URL =
-    import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON ||
-    import.meta.env.PUBLIC_SHEET_JSON ||
-    "";
-  if (!URL) return [];
+const slugParam = (Astro.params.slug || "").toString().trim();
 
-  const get = (r:any, k:string) =>
-    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-  const slugify = (s:string) =>
-    s.toLowerCase().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+/* ---------- config ---------- */
+const SOURCE_URL =
+  import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON ||
+  import.meta.env.PUBLIC_SHEET_JSON ||
+  "";
 
-  let rows:any[] = [];
+/* ---------- helpers ---------- */
+const get = (r: any, k: string) =>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+    .toString()
+    .trim();
+
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+/* ---------- data fetch ---------- */
+let row: any = null;
+let fetchError: string | null = null;
+let rowsCount = 0;
+
+if (!SOURCE_URL) {
+  fetchError = "No sheet URL provided. Set PUBLIC_NEIGHBOURHOOD_TYPE_JSON or PUBLIC_SHEET_JSON.";
+} else {
   try {
-    const raw = await getJson<any>(URL);
-    rows = Array.isArray(raw) ? raw : raw?.data || raw?.rows || [];
-  } catch { return []; }
+    const raw = await getJson<any>(SOURCE_URL);
+    const rows: any[] =
+      Array.isArray(raw) ? raw :
+      Array.isArray(raw?.data) ? raw.data :
+      Array.isArray(raw?.rows) ? raw.rows :
+      [];
 
-  return rows
-    .map((r:any) => {
-      const rawSlug = get(r, "slug");
-      const title = get(r, "title");
-      const slug = rawSlug || (title ? slugify(title) : "");
-      if (!slug) return null;
-      return { params: { slug }, props: { row: r } };
-    })
-    .filter(Boolean);
+    rowsCount = rows.length;
+
+    row =
+      rows.find((r) => {
+        const s = get(r, "slug") || (get(r, "title") ? slugify(get(r, "title")) : "");
+        return s === slugParam;
+      }) || null;
+
+    if (!row) {
+      fetchError = `No matching row found for slug “${slugParam}”.`;
+    }
+  } catch (e: any) {
+    fetchError = `Failed to load sheet: ${e?.message || e}`;
+  }
 }
 
-/* ---------- get ---------- */
-export async function get({ props }) {
-  const get = (r:any, k:string) =>
-    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+/* ---------- derived props with safe fallbacks ---------- */
+const title = (row && get(row, "title")) || "Neighbourhood Type";
+const summary = (row && get(row, "summary")) || "";
+const heroImg = (row && get(row, "hero_img")) || "/img/hero/fallback-1600x800.jpg";
 
-  const row = props?.row || {};
-  const title = get(row, "title") || "Neighbourhood Type";
-  const summary = get(row, "summary") || "";
-  const heroImg = get(row, "hero_img") || "/img/hero/fallback-1600x800.jpg";
-
-  // ✅ block id from your sheet, with a safe default
-  const rvBlock =
-    get(row, "cta1") ||
-    get(row, "rv_block") ||
-    import.meta.env.PUBLIC_DEFAULT_RV_BLOCK || ""; // set in .env to guarantee output
-
-  return { props: { title, summary, heroImg, rvBlock } };
-}
-
-const { title, summary, heroImg, rvBlock } = Astro.props;
+/* RealtyVis block id: from sheet first, then .env fallback so it never renders empty */
+const rvBlock =
+  (row && (get(row, "cta1") || get(row, "rv_block"))) ||
+  import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ||
+  "";
 ---
 
 <Site title={title} seo_title={title} seo_description={summary}>
-  <!-- HERO (eager for solid LCP ~80) -->
+  <!-- Tiny debug ribbon so we know the inputs immediately -->
+  <div class="debug">
+    <strong>[neighbourhood_type]</strong>
+    <span>slug:</span> <code>{slugParam}</code>
+    <span>source:</span> <code>{SOURCE_URL || "(none)"}</code>
+    <span>rows:</span> <code>{rowsCount}</code>
+  </div>
+
+  <!-- HERO -->
   <div slot="hero" class="hero">
     <picture>
       <img
@@ -81,29 +106,75 @@ const { title, summary, heroImg, rvBlock } = Astro.props;
       </section>
     )}
 
-    {rvBlock && (
-      <section id="listings" class="mb-16">
-        <h2 class="h2 mb-4">Current Listings</h2>
+    {fetchError && (
+      <section class="mb-16 error">
+        <h2>Data Error</h2>
+        <p>{fetchError}</p>
+        <ul>
+          <li>Confirm the page path matches the row’s <code>slug</code> or slugified <code>title</code>.</li>
+          <li>Ensure the sheet tab is published and accessible (no auth/CORS issues).</li>
+          <li>Check your <code>.env</code> has the correct PUBLIC_* JSON endpoint(s) and restart dev.</li>
+        </ul>
+      </section>
+    )}
 
-        <!-- 🔵 the exact eager embed (pre-lazy), with Astro-safe init -->
-        <div data-rv-block={rvBlock}></div>
+    {!fetchError && rvBlock && (
+      <section id="listings" class="mb-16">
+        <h2 class="h2 mb-2">Current Listings</h2>
+
+        <!-- show exactly which block we’re using, so there’s no mystery -->
+        <p class="note">
+          rvBlock: <strong>{rvBlock}</strong>
+        </p>
+
+        <!-- Vendor container -->
+        <div id="rv-container" data-rv-block={rvBlock}></div>
+
+        <!-- Load vendor script programmatically and init on load -->
         <script is:inline>
-          (function(){
-            const SRC="https://cdn.realtyvis.com/js/embed.js";
-            function init(){ try{ window.RealtyVis && window.RealtyVis.init && window.RealtyVis.init(); }catch(e){ console.error("RV init error", e); } }
-            if(!document.querySelector('script[src="'+SRC+'"]')){
-              const s=document.createElement("script");
-              s.src=SRC; s.async=true; s.onload=init;
-              s.onerror=()=>console.error("Failed to load RealtyVis script");
-              document.body.appendChild(s);
+          (function () {
+            function safeInit() {
+              try {
+                if (window.RealtyVis && typeof window.RealtyVis.init === "function") {
+                  window.RealtyVis.init();
+                } else {
+                  // if global isn't ready yet, try shortly again
+                  setTimeout(safeInit, 150);
+                }
+              } catch (e) {
+                console.error("RealtyVis init error:", e);
+              }
+            }
+
+            // only add the script once per page
+            var EXISTING = document.querySelector('script[data-rv-src]');
+            if (!EXISTING) {
+              var s = document.createElement('script');
+              s.src = "https://cdn.realtyvis.com/js/embed.js";
+              s.async = true;
+              s.defer = true;
+              s.setAttribute('data-rv-src', 'true');
+              s.addEventListener('load', safeInit, { once: true });
+              s.addEventListener('error', function(e){ console.error("Failed to load RealtyVis script", e); });
+              document.head.appendChild(s);
+            }
+
+            if (document.readyState === "complete") {
+              // page is ready; init will run after script load
+              // (or if the script was already there, give it a nudge)
+              setTimeout(safeInit, 0);
             } else {
-              init();
+              window.addEventListener("load", function(){ setTimeout(safeInit, 0); }, { once: true });
             }
           })();
         </script>
+      </section>
+    )}
 
-        <!-- (optional) temporary debug: shows the block id you’re rendering -->
-        <!-- <p style="color:#888;font-size:12px">rvBlock: {rvBlock}</p> -->
+    {!fetchError && !rvBlock && (
+      <section class="mb-16 error">
+        <h2>Missing RealtyVis Block</h2>
+        <p>Provide a block id in <code>cta1</code> or <code>rv_block</code> on the row, or set <code>PUBLIC_DEFAULT_RV_BLOCK</code> in <code>.env</code>.</p>
       </section>
     )}
   </main>
@@ -113,10 +184,25 @@ const { title, summary, heroImg, rvBlock } = Astro.props;
   .wrap { max-width: 1250px; margin-inline: auto; padding-inline: 20px; }
   .hero { position: relative; }
   .hero-overlay {
-    position: absolute; inset: 0; display: grid; place-items: end start;
+    position: absolute; inset: 0;
+    display: grid; place-items: end start;
     padding: clamp(12px,3vw,28px);
     background: linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,.35) 75%);
   }
-  .hero-title { color: #fff; font-size: clamp(24px,4vw,44px); margin: 0 0 6px; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
-  .hero-summary { color: #eef0f2; max-width: 70ch; margin: 0; }
+  .hero-title { color:#fff; font-size:clamp(24px,4vw,44px); margin:0 0 6px; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+  .hero-summary { color:#eef0f2; max-width:70ch; margin:0; }
+
+  .note { color:#888; font:12px/1.3 system-ui; margin:4px 0 10px; }
+  .error {
+    border: 1px solid #d33; background:#fff5f5; color:#600; padding: 14px 16px; border-radius: 8px;
+  }
+
+  .debug {
+    position: sticky; top: 0; z-index: 200;
+    display:inline-flex; gap:10px; align-items:center;
+    background: #111; color:#ddd; padding: 6px 10px; font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+    border-bottom: 1px solid #333;
+  }
+  .debug code { color:#9fd; }
+  .debug span { opacity:.7; margin-left:6px; }
 </style>

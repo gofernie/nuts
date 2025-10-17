@@ -1,18 +1,29 @@
 ---
-import { onMount } from 'astro/client';
-import RealtyVis from './RealtyVis.astro';
-
-const { blockId, scriptUrl, embedUrl, minHeight = "900px" } = Astro.props;
-let show = false;
-
-onMount(() => {
-  // when component becomes visible, flag to show real embed
-  show = true;
-});
+const {
+  blockId,
+  scriptUrl = "https://cdn.realtyvis.com/js/embed.js",
+  minHeight = "900px",
+} = Astro.props;
 ---
 
-{show ? (
-  <RealtyVis blockId={blockId} scriptUrl={scriptUrl} embedUrl={embedUrl} minHeight={minHeight} />
-) : (
-  <div style={`min-height:${minHeight};background:#f6f6f6`} />
-)}
+<div data-rv-block={blockId} style={`min-height:${minHeight}`}></div>
+
+<!-- Eager load, no hoisting issues, re-init on navigation -->
+<script is:inline>
+  (function () {
+    var SRC = {{ scriptUrl: JSON.stringify(scriptUrl) }}.scriptUrl;
+    function init() {
+      if (window.RealtyVis && typeof window.RealtyVis.init === "function") {
+        try { window.RealtyVis.init(); } catch (e) { console.error("RealtyVis init error", e); }
+      }
+    }
+    if (!document.querySelector('script[src="' + SRC + '"]')) {
+      var s = document.createElement("script");
+      s.src = SRC; s.async = true; s.onload = init;
+      s.onerror = function(){ console.error("Failed to load RealtyVis script"); };
+      document.body.appendChild(s);
+    } else {
+      init();
+    }
+  })();
+</script>
