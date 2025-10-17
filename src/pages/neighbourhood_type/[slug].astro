@@ -1,19 +1,11 @@
 ---
-// File: src/pages/neighbourhood_type/[slug].astro
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
-import RealtyVis from "../../components/RealtyVis.astro";
+import RealtyVisLazy from "../../components/RealtyVisLazy.astro";
 
-/* ---------------- getStaticPaths ---------------- */
 export async function getStaticPaths() {
-  const SOURCE_URL =
-    import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON ||
-    import.meta.env.PUBLIC_CITY_TYPES_JSON ||
-    import.meta.env.PUBLIC_TYPES_JSON ||
-    import.meta.env.PUBLIC_SHEET_JSON ||
-    "";
-
+  const SOURCE_URL = import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON || import.meta.env.PUBLIC_SHEET_JSON || "";
   if (!SOURCE_URL) return [];
 
   const getField = (r:any, k:string) =>
@@ -24,85 +16,43 @@ export async function getStaticPaths() {
   let rows:any[] = [];
   try {
     const raw = await getJson<any>(SOURCE_URL);
-    rows = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows
-      : [];
-  } catch {
-    return [];
-  }
+    rows = Array.isArray(raw) ? raw : raw?.data || raw?.rows || [];
+  } catch { return []; }
 
-  const items = rows.map((r:any) => {
+  return rows.map((r:any) => {
     const rawSlug = getField(r, "slug");
     const title = getField(r, "title");
     const slug = rawSlug || (title ? slugify(title) : "");
     if (!slug) return null;
     return { params: { slug }, props: { row: r } };
   }).filter(Boolean);
-
-  return items;
 }
 
-/* ---------------- get ---------------- */
 export async function get({ props }) {
   const getField = (r:any, k:string) =>
     (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-
   const row = props?.row || {};
 
-  // Smarter title/summary
-  const city     = getField(row, "city");
-  const area     = getField(row, "area") || getField(row, "neighbourhood") || getField(row, "neighborhood");
-  const type     = getField(row, "type") || getField(row, "property_type") || getField(row, "category");
-  const label    = getField(row, "label") || getField(row, "name");
-  const explicit = getField(row, "title");
-  const rawSlug  = getField(row, "slug");
-
-  function bestTitle() {
-    if (explicit) return explicit;
-    if (label) return label;
-    const parts = [city, area, type].filter(Boolean);
-    if (parts.length) return parts.join(" • ");
-    if (rawSlug) return rawSlug.replace(/-/g, " ").replace(/\b\w/g, m => m.toUpperCase());
-    return "Neighbourhood Type";
-  }
-
-  const pageSummary =
-    getField(row, "summary") ||
-    getField(row, "seo_description") ||
-    getField(row, "description");
-
-  const pageTitle = bestTitle();
-
-  // RealtyVis config
-  const rvBlock =
-    getField(row, "rv_block") ||
-    getField(row, "rv_block_id") ||
-    getField(row, "rvblock") ||
-    getField(row, "block_id");
-
-  const rvScript = getField(row, "rv_script") || (import.meta.env.PUBLIC_RV_SCRIPT || "");
-  const maybeUrl = getField(row, "rv_url") || getField(row, "embed_url") || getField(row, "spare_1");
-  const rvEmbedUrl = /^https?:\/\//i.test(maybeUrl) ? maybeUrl : "";
-
-  // Hero image — eager load for low LCP
+  const title = getField(row, "title") || "Neighbourhood Type";
+  const summary = getField(row, "summary") || "";
   const heroImg = getField(row, "hero_img") || "/img/hero/fallback-1600x800.jpg";
 
-  return { props: { row, pageTitle, pageSummary, rvBlock, rvScript, rvEmbedUrl, heroImg } };
+  const rvBlock = getField(row, "rv_block");
+  const rvScript = import.meta.env.PUBLIC_RV_SCRIPT || "";
+  const rvEmbedUrl = getField(row, "rv_url") || getField(row, "embed_url") || getField(row, "spare_1");
+
+  return { props: { title, summary, heroImg, rvBlock, rvScript, rvEmbedUrl } };
 }
 
-/* ---------------- expose props ---------------- */
-const { row, pageTitle, pageSummary, rvBlock, rvScript, rvEmbedUrl, heroImg } = Astro.props;
+const { title, summary, heroImg, rvBlock, rvScript, rvEmbedUrl } = Astro.props;
 ---
 
-<Site title={pageTitle} seo_title={pageTitle} seo_description={pageSummary}>
-  <!-- ✅ HERO: eager load for fast LCP -->
+<Site title={title} seo_title={title} seo_description={summary}>
   <div slot="hero" class="hero">
     <picture>
       <img
         src={heroPath(heroImg)}
-        alt={pageTitle}
+        alt={title}
         loading="eager"
         fetchpriority="high"
         decoding="sync"
@@ -110,23 +60,22 @@ const { row, pageTitle, pageSummary, rvBlock, rvScript, rvEmbedUrl, heroImg } = 
       />
     </picture>
     <div class="hero-overlay">
-      <h1 class="hero-title">{pageTitle}</h1>
-      {pageSummary && <p class="hero-summary">{pageSummary}</p>}
+      <h1 class="hero-title">{title}</h1>
+      {summary && <p class="hero-summary">{summary}</p>}
     </div>
   </div>
 
   <main class="wrap">
-    {pageSummary && (
+    {summary && (
       <section class="prose mb-10">
-        <p>{pageSummary}</p>
+        <p>{summary}</p>
       </section>
     )}
 
-    <!-- 🐢 Lazy RealtyVis -->
-    {(rvEmbedUrl || rvBlock) ? (
+    {(rvEmbedUrl || rvBlock) && (
       <section id="listings" class="mb-16">
         <h2 class="h2 mb-4">Current Listings</h2>
-        <RealtyVis
+        <RealtyVisLazy
           client:visible
           blockId={rvBlock}
           scriptUrl={rvScript}
@@ -134,20 +83,6 @@ const { row, pageTitle, pageSummary, rvBlock, rvScript, rvEmbedUrl, heroImg } = 
           minHeight="900px"
         />
       </section>
-    ) : (
-      <section class="mb-16">
-        <div class="note">
-          <strong>No RealtyVis config found.</strong>
-          Add <code>rv_url</code> or <code>rv_block</code> to the sheet.
-        </div>
-      </section>
-    )}
-
-    {import.meta.env.DEV && (
-      <details class="debug">
-        <summary>Debug (dev only)</summary>
-        <pre>{JSON.stringify({ pageTitle, pageSummary, rvBlock, rvEmbedUrl, heroImg, row }, null, 2)}</pre>
-      </details>
     )}
   </main>
 </Site>
@@ -158,7 +93,6 @@ const { row, pageTitle, pageSummary, rvBlock, rvScript, rvEmbedUrl, heroImg } = 
     margin-inline: auto;
     padding-inline: var(--container-pad, 20px);
   }
-
   .hero { position: relative; }
   .hero-overlay {
     position: absolute; inset: 0;
@@ -174,24 +108,4 @@ const { row, pageTitle, pageSummary, rvBlock, rvScript, rvEmbedUrl, heroImg } = 
     text-shadow: 0 1px 2px rgba(0,0,0,.35);
   }
   .hero-summary { color: #eef0f2; max-width: 70ch; margin: 0; }
-
-  .note {
-    background: #fff8e1;
-    border: 1px solid #ffe19c;
-    color: #7c5b00;
-    padding: 12px 14px;
-    border-radius: 10px;
-  }
-
-  .debug summary { cursor: pointer; font-weight: 600; margin: 1rem 0 .5rem; }
-  .debug pre {
-    white-space: pre-wrap;
-    word-break: break-word;
-    background: #0b1020;
-    color: #e5efff;
-    padding: 12px;
-    border-radius: 10px;
-    font-size: 12px;
-    line-height: 1.35;
-  }
 </style>

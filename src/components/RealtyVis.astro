@@ -1,114 +1,18 @@
 ---
-/**
- * RealtyVis.astro — lazy listings wrapper
- *
- * Props:
- * - blockId?: string    // Vendor block id (script render mode)
- * - scriptUrl?: string  // Vendor loader script (from env or row)
- * - embedUrl?: string   // Full https iframe URL (iframe mode)
- * - minHeight?: string  // Reserve space to avoid CLS (e.g., "900px")
- */
-interface Props {
-  blockId?: string;
-  scriptUrl?: string;
-  embedUrl?: string;
-  minHeight?: string;
-}
-const {
-  blockId = "",
-  scriptUrl = import.meta.env.PUBLIC_RV_SCRIPT || "",
-  embedUrl = "",
-  minHeight = "900px",
-} = Astro.props;
+import { onMount } from 'astro/client';
+import RealtyVis from './RealtyVis.astro';
 
-const SCRIPT_FLAG_ID = "rv-loader-script";
+const { blockId, scriptUrl, embedUrl, minHeight = "900px" } = Astro.props;
+let show = false;
+
+onMount(() => {
+  // when component becomes visible, flag to show real embed
+  show = true;
+});
 ---
 
-<div class="rv-shell not-prose">
-  <div class="rv-skeleton" style={`min-height:${minHeight};`} aria-hidden="true"></div>
-
-  {embedUrl ? (
-    /* -------- iframe mode -------- */
-    <iframe
-      src={embedUrl}
-      title="Current Listings"
-      loading="lazy"
-      referrerpolicy="no-referrer-when-downgrade"
-      style="width:100%;min-height:900px;border:0;display:block;"
-    />
-  ) : (
-    /* -------- script render mode -------- */
-    <div class="rv-host">
-      <div class="rv-block" data-rv-block-id={blockId}></div>
-      <script is:inline>
-        (() => {
-          const blockId = {JSON.stringify(blockId)};
-          const scriptUrl = {JSON.stringify(scriptUrl)};
-          const FLAG_ID = {JSON.stringify(SCRIPT_FLAG_ID)};
-          if (!blockId) return;
-
-          function ensureScript() {
-            return new Promise((resolve, reject) => {
-              if (document.getElementById(FLAG_ID)) return resolve(void 0);
-              if (!scriptUrl) return resolve(void 0); // allow vendor pre-installed script
-              const s = document.createElement("script");
-              s.id = FLAG_ID;
-              s.src = scriptUrl;
-              s.async = true;
-              s.onload = () => resolve(void 0);
-              s.onerror = () => reject(new Error("Failed to load RealtyVis script"));
-              document.head.appendChild(s);
-            });
-          }
-
-          function tryRender() {
-            const w = window;
-            // ⚠️ Adjust to your vendor’s API if different:
-            if (w && (w as any).RealtyVis && (w as any).RealtyVis.render) {
-              try { (w as any).RealtyVis.render({ blockId }); } catch (e) { console.warn(e); }
-              return true;
-            }
-            return false;
-          }
-
-          (async () => {
-            try {
-              await ensureScript();
-              if (!tryRender()) {
-                let tries = 0;
-                const t = setInterval(() => {
-                  tries++;
-                  if (tryRender() || tries > 40) clearInterval(t);
-                }, 125);
-              }
-            } catch (e) { console.warn(e); }
-          })();
-        })();
-      </script>
-    </div>
-  )}
-</div>
-
-<style>
-  .rv-shell { width: 100%; }
-  .rv-skeleton {
-    background: linear-gradient(90deg, #f2f2f2 0%, #fafafa 20%, #f2f2f2 40%);
-    background-size: 200% 100%;
-    animation: rv-shimmer 1.5s infinite linear;
-    border-radius: 16px;
-  }
-  @keyframes rv-shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-
-  /* Optional: grid tuning if vendor exposes these classes */
-  .rv-block .rv-listingGrid {
-    display: grid;
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-    gap: 20px;
-  }
-  @media (min-width: 640px)  { .rv-block .rv-listingGrid { grid-template-columns: repeat(2, 1fr); } }
-  @media (min-width: 1024px) { .rv-block .rv-listingGrid { grid-template-columns: repeat(3, 1fr); } }
-  @media (min-width: 1280px) { .rv-block .rv-listingGrid { grid-template-columns: repeat(4, 1fr); } }
-</style>
+{show ? (
+  <RealtyVis blockId={blockId} scriptUrl={scriptUrl} embedUrl={embedUrl} minHeight={minHeight} />
+) : (
+  <div style={`min-height:${minHeight};background:#f6f6f6`} />
+)}

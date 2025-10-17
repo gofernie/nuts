@@ -1,0 +1,70 @@
+---
+import { onMount } from 'astro/client';
+
+const {
+  blockId,
+  scriptUrl = "https://cdn.realtyvis.com/js/embed.js",
+  minHeight = "900px",
+} = Astro.props;
+
+let container: HTMLDivElement | null = null;
+
+async function loadScriptOnce() {
+  const existing = document.querySelector(`script[src="${scriptUrl}"]`);
+  if (existing) return;
+
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = scriptUrl;
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.body.appendChild(s);
+  });
+}
+
+function retryInit(maxTries = 30, intervalMs = 200) {
+  return new Promise((resolve, reject) => {
+    let tries = 0;
+    const timer = setInterval(() => {
+      if (window?.RealtyVis?.init) {
+        clearInterval(timer);
+        try {
+          window.RealtyVis.init();
+          resolve(true);
+        } catch (e) {
+          reject(e);
+        }
+      } else if (++tries >= maxTries) {
+        clearInterval(timer);
+        reject(new Error("RealtyVis.init() never appeared"));
+      }
+    }, intervalMs);
+  });
+}
+
+onMount(async () => {
+  try {
+    // 1. Load the script
+    await loadScriptOnce();
+
+    // 2. Inject the embed div
+    if (container && blockId) {
+      const div = document.createElement('div');
+      div.setAttribute('data-rv-block', blockId);
+      container.appendChild(div);
+    }
+
+    // 3. Retry init until it's available
+    await retryInit();
+  } catch (err) {
+    console.error("[RealtyVis Lazy Load Error]", err);
+  }
+});
+---
+
+<div bind:this={container} style={`min-height:${minHeight};background:#f6f6f6;`} >
+  <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;">
+    Loading listings…
+  </div>
+</div>
