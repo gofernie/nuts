@@ -1,5 +1,4 @@
 ---
-// File: src/layouts/Site.astro
 const {
   title = "Fernie Real Estate",
   seo_title = title,
@@ -27,7 +26,7 @@ async function fetchMenuSafe(url?: string): Promise<MenuItem[]> {
   try { new URL(url, "http://x"); } catch { return []; }
 
   try {
-    const raw = await getJson<any>(url); // returns null on failure
+    const raw = await getJson<any>(url);
     const rows:any[] =
       Array.isArray(raw) ? raw :
       Array.isArray(raw?.data) ? raw.data :
@@ -88,35 +87,22 @@ const NAV_ORDER = [
       }
     </style>
 
-    <style>.ski-hill-buttons {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 20px;
-}
+    <!-- 🔁 Global button styles so HTML injected via set:html gets styled -->
+    <style is:global>
+      .ski-hill-buttons{
+        display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin-top:20px;
+      }
+      .ski-hill-buttons a,
+      .btn-link{
+        display:inline-block; background:#0a7bff; color:#fff;
+        padding:14px 28px; border-radius:999px; font-size:1.125rem; font-weight:600;
+        text-decoration:none; transition:background .2s ease, box-shadow .2s ease;
+      }
+      .ski-hill-buttons a:hover,
+      .btn-link:hover{ background:#065aa3; box-shadow:0 4px 10px rgba(0,0,0,.15); }
+    </style>
 
-.ski-hill-buttons a,
-.btn-link {
-  display: inline-block;
-  background: #0a7bff;
-  color: #fff;
-  padding: 14px 28px;
-  border-radius: 999px;
-  font-size: 1.125rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: background 0.2s ease, box-shadow 0.2s ease;
-}
-
-.ski-hill-buttons a:hover,
-.btn-link:hover {
-  background: #065aa3;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-}
-
-
-
+    <style>
       :root {
         --header-h: 52px;
         --bg:#78777c10; --ink:#271f11; --ink-muted:#1f2937; --hover-bg:rgba(243,244,246,.9);
@@ -127,7 +113,7 @@ const NAV_ORDER = [
       html, body { height:100%; overflow-x:clip; }
       body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); }
 
-      /* Keyboard focus (helps Lighthouse) */
+      /* Keyboard focus */
       :focus-visible { outline:3px solid #005fcc; outline-offset:2px; }
 
       /* Skip link */
@@ -169,7 +155,6 @@ const NAV_ORDER = [
       nav a:hover, nav a:focus-visible{ color:var(--ink); background:var(--hover-bg); }
       .hamburger{ display:none; background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--ink-muted); }
 
-      /* Mobile menu layout (no dropdowns) */
       @media (max-width:900px){
         header nav{
           position:absolute; top:var(--header-h); right:0; background:#fff;
@@ -295,9 +280,7 @@ const NAV_ORDER = [
             || (match ? match.title : "Embedded content");
           frame.setAttribute("title", t);
         }
-        // Initial pass
         document.querySelectorAll("iframe").forEach(ensureTitle);
-        // Watch for injected iframes (e.g., RealtyVis)
         const mo = new MutationObserver((muts) => {
           for (const m of muts) {
             m.addedNodes?.forEach((n) => {
@@ -307,7 +290,6 @@ const NAV_ORDER = [
           }
         });
         mo.observe(document.documentElement, { subtree: true, childList: true });
-        // Also re-run after window load in case late scripts inject frames
         window.addEventListener("load", () => document.querySelectorAll("iframe").forEach(ensureTitle));
       })();
     </script>
