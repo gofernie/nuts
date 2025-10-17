@@ -89,10 +89,36 @@ const NAV_ORDER = [
     </style>
 
     <style>
+.ski-hill-buttons {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.ski-hill-buttons .btn-link {
+  display: inline-block;
+  background: #0a7bff;
+  color: #fff;
+  padding: 14px 28px;
+  border-radius: 999px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ski-hill-buttons .btn-link:hover {
+  background: #065aa3;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+
       :root {
         --header-h: 52px;
         --bg:#78777c10; --ink:#271f11; --ink-muted:#1f2937; --hover-bg:rgba(243,244,246,.9);
-        --hero-h:70vh; --container-pad:12px; --bleed-fix:2px;
+        --hero-h:40vh; --container-pad:12px; --bleed-fix:2px;
         --container-max: 1200px;
       }
       *,*::before,*::after { box-sizing:border-box; }
