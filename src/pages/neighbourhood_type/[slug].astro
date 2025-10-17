@@ -5,19 +5,8 @@ import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import RealtyVis from "../../components/RealtyVis.astro";
 
-/* --------------- helpers (define BEFORE any use) --------------- */
-const getField = (r:any, k:string) =>
-  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-
-const slugify = (s:string) =>
-  s.toLowerCase()
-    .replace(/&/g, "-and-")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-/* --------------- data --------------- */
+/* ---------------- getStaticPaths ---------------- */
 export async function getStaticPaths() {
-  // Keep SOURCE_URL here so it's always in scope
   const SOURCE_URL =
     import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON ||
     import.meta.env.PUBLIC_CITY_TYPES_JSON ||
@@ -26,6 +15,11 @@ export async function getStaticPaths() {
     "";
 
   if (!SOURCE_URL) return [];
+
+  const getField = (r:any, k:string) =>
+    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+  const slugify = (s:string) =>
+    s.toLowerCase().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
 
   let rows:any[] = [];
   try {
@@ -39,80 +33,104 @@ export async function getStaticPaths() {
     return [];
   }
 
-  const items = rows
-    .map((r:any) => {
-      const rawSlug = getField(r, "slug");
-      const title = getField(r, "title");
-      const slug = rawSlug || (title ? slugify(title) : "");
-      if (!slug) return null;
-      return { params: { slug }, props: { row: r } };
-    })
-    .filter(Boolean);
+  const items = rows.map((r:any) => {
+    const rawSlug = getField(r, "slug");
+    const title = getField(r, "title");
+    const slug = rawSlug || (title ? slugify(title) : "");
+    if (!slug) return null;
+    return { params: { slug }, props: { row: r } };
+  }).filter(Boolean);
 
   return items;
 }
 
+/* ---------------- get ---------------- */
 export async function get({ props }) {
-  const row = props?.row || {};
-  const title = getField(row, "title") || "Neighbourhood Type";
-  const summary = getField(row, "summary");
+  const getField = (r:any, k:string) =>
+    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
-  // RealtyVis config from row/env
+  const row = props?.row || {};
+
+  // Smarter title/summary
+  const city     = getField(row, "city");
+  const area     = getField(row, "area") || getField(row, "neighbourhood") || getField(row, "neighborhood");
+  const type     = getField(row, "type") || getField(row, "property_type") || getField(row, "category");
+  const label    = getField(row, "label") || getField(row, "name");
+  const explicit = getField(row, "title");
+  const rawSlug  = getField(row, "slug");
+
+  function bestTitle() {
+    if (explicit) return explicit;
+    if (label) return label;
+    const parts = [city, area, type].filter(Boolean);
+    if (parts.length) return parts.join(" • ");
+    if (rawSlug) return rawSlug.replace(/-/g, " ").replace(/\b\w/g, m => m.toUpperCase());
+    return "Neighbourhood Type";
+  }
+
+  const pageSummary =
+    getField(row, "summary") ||
+    getField(row, "seo_description") ||
+    getField(row, "description");
+
+  const pageTitle = bestTitle();
+
+  // RealtyVis config
   const rvBlock =
     getField(row, "rv_block") ||
     getField(row, "rv_block_id") ||
     getField(row, "rvblock") ||
     getField(row, "block_id");
 
-  const rvScript =
-    getField(row, "rv_script") ||
-    (import.meta.env.PUBLIC_RV_SCRIPT || "");
-
-  const maybeUrl =
-    getField(row, "rv_url") ||
-    getField(row, "embed_url") ||
-    getField(row, "spare_1");
-
+  const rvScript = getField(row, "rv_script") || (import.meta.env.PUBLIC_RV_SCRIPT || "");
+  const maybeUrl = getField(row, "rv_url") || getField(row, "embed_url") || getField(row, "spare_1");
   const rvEmbedUrl = /^https?:\/\//i.test(maybeUrl) ? maybeUrl : "";
 
-  return { props: { row, title, summary, rvBlock, rvScript, rvEmbedUrl } };
+  // Hero image — eager load for low LCP
+  const heroImg = getField(row, "hero_img") || "/img/hero/fallback-1600x800.jpg";
+
+  return { props: { row, pageTitle, pageSummary, rvBlock, rvScript, rvEmbedUrl, heroImg } };
 }
+
+/* ---------------- expose props ---------------- */
+const { row, pageTitle, pageSummary, rvBlock, rvScript, rvEmbedUrl, heroImg } = Astro.props;
 ---
 
-<Site title={title} seo_title={title} seo_description={summary}>
-  <!-- HERO -->
+<Site title={pageTitle} seo_title={pageTitle} seo_description={pageSummary}>
+  <!-- ✅ HERO: eager load for fast LCP -->
   <div slot="hero" class="hero">
     <picture>
       <img
-        src={heroPath(Astro.props.row?.hero_img)}
-        alt={title}
+        src={heroPath(heroImg)}
+        alt={pageTitle}
         loading="eager"
         fetchpriority="high"
+        decoding="sync"
         style="width:100%;height:50vh;object-fit:cover;object-position:center;"
       />
     </picture>
     <div class="hero-overlay">
-      <h1 class="hero-title">{title}</h1>
-      {summary && <p class="hero-summary">{summary}</p>}
+      <h1 class="hero-title">{pageTitle}</h1>
+      {pageSummary && <p class="hero-summary">{pageSummary}</p>}
     </div>
   </div>
 
   <main class="wrap">
-    {summary && (
+    {pageSummary && (
       <section class="prose mb-10">
-        <p>{summary}</p>
+        <p>{pageSummary}</p>
       </section>
     )}
 
-    <!-- REALTYVIS (lazy hydration on scroll) -->
-    {(Astro.props.rvEmbedUrl || Astro.props.rvBlock) ? (
+    <!-- 🐢 Lazy RealtyVis -->
+    {(rvEmbedUrl || rvBlock) ? (
       <section id="listings" class="mb-16">
         <h2 class="h2 mb-4">Current Listings</h2>
         <RealtyVis
           client:visible
-          blockId={Astro.props.rvBlock}
-          scriptUrl={Astro.props.rvScript}
-          embedUrl={Astro.props.rvEmbedUrl}
+          blockId={rvBlock}
+          scriptUrl={rvScript}
+          embedUrl={rvEmbedUrl}
           minHeight="900px"
         />
       </section>
@@ -120,30 +138,60 @@ export async function get({ props }) {
       <section class="mb-16">
         <div class="note">
           <strong>No RealtyVis config found.</strong>
-          Add <code>rv_block</code> (or <code>rv_url</code>) to this row, or set <code>PUBLIC_RV_SCRIPT</code> in your <code>.env</code>.
+          Add <code>rv_url</code> or <code>rv_block</code> to the sheet.
         </div>
       </section>
+    )}
+
+    {import.meta.env.DEV && (
+      <details class="debug">
+        <summary>Debug (dev only)</summary>
+        <pre>{JSON.stringify({ pageTitle, pageSummary, rvBlock, rvEmbedUrl, heroImg, row }, null, 2)}</pre>
+      </details>
     )}
   </main>
 </Site>
 
 <style>
-  .wrap { max-width: var(--container-max, 1250px); margin-inline: auto; padding-inline: var(--container-pad, 20px); }
+  .wrap {
+    max-width: var(--container-max, 1250px);
+    margin-inline: auto;
+    padding-inline: var(--container-pad, 20px);
+  }
 
   .hero { position: relative; }
   .hero-overlay {
     position: absolute; inset: 0;
     display: grid; place-items: end start;
     padding: clamp(12px, 3vw, 28px);
-    background: linear-gradient(180deg, rgba(0,0,0,0.0) 30%, rgba(0,0,0,0.35) 75%);
+    background: linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.35) 75%);
   }
   .hero-title {
-    color: white; font-size: clamp(24px, 4vw, 44px); line-height: 1.05; margin: 0 0 6px 0;
+    color: white;
+    font-size: clamp(24px, 4vw, 44px);
+    line-height: 1.05;
+    margin: 0 0 6px 0;
+    text-shadow: 0 1px 2px rgba(0,0,0,.35);
   }
   .hero-summary { color: #eef0f2; max-width: 70ch; margin: 0; }
 
   .note {
-    background: #fff8e1; border: 1px solid #ffe19c; color: #7c5b00;
-    padding: 12px 14px; border-radius: 10px;
+    background: #fff8e1;
+    border: 1px solid #ffe19c;
+    color: #7c5b00;
+    padding: 12px 14px;
+    border-radius: 10px;
+  }
+
+  .debug summary { cursor: pointer; font-weight: 600; margin: 1rem 0 .5rem; }
+  .debug pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #0b1020;
+    color: #e5efff;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.35;
   }
 </style>
