@@ -52,7 +52,7 @@ export async function getStaticPaths() {
         summary: get(r, "summary"),
         hero_img: get(r, "hero_img"),
         long_copy: get(r, "long_copy"),
-        cta1: get(r, "cta1"), // RealtyVis Block ID
+        cta1: get(r, "cta1"),
         map_embed: get(r, "map_embed"),
         status: get(r, "status"),
         seo_title: get(r, "seo_title"),
@@ -154,7 +154,7 @@ const pageSeoDesc = (seo_description || summary || "").toString();
   <!-- INTRO -->
   <div class="container intro">
     <h1>{title}</h1>
-    {summary && <p class="copy-base summary">{summary}</p>}
+    {summary && <div class="copy-base summary" set:html={summary}></div>}
   </div>
 
   <!-- LISTINGS -->
@@ -187,13 +187,49 @@ const pageSeoDesc = (seo_description || summary || "").toString();
   <style>
     .intro { margin: 24px auto 20px; }
     .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
-    .summary { font-size: 1.125rem; color: #374151; margin-top: 8px; }
 
-    .copy-base { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-weight: 400; letter-spacing: 0; font-size: 1.05rem; line-height: 1.8; color: #1f2937; }
+    .copy-base { 
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-weight: 400;
+      letter-spacing: 0;
+      font-size: 1.05rem;
+      line-height: 1.8;
+      color: #1f2937;
+    }
     .copy-base p { margin: 0 0 1.25em; }
-    .copy-base h2, .copy-base h3 { font-weight: 700; color:#111827; line-height: 1.3; margin:2em 0 .75em; }
+    .copy-base h2, .copy-base h3 {
+      font-weight: 700;
+      color:#111827;
+      line-height: 1.3;
+      margin:2em 0 .75em;
+    }
     .copy-base h2 { font-size: 1.5rem; border-left: 4px solid #0a7bff; padding-left: .5rem; }
     .copy-base h3 { font-size: 1.25rem; }
+
+    .ski-hill-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    .ski-hill-buttons .btn-link {
+      display: inline-block;
+      background: #0a7bff;
+      color: #fff;
+      padding: 14px 28px;
+      border-radius: 999px;
+      font-size: 1.125rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .ski-hill-buttons .btn-link:hover {
+      background: #065aa3;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
 
     .map-wrap h2 { font-size:1.25rem; margin:8px 0 12px; color:#111827; }
     .map-card { border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
