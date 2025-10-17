@@ -4,12 +4,7 @@ import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import RealtyVis from "../../components/RealtyVis.astro";
 
-/* =========================
-   DEV cache for HMR reloads
-========================= */
-let __CACHE: Array<{ slug: string; props: any }> = [];
-
-/* ---------- utils ---------- */
+/* ---------- small utils ---------- */
 function unescapeHtml(s: string = "") {
   return s
     .replaceAll("&lt;","<").replaceAll("&gt;",">")
@@ -19,9 +14,8 @@ function stripTags(s: string = "") {
   return s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/* ---------- routes ---------- */
+/* ---------- build static paths (no dev cache) ---------- */
 export async function getStaticPaths() {
-  // Try these in order; first one with rows wins
   const candidates = [
     import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON,
     import.meta.env.PUBLIC_TYPES_JSON,
@@ -36,83 +30,60 @@ export async function getStaticPaths() {
         Array.isArray(raw) ? raw :
         Array.isArray(raw?.data) ? raw.data :
         Array.isArray(raw?.rows) ? raw.rows : [];
-      if (list.length) {
-        rows = list;
-        console.log("[neighbourhood_type] source ok:", url, "rows:", rows.length);
-        break;
-      }
-    } catch (e: any) {
-      console.warn("[neighbourhood_type] fetch failed for", url, e?.message || e);
-    }
+      if (list.length) { rows = list; break; }
+    } catch {}
   }
+  if (!rows.length) return [];
 
-  if (!rows.length) {
-    if (__CACHE.length) {
-      console.warn("[neighbourhood_type] using DEV cache (no rows from sources)");
-      return __CACHE.map((n) => ({ params: { slug: n.slug }, props: n.props }));
-    }
-    console.warn("[neighbourhood_type] no data rows available");
-    return [];
-  }
+  const items = rows.map((r:any) => {
+    const title = (r?.title ?? r?.TITLE ?? "").toString().trim();
+    if (!title) return null;
 
-  const items = rows
-    .map((r: any) => {
-      // inline getters (case-insensitive)
-      const title = (r?.title ?? r?.TITLE ?? "").toString().trim();
-      if (!title) return null;
+    const explicit = (r?.slug ?? r?.SLUG ?? "").toString().trim();
+    const computed = title.toLowerCase()
+      .replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+    const slug = (explicit || computed).toLowerCase();
 
-      const explicit = (r?.slug ?? r?.SLUG ?? "").toString().trim();
-      const computed = title
-        .toLowerCase()
-        .replace(/&/g, "-and-")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-      const slug = (explicit || computed).toLowerCase();
+    const status = (r?.status ?? r?.STATUS ?? "").toString().trim().toLowerCase();
+    if (["draft","hidden","inactive"].includes(status) || slug==="index") return null;
 
-      const status = (r?.status ?? r?.STATUS ?? "").toString().trim().toLowerCase();
-      if (["draft", "hidden", "inactive"].includes(status) || slug === "index") return null;
+    const hero_img  = (r?.hero_img ?? r?.HERO_IMG ?? "").toString().trim();
+    const summary   = (r?.summary ?? r?.SUMMARY ?? "").toString().trim();
+    const long_copy = (r?.long_copy ?? r?.LONG_COPY ?? "").toString().trim();
+    const cta1      = (r?.cta1 ?? r?.CTA1 ?? "").toString().trim();
+    const map_raw   = (r?.map_embed ?? r?.MAP_EMBED ?? "").toString().trim();
+    const seo_title = (r?.seo_title ?? r?.SEO_TITLE ?? "").toString().trim();
+    const seo_desc  = (r?.seo_description ?? r?.SEO_DESCRIPTION ?? "").toString().trim();
 
-      const hero_img  = (r?.hero_img ?? r?.HERO_IMG ?? "").toString().trim();
-      const summary   = (r?.summary ?? r?.SUMMARY ?? "").toString().trim();
-      const long_copy = (r?.long_copy ?? r?.LONG_COPY ?? "").toString().trim();
-      const cta1      = (r?.cta1 ?? r?.CTA1 ?? "").toString().trim();
-      const map_raw   = (r?.map_embed ?? r?.MAP_EMBED ?? "").toString().trim();
-      const seo_title = (r?.seo_title ?? r?.SEO_TITLE ?? "").toString().trim();
-      const seo_desc  = (r?.seo_description ?? r?.SEO_DESCRIPTION ?? "").toString().trim();
+    const props = {
+      title,
+      summary,
+      hero: heroPath(hero_img),
+      long_copy,
+      cta1,
+      map_embed: (() => {
+        const v = map_raw;
+        if (!v) return "";
+        const m = v.match(/src="([^"]+)"/i);
+        if (m?.[1]) return m[1];
+        if (v.includes("google.com/maps") && v.includes("embed")) return v;
+        if (v.includes("google.com/maps")) {
+          try {
+            const u = new URL(v);
+            const q = u.search ? `${u.search}&output=embed` : "?output=embed";
+            return `https://www.google.com/maps${q}`;
+          } catch {}
+        }
+        return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
+      })(),
+      seo_title,
+      seo_description: seo_desc,
+    };
 
-      const props = {
-        title,
-        summary,
-        hero: heroPath(hero_img),
-        long_copy,
-        cta1,
-        map_embed: (() => {
-          const v = map_raw;
-          if (!v) return "";
-          const m = v.match(/src="([^"]+)"/i);
-          if (m?.[1]) return m[1];
-          if (v.includes("google.com/maps") && v.includes("embed")) return v;
-          if (v.includes("google.com/maps")) {
-            try {
-              const u = new URL(v);
-              const q = u.search ? `${u.search}&output=embed` : "?output=embed";
-              return `https://www.google.com/maps${q}`;
-            } catch {}
-          }
-          return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
-        })(),
-        seo_title,
-        seo_description: seo_desc,
-      };
+    return { slug, props };
+  }).filter(Boolean) as Array<{slug:string; props:any}>;
 
-      return { slug, props };
-    })
-    .filter(Boolean) as Array<{ slug: string; props: any }>;
-
-  console.log("[neighbourhood_type] built paths:", items.map((i) => i.slug));
-  __CACHE = items; // refresh dev cache
-
-  return items.map((n) => ({ params: { slug: n.slug }, props: n.props }));
+  return items.map(n => ({ params:{ slug:n.slug }, props:n.props }));
 }
 
 /* ---------- page props ---------- */
@@ -130,7 +101,24 @@ const {
 const summaryHtml  = unescapeHtml(summary);
 const longCopyHtml = unescapeHtml(long_copy);
 const pageSeoTitle = (seo_title || title || "Neighbourhood Type").toString();
-const pageSeoDesc  = (seo_description || stripTags(summaryHtml) || "").slice(0, 160);
+const pageSeoDesc  = (seo_description || stripTags(summaryHtml) || "").slice(0,160);
+
+/* ---------- Buttons config for the Ski Hill trio ---------- */
+const currentSlug = (Astro.params?.slug || "").toLowerCase();
+// Detect the ski-hill cluster and derive the base "fernie-ski-hill"
+const SKI_TYPES = ["condos","townhomes","homes"];
+const baseMatch = currentSlug.match(/^(.*?)(?:-(condos|townhome|townhomes|homes))$/);
+const skiBase   = baseMatch ? baseMatch[1] : ""; // e.g. "fernie-ski-hill"
+const showSkiButtons = Boolean(skiBase); // only on those three pages
+
+// Build link objects with active-state
+const skiButtons = showSkiButtons
+  ? SKI_TYPES.map((t) => {
+      const target = `/neighbourhood_type/${skiBase}-${t}`;
+      const isActive = currentSlug === `${skiBase}-${t}`;
+      return { href: target, label: t[0].toUpperCase()+t.slice(1), active: isActive };
+    })
+  : [];
 ---
 
 <Site
@@ -163,7 +151,20 @@ const pageSeoDesc  = (seo_description || stripTags(summaryHtml) || "").slice(0, 
   <!-- INTRO -->
   <div class="container intro">
     <h1>{title}</h1>
+
     {summaryHtml && <div class="copy-base summary" set:html={summaryHtml}></div>}
+
+    {showSkiButtons && (
+      <div class="ski-hill-buttons" style="margin-top:16px">
+        {skiButtons.map(b => (
+          <a
+            href={b.href}
+            class={`btn-link${b.active ? " btn-active" : ""}`}
+            aria-current={b.active ? "page" : undefined}
+          >{b.label}</a>
+        ))}
+      </div>
+    )}
   </div>
 
   <!-- LISTINGS -->
@@ -207,5 +208,8 @@ const pageSeoDesc  = (seo_description || stripTags(summaryHtml) || "").slice(0, 
     .map-card { border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
 
     .long-copy { margin:40px 0 48px; }
+
+    /* Small active-state tweak for the buttons (base styles live in Site.astro) */
+    .btn-active { box-shadow: 0 0 0 2px #065aa3 inset; }
   </style>
 </Site>
