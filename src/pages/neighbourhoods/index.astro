@@ -111,6 +111,7 @@ const randomized = shuffle(items);
     </Fragment>
   )}
 
+  <!-- HERO -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -127,11 +128,24 @@ const randomized = shuffle(items);
 
     <div class="hero-overlay">
       <div class="container hero-container">
-        <h1 class="hero-title">{header?.title || pageSeoTitle}</h1>
+        <h1
+          class="hero-title"
+          style="
+            left: var(--container-pad);
+            right: auto;
+            bottom: clamp(16px, 3vw, 28px);
+            margin: 0;
+            text-align: left;
+            transform: none;
+          "
+        >
+          {header?.title || pageSeoTitle}
+        </h1>
       </div>
     </div>
   </section>
 
+  <!-- SUMMARY -->
   <div class="container">
     {(header?.summary || pageSeoDesc) && (
       <div class="prose prose--wide summary">
@@ -185,8 +199,29 @@ const randomized = shuffle(items);
     )}
   </div>
 
+  <script is:inline>
+    // Force left alignment on load to beat any JS/CSS overrides
+    window.addEventListener('load', () => {
+      const h = document.querySelector('.hero-title');
+      if (!h) return;
+      Object.assign(h.style, {
+        left: 'var(--container-pad)',
+        right: 'auto',
+        bottom: 'clamp(16px, 3vw, 28px)',
+        margin: '0',
+        textAlign: 'left',
+        transform: 'none',
+        position: 'absolute',
+        display: 'inline-block',
+        width: 'auto',
+        maxWidth: 'calc(100% - (var(--container-pad) * 2))'
+      });
+    });
+  </script>
+
   <style>
     :root { --container-max: 1200px; --container-pad: 1rem; }
+
     .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
     .hero-bleed {
@@ -200,38 +235,25 @@ const randomized = shuffle(items);
     .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; z-index:0; }
     .hero-scrim { position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); z-index:1; }
 
-    .hero-overlay {
-      position:absolute; inset:0;
-      display:flex; align-items:flex-end;
-      justify-content:flex-start;
-      padding-bottom: clamp(16px, 3vw, 28px);
-      pointer-events:none; z-index:2;
-    }
-    .hero-overlay .container {
-      padding-inline: var(--container-pad) !important;
-    }
-    .hero-title {
-      margin: 0;
-      font-size: clamp(2rem, 4.5vw, 3rem);
-      line-height: 1.1;
-      font-weight: 800;
-      color: #fff;
-      text-shadow: 0 2px 8px rgba(0,0,0,.45);
-      letter-spacing: .2px;
-      text-align: left;
-    }
+    .hero-overlay { position:absolute; inset:0; pointer-events:none; z-index:2; }
 
-    /* force left alignment */
-    .hero-overlay { justify-content: flex-start !important; text-align: left !important; }
-    .hero-overlay .container,
-    .hero-container { text-align: left !important; }
-    .hero-overlay .hero-title {
-      display: block !important;
-      text-align: left !important;
-      margin: 0 !important;
-      margin-left: 0 !important;
-      margin-right: 0 !important;
-      transform: none !important;
+    .hero-container { position:relative; height:100%; max-width:var(--container-max); margin-inline:auto; padding-inline:var(--container-pad); }
+
+    .hero-title {
+      position:absolute !important;
+      left:var(--container-pad) !important;
+      right:auto !important;
+      bottom:clamp(16px, 3vw, 28px) !important;
+      margin:0 !important;
+      text-align:left !important;
+      display:inline-block !important;
+      width:auto !important;
+      max-width:calc(100% - (var(--container-pad) * 2)) !important;
+      font-size:clamp(2rem, 4.5vw, 3rem);
+      line-height:1.1;
+      font-weight:800;
+      color:#fff;
+      text-shadow:0 2px 8px rgba(0,0,0,.45);
     }
 
     .summary { margin: 18px 0 26px; }
@@ -268,6 +290,7 @@ const randomized = shuffle(items);
     .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
 
     .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
+
     .error { color: #b00; }
   </style>
 </Site>
