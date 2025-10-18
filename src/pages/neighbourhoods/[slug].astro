@@ -1,5 +1,5 @@
 ---
-// File: src/pages/neighbourhoods/[slug].astro
+// File: src/pages/neighbourhoods/[slug].astro (HERO SECTION ALIGNED LEFT)
 export const prerender = false;
 
 import Site from "../../layouts/Site.astro";
@@ -82,7 +82,7 @@ const isHtml = !!rawCta && !isRvId;
     </Fragment>
   )}
 
-  <!-- HERO -->
+  <!-- ✅ HERO -->
   <section class="hero-bleed">
     <img
       src={hero}
@@ -90,17 +90,18 @@ const isHtml = !!rawCta && !isRvId;
       fetchpriority="high"
       loading="eager"
       decoding="async"
-      width="2000" height="1000"
+      width="2000"
+      height="1000"
     />
     <div class="hero-scrim" aria-hidden="true"></div>
     <div class="hero-overlay">
-      <div class="hero-title-wrap">
+      <div class="container">
         <h1 class="hero-title">{title}</h1>
       </div>
     </div>
   </section>
 
-  <!-- Body -->
+  <!-- BODY -->
   <main class="container neigh-body">
     {summary && (
       <section class="intro">
@@ -146,120 +147,80 @@ const isHtml = !!rawCta && !isRvId;
     )}
   </main>
 
-  <!-- RV lazy loader -->
-  <script is:inline>
-    (() => {
-      const shells = Array.from(document.querySelectorAll('.rv-lazy-shell'));
-      if (!shells.length) return;
-      const loadShell = (el) => {
-        if (!el || el.dataset.rvReady === "true") return;
-        const scriptUrl = (el.getAttribute('data-rv-script') || "").trim();
-        const rvId = el.getAttribute('data-rv-id');
-        const rvHtml = el.getAttribute('data-rv-html');
-
-        if (rvId) {
-          el.innerHTML = `<div data-rv-block="${rvId}"></div>`;
-          if (scriptUrl && !window.__rvScriptLoading) {
-            window.__rvScriptLoading = true;
-            const s = document.createElement('script');
-            s.src = scriptUrl;
-            s.async = true;
-            s.onload = () => { window.__rvScriptLoaded = true; try { window.RealtyVis?.scan?.(); } catch {} };
-            s.onerror = (e) => console.error("Failed to load RealtyVis script", e);
-            document.head.appendChild(s);
-          } else if (window.__rvScriptLoaded) {
-            try { window.RealtyVis?.scan?.(); } catch {}
-          }
-        } else if (rvHtml) {
-          el.innerHTML = rvHtml;
-        }
-        el.dataset.rvReady = "true";
-      };
-
-      document.addEventListener('click', (e) => {
-        const btn = e.target.closest('.rv-load-btn');
-        if (!btn) return;
-        const shell = btn.closest('.rv-lazy-shell');
-        loadShell(shell);
-      });
-
-      if ('IntersectionObserver' in window) {
-        const io = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => { if (entry.isIntersecting) { loadShell(entry.target); io.unobserve(entry.target); } });
-        }, { rootMargin: '200px 0px' });
-        shells.forEach((el) => io.observe(el));
-      } else {
-        shells.forEach((el) => { const btn = el.querySelector('.rv-load-btn'); if (btn) btn.style.display = 'inline-flex'; });
-      }
-    })();
-  </script>
-
   <style>
-    .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
+    .container {
+      max-width: 1200px;
+      margin-inline: auto;
+      padding: 0 20px;
+      box-sizing: border-box;
+    }
 
+    /* HERO */
     .hero-bleed {
       position: relative;
-      left:50%; right:50%;
-      margin-left:-50vw; margin-right:-50vw;
-      width:100vw; max-width:100vw;
+      left: 50%;
+      right: 50%;
+      margin-left: -50vw;
+      margin-right: -50vw;
+      width: 100vw;
+      max-width: 100vw;
       height: clamp(300px, 38vw, 520px);
       overflow: hidden;
       background: #000;
     }
-    .hero-bleed img{
-      display:block;
-      width:100%;
+    .hero-bleed img {
+      display: block;
+      width: 100%;
       height: calc(100% + 1px);
       object-fit: cover;
       object-position: center;
     }
     .hero-scrim {
-      position:absolute; inset:0;
+      position: absolute;
+      inset: 0;
       background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
-      z-index:1;
+      z-index: 1;
     }
-    .hero-overlay{
-      position:absolute; inset:0; z-index:2;
-      display:flex; align-items:flex-end;
-      justify-content:center;       /* ✅ center container */
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      align-items: flex-end;
       padding-bottom: clamp(16px, 3vw, 28px);
-      pointer-events:none;
+      pointer-events: none;
     }
-    .hero-title-wrap{
-      width:100%;
-      max-width: 1200px;
-      margin-inline:auto;
-      padding: 0 1rem;
-      box-sizing: border-box;
-      text-align:left;
-    }
-    .hero-title{
-      color:#fff;
-      font-size: clamp(2rem, 4.5vw, 3rem);
-      font-weight: 800;
-      line-height: 1.1;
+    .hero-title {
       margin: 0;
+      color: #fff;
+      font-weight: 800;
+      font-size: clamp(2rem, 4.5vw, 3rem);
+      line-height: 1.1;
       text-shadow: 0 2px 8px rgba(0,0,0,.45);
+      text-align: left;
     }
 
+    /* BODY */
     .neigh-body { padding-top: 0; }
-    .intro{ margin: 22px 0 24px; }
-    .long-copy{ font-size:1.05rem; line-height:1.75; color:#1f2937; }
-    .long-copy p{ margin:0 0 1.2em; }
-    .long-copy h2,.long-copy h3{ font-weight:700; color:#111827; line-height:1.3; margin:2em 0 .75em; }
-    .long-copy h2{ font-size:1.35rem; border-left:4px solid #0a7bff; padding-left:.5rem; }
-    .long-copy h3{ font-size:1.2rem; }
+    .intro { margin: 22px 0 24px; }
+    .long-copy { font-size: 1.05rem; line-height: 1.75; color: #1f2937; }
+    .long-copy p { margin: 0 0 1.2em; }
+    .long-copy h2, .long-copy h3 { font-weight: 700; color: #111827; line-height: 1.3; margin: 2em 0 .75em; }
+    .long-copy h2 { font-size: 1.35rem; border-left: 4px solid #0a7bff; padding-left: .5rem; }
+    .long-copy h3 { font-size: 1.2rem; }
 
-    .rv-lazy-shell{ position:relative; border-radius:14px; min-height:180px; }
-    .rv-skeleton{ display:flex; flex-direction:column; gap:14px; align-items:flex-start; }
-    .rv-skel-bar{ width:180px; height:16px; border-radius:6px; background:linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
-    .rv-skel-grid{ display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:12px; width:100%; }
-    .rv-skel-card{ height:120px; border-radius:12px; background:linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
-    .rv-load-btn{ display:none; padding:10px 16px; border-radius:999px; border:1px solid #d1d5db; background:#fff; font-weight:600; cursor:pointer; }
+    /* MAP */
+    .map-wrap { margin: 28px 0; }
+    .map-wrap h2 { font-size: 1.25rem; margin: 8px 0 12px; color: #111827; }
+    .map-card { border: 1px solid #eee; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,0.1); }
+
+    /* RV skeleton */
+    .rv-lazy-shell { position: relative; border-radius: 14px; min-height: 180px; }
+    .rv-skeleton { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+    .rv-skel-bar { width: 180px; height: 16px; border-radius: 6px; background: linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
+    .rv-skel-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; width: 100%; }
+    .rv-skel-card { height: 120px; border-radius: 12px; background: linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
+    .rv-load-btn { display: none; padding: 10px 16px; border-radius: 999px; border: 1px solid #d1d5db; background: #fff; font-weight: 600; cursor: pointer; }
     @keyframes skel { 0%{background-position:-200px 0} 100%{background-position:200px 0} }
-
-    .map-wrap{ margin:28px 0; }
-    .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
-    .map-card{ border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
   </style>
 </Site>
