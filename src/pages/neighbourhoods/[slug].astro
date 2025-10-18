@@ -8,22 +8,15 @@ import { heroPath } from "../../lib/paths";
 
 const slugParam = (Astro.params.slug || "").toString().trim();
 
-/* ---------- source (prefer neighbourhoods JSON, then sheet) ---------- */
 const SOURCE_URL =
   import.meta.env.PUBLIC_NEIGHBOURHOODS_JSON ||
   import.meta.env.PUBLIC_SHEET_JSON ||
   "";
 
-/* ---------- helpers ---------- */
 const get = (r:any,k:string)=>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+const slugify = (s:string)=> s.toLowerCase().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
 
-const slugify = (s:string)=> s.toLowerCase()
-  .replace(/&/g,"-and-")
-  .replace(/[^a-z0-9]+/g,"-")
-  .replace(/^-+|-+$/g,"");
-
-/* ---------- fetch matching row ---------- */
 let row:any = null;
 let fetchError: string | null = null;
 
@@ -48,7 +41,6 @@ if (!SOURCE_URL) {
   }
 }
 
-/* ---------- derived props ---------- */
 const title        = (row && get(row,"title"))        || "Neighbourhood";
 const summary      = (row && get(row,"summary"))      || "";
 const long_copy    = (row && get(row,"long_copy"))    || "";
@@ -60,7 +52,6 @@ const cta1         = (row && (get(row,"cta1") || get(row,"rv_block"))) || "";
 const pageSeoTitle = (row && get(row,"seo_title"))       || title;
 const pageSeoDesc  = (row && get(row,"seo_description")) || summary;
 
-/* ---------- map embed cleanup ---------- */
 function resolveMapSrc(v:string): string {
   const t = (v || "").trim();
   if (!t) return "";
@@ -78,26 +69,20 @@ function resolveMapSrc(v:string): string {
 }
 const map_embed = resolveMapSrc(map_embedRaw);
 
-/* ---------- RealtyVis ---------- */
 const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
 const rawCta = (cta1 || "").trim();
 const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
 const isHtml = !!rawCta && !isRvId;
 ---
 
-<Site
-  showHeader={true}
-  title={title}
-  seo_title={pageSeoTitle}
-  seo_description={pageSeoDesc}
->
+<Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
   {hero && (
     <Fragment slot="head">
       <link rel="preload" as="image" href={hero} fetchpriority="high" />
     </Fragment>
   )}
 
-  <!-- Full-bleed hero -->
+  <!-- HERO -->
   <section class="hero-bleed">
     <img
       src={hero}
@@ -107,12 +92,18 @@ const isHtml = !!rawCta && !isRvId;
       decoding="async"
       width="2000" height="1000"
     />
+    <div class="hero-scrim" aria-hidden="true"></div>
     <div class="hero-overlay">
-      <h1 class="hero-title">{title}</h1>
+      <!-- mirror page container so H1 aligns with content -->
+      <div class="container hero-title-wrap">
+        <h1 class="hero-title" style="text-align:left;margin:0;display:block;">
+          {title}
+        </h1>
+      </div>
     </div>
   </section>
 
-  <!-- Body constrained to container -->
+  <!-- Body -->
   <main class="container neigh-body">
     {summary && (
       <section class="intro">
@@ -158,12 +149,11 @@ const isHtml = !!rawCta && !isRvId;
     )}
   </main>
 
-  <!-- Lazy loader for RV -->
+  <!-- RV lazy loader -->
   <script is:inline>
     (() => {
       const shells = Array.from(document.querySelectorAll('.rv-lazy-shell'));
       if (!shells.length) return;
-
       const loadShell = (el) => {
         if (!el || el.dataset.rvReady === "true") return;
         const scriptUrl = (el.getAttribute('data-rv-script') || "").trim();
@@ -177,10 +167,7 @@ const isHtml = !!rawCta && !isRvId;
             const s = document.createElement('script');
             s.src = scriptUrl;
             s.async = true;
-            s.onload = () => {
-              window.__rvScriptLoaded = true;
-              try { window.RealtyVis?.scan?.(); } catch {}
-            };
+            s.onload = () => { window.__rvScriptLoaded = true; try { window.RealtyVis?.scan?.(); } catch {} };
             s.onerror = (e) => console.error("Failed to load RealtyVis script", e);
             document.head.appendChild(s);
           } else if (window.__rvScriptLoaded) {
@@ -189,7 +176,6 @@ const isHtml = !!rawCta && !isRvId;
         } else if (rvHtml) {
           el.innerHTML = rvHtml;
         }
-
         el.dataset.rvReady = "true";
       };
 
@@ -202,55 +188,67 @@ const isHtml = !!rawCta && !isRvId;
 
       if ('IntersectionObserver' in window) {
         const io = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              loadShell(entry.target);
-              io.unobserve(entry.target);
-            }
-          });
+          entries.forEach((entry) => { if (entry.isIntersecting) { loadShell(entry.target); io.unobserve(entry.target); } });
         }, { rootMargin: '200px 0px' });
         shells.forEach((el) => io.observe(el));
       } else {
-        shells.forEach((el) => {
-          const btn = el.querySelector('.rv-load-btn');
-          if (btn) btn.style.display = 'inline-flex';
-        });
+        shells.forEach((el) => { const btn = el.querySelector('.rv-load-btn'); if (btn) btn.style.display = 'inline-flex'; });
       }
     })();
   </script>
 
   <style>
-    /* Container guard */
-    :where(main.container.neigh-body){
-      max-width: var(--container-max, 1200px);
-      margin-inline: auto;
-      padding-inline: var(--container-pad, 20px);
-    }
+    /* Container */
+    .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
 
-    /* --- HERO FIX --- */
-    .hero-bleed { 
-      position: relative; 
-      line-height: 0;
-      font-size: 0;
+    /* HERO (same sizing as index, no seam) */
+    .hero-bleed {
+      position: relative;
+      left:50%; right:50%;
+      margin-left:-50vw; margin-right:-50vw;
+      width:100vw; max-width:100vw;
+      height: clamp(300px, 38vw, 520px);
+      overflow: hidden;
+      background: #000; /* hides any subpixel line behind the image */
     }
     .hero-bleed img{
       display:block;
       width:100%;
-      height:55vh;
-      object-fit:cover;
-      object-position:center;
+      height: calc(100% + 1px);   /* overfill by 1px to kill grey seam */
+      object-fit: cover;
+      object-position: center;
     }
-    /* Optional anti-seam fallback */
-    /* .hero-bleed img { height: calc(55vh + 1px); } */
-
+    .hero-scrim {
+      position:absolute; inset:0;
+      background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
+      z-index:1;
+    }
     .hero-overlay{
-      position:absolute; inset:0; display:grid; place-items:end start;
-      padding:clamp(12px,3vw,28px);
-      background:linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,.35) 75%);
+      position:absolute; inset:0; z-index:2;
+      display:flex; align-items:flex-end; justify-content:flex-start;
+      padding-bottom: clamp(16px, 3vw, 28px);
+      pointer-events:none;
     }
-    .hero-title{ color:#fff; font-size:clamp(28px,4.5vw,48px); margin:0 0 6px; text-shadow:0 1px 2px rgba(0,0,0,.35); }
+    /* ✅ mirror .container exactly so edges line up */
+    .hero-title-wrap{
+      width:100%;
+      max-width: 1200px;
+      margin-inline:auto;
+      padding: 0 1rem;
+      box-sizing: border-box;
+      text-align:left;            /* no grid tricks */
+    }
+    .hero-title{
+      color:#fff;
+      font-size: clamp(2rem, 4.5vw, 3rem);
+      font-weight: 800;
+      line-height: 1.1;
+      margin: 0;
+      text-shadow: 0 2px 8px rgba(0,0,0,.45);
+    }
 
-    /* body */
+    /* Body */
+    .neigh-body { padding-top: 0; }
     .intro{ margin: 22px 0 24px; }
     .long-copy{ font-size:1.05rem; line-height:1.75; color:#1f2937; }
     .long-copy p{ margin:0 0 1.2em; }
@@ -258,7 +256,7 @@ const isHtml = !!rawCta && !isRvId;
     .long-copy h2{ font-size:1.35rem; border-left:4px solid #0a7bff; padding-left:.5rem; }
     .long-copy h3{ font-size:1.2rem; }
 
-    /* RV skeleton */
+    /* RV skeleton (unchanged) */
     .rv-lazy-shell{ position:relative; border-radius:14px; min-height:180px; }
     .rv-skeleton{ display:flex; flex-direction:column; gap:14px; align-items:flex-start; }
     .rv-skel-bar{ width:180px; height:16px; border-radius:6px; background:linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
@@ -266,7 +264,6 @@ const isHtml = !!rawCta && !isRvId;
     .rv-skel-card{ height:120px; border-radius:12px; background:linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
     .rv-load-btn{ display:none; padding:10px 16px; border-radius:999px; border:1px solid #d1d5db; background:#fff; font-weight:600; cursor:pointer; }
     @keyframes skel { 0%{background-position:-200px 0} 100%{background-position:200px 0} }
-    @media (max-width: 900px){ .rv-skel-grid{ grid-template-columns: repeat(2,minmax(0,1fr)); } }
 
     .map-wrap{ margin:28px 0; }
     .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }

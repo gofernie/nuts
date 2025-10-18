@@ -11,7 +11,7 @@ type Row = {
   slug?: string;
   title?: string;
   summary?: string;
-  long_copy?: string;        // 👈 add this
+  long_copy?: string;
   hero_img?: string;
   status?: string;
   seo_title?: string;
@@ -42,7 +42,7 @@ const normalize = (r:any): Row => {
     slug: get(r,"slug") || computedSlug,
     title,
     summary: get(r,"summary"),
-    long_copy: get(r,"long_copy"),            // 👈 read long_copy (col L)
+    long_copy: get(r,"long_copy"),
     hero_img: get(r,"hero_img"),
     status: get(r,"status"),
     seo_title: get(r,"seo_title"),
@@ -65,7 +65,7 @@ try {
 
   const normalized = rows.map(normalize);
 
-  // Robust header detection
+  // header detection
   const bySlugIndex   = normalized.find(r => (r.slug ?? "").toLowerCase().trim()   === "index");
   const byTitleIndex  = normalized.find(r => (r.title ?? "").toLowerCase().trim()  === "index");
   const byStatusIndex = normalized.find(r => (r.status ?? "").toLowerCase().trim() === "index");
@@ -74,7 +74,7 @@ try {
 
   header = bySlugIndex ?? byTitleIndex ?? byStatusIndex ?? byTitlePT ?? withContent ?? null;
 
-  // Visible cards only (no index/drafts/hidden/inactive)
+  // cards
   items = normalized.filter((r) =>
     r.slug && r.title &&
     (r.slug ?? "").toLowerCase().trim()   !== "index" &&
@@ -99,14 +99,10 @@ const resolveImg = (v?: string) => {
 };
 
 const heroSrc = resolveImg(header?.hero_img);
-
-// ✅ Intro priority: long_copy → summary → seo_description
 const heroH1       = header?.title || "Property Types";
 const introText    = (header?.long_copy || header?.summary || header?.seo_description || "").trim();
 const pageSeoTitle = header?.seo_title || heroH1;
-// ✅ Meta description comes strictly from seo_description (sheet column)
 const pageSeoDesc  = (header?.seo_description || "").trim();
-
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
@@ -130,14 +126,18 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
         height="1000"
       />
     )}
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="hero-overlay">
+      <div class="hero-container">
+        <h1 class="hero-title">{heroH1}</h1>
+      </div>
+    </div>
   </section>
 
   <div class="container">
     <header class="intro">
-      <h1>{heroH1}</h1>
       {introText && (
         <div class="prose prose--compact">
-          <!-- set:html lets your spreadsheet include light markup like <p> -->
           <p set:html={introText}></p>
         </div>
       )}
@@ -166,7 +166,7 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
                     alt={n.title}
                     loading="lazy"
                     decoding="async"
-                    onerror={`
+                    onerror={` 
                       if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
                       else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
                       else { const ph = document.createElement('div'); ph.className = 'ph'; ph.setAttribute('aria-hidden','true'); ph.textContent = 'No image'; this.replaceWith(ph); }
@@ -190,69 +190,68 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
   </div>
 
   <style>
-    .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
+    :root { --container-max: 1200px; --container-pad: 1rem; }
+    .container { max-width: var(--container-max); margin-inline: auto; padding: 0 var(--container-pad); }
 
+    /* ---------- HERO ---------- */
+    .hero-bleed {
+      position:relative;
+      left:50%; right:50%;
+      margin-left:-50vw; margin-right:-50vw;
+      width:100vw; max-width:100vw;
+      height: clamp(300px, 38vw, 520px);
+      overflow:hidden; background:#e5e7eb;
+      line-height:0; font-size:0;
+    }
+    .hero-bleed img { width:100%; height:calc(100% + 1px); display:block; object-fit:cover; object-position:center; }
+    .hero-scrim { position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); z-index:5; }
+
+    /* bottom-left placement */
+    .hero-overlay {
+      position:absolute; inset:0; z-index:10;
+      display:flex; align-items:flex-end; justify-content:flex-start;
+      padding-bottom:clamp(16px,3vw,28px);
+      pointer-events:none;
+    }
+
+    .hero-container { width:100%; max-width:var(--container-max); margin-inline:auto; padding-inline:var(--container-pad); }
+
+    .hero-title {
+      position:relative; z-index:11;
+      margin:0; text-align:left;
+      color:#fff; font-weight:800; line-height:1.1;
+      font-size:clamp(2rem,4.5vw,3rem);
+      text-shadow:0 2px 8px rgba(0,0,0,.45);
+      display:inline-block;
+      background:none;  /* 🧼 no background box */
+      padding:0;
+    }
+
+    /* Intro */
     .intro { margin: 20px 0 30px; text-align: left; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 6px; color: #111827; }
-
-    .prose {
-      max-width: 70ch;
-      font-size: 1rem;
-      line-height: 1.65;
-      color: #1f2937;
-    }
+    .prose { max-width: 70ch; font-size: 1rem; line-height: 1.65; color: #1f2937; }
     .prose--compact p { margin: 0; }
-    .intro .prose { max-width: 100%; } /* full width intro */
+    .intro .prose { max-width: 100%; }
 
-    /* Grid: 3 → 2 → 1 */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 16px;
-    }
-    @media (max-width: 900px)  { .grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
-    @media (max-width: 640px)  { .grid { grid-template-columns: 1fr; } }
+    /* Grid */
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
 
-    .card {
-      display: flex; flex-direction: column;
-      background: #fff;
-      border-radius: 14px; overflow: hidden;
-      border: 1px solid #eee; text-decoration: none; color: inherit;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      transform: translateY(0);
-      transition: transform .25s ease, box-shadow .25s ease;
-    }
+    .card { display:flex; flex-direction:column; background:#fff; border-radius:14px; overflow:hidden; border:1px solid #eee; text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,0.05); transform:translateY(0); transition:transform .25s ease, box-shadow .25s ease; }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 
-    .thumb { position: relative; background: #f6f6f6; overflow: hidden; aspect-ratio: 16 / 10; }
-    .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
-    .card:hover .thumb img { transform: scale(1.03); }
+    .thumb { position:relative; background:#f6f6f6; overflow:hidden; aspect-ratio:16/10; }
+    .thumb img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; transition:transform .35s ease; }
+    .card:hover .thumb img { transform:scale(1.03); }
 
-    .overlay {
-      position: absolute; inset: 0; display: flex; align-items: flex-end;
-      pointer-events: none;
-      background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
-    }
-    .overlay .title {
-      color: #fff; font-weight: 800; letter-spacing: .2px;
-      font-size: clamp(1rem, 1.6vw, 1.3rem);
-      padding: 12px 14px;
-      text-shadow: 0 1px 2px rgba(0,0,0,.45);
-    }
+    .overlay { position:absolute; inset:0; display:flex; align-items:flex-end; pointer-events:none; background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); }
+    .overlay .title { color:#fff; font-weight:800; letter-spacing:.2px; font-size:clamp(1rem,1.6vw,1.3rem); padding:12px 14px; text-shadow:0 1px 2px rgba(0,0,0,.45); }
 
     .body { padding: 10px 12px 14px; }
     .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
 
-    .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
-
-    .hero-bleed {
-      position:relative; left:50%; right:50%;
-      margin-left:-50vw; margin-right:-50vw;
-      width:100vw; max-width:100vw;
-      height: clamp(300px, 38vw, 520px);
-      overflow:hidden; background:#e5e7eb; display:block;
-    }
-    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
+    .ph { position:absolute; inset:0; display:grid; place-items:center; font-size:12px; color:#999; background:#f6f6f6; }
 
     .error { color: #b00; }
   </style>

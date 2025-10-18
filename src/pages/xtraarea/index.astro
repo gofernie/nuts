@@ -35,7 +35,7 @@ const slugify = (v:string) =>
     .replace(/[^a-z0-9]+/g,"-")
     .replace(/^-+|-+$/g,"");
 
-const normalize = (r:any) => {
+const normalize = (r:any): Row => {
   const title = get(r,"title");
   const computedSlug = slugify(title || "");
   return {
@@ -50,7 +50,7 @@ const normalize = (r:any) => {
     cta1: get(r,"cta1"),
     cta2: get(r,"cta2"),
     cta3: get(r,"cta3"),
-  } as Row;
+  };
 };
 
 try {
@@ -104,7 +104,7 @@ const resolveImg = (v?: string) => {
 const heroSrc = resolveImg(header?.hero_img);
 
 // Intro priority: long_copy → summary → seo_description
-const heroH1       = header?.title || "Xtraarea";
+const heroH1       = header?.title || "Other Areas";
 const introText    = (header?.long_copy || header?.summary || header?.seo_description || "").trim();
 const pageSeoTitle = header?.seo_title || heroH1;
 // Meta description comes **only** from seo_description
@@ -119,7 +119,7 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
     </Fragment>
   )}
 
-  <!-- HERO -->
+  <!-- HERO (full bleed with bottom-left H1) -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -132,15 +132,18 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
         height="1000"
       />
     )}
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="hero-overlay">
+      <div class="hero-container">
+        <h1 class="hero-title">{heroH1}</h1>
+      </div>
+    </div>
   </section>
 
   <div class="container">
     <header class="intro">
-      <h1>{heroH1}</h1>
       {introText && (
-        <div class="prose prose--compact">
-          <p set:html={introText}></p>
-        </div>
+        <article class="summary" set:html={introText}></article>
       )}
     </header>
 
@@ -191,19 +194,36 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
   </div>
 
   <style>
-    .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
+    :root { --container-max: 1200px; --container-pad: 1rem; }
 
-    .intro { margin: 20px 0 30px; text-align: left; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 6px; color: #111827; }
+    .container { max-width: var(--container-max); margin-inline: auto; padding: 0 var(--container-pad); }
 
-    .prose {
-      max-width: 70ch;
-      font-size: 1rem;
-      line-height: 1.65;
-      color: #1f2937;
+    /* ---------- HERO ---------- */
+    .hero-bleed {
+      position:relative;
+      left:50%; right:50%;
+      margin-left:-50vw; margin-right:-50vw;
+      width:100vw; max-width:100vw;
+      height: clamp(300px, 38vw, 520px);
+      overflow:hidden; background:#e5e7eb;
+      line-height:0; font-size:0;
     }
-    .prose--compact p { margin: 0; }
-    .intro .prose { max-width: 100%; } /* full width intro */
+    .hero-bleed img { width:100%; height:calc(100% + 1px); display:block; object-fit:cover; object-position:center; }
+    .hero-scrim { position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); z-index:5; }
+    .hero-overlay { position:absolute; inset:0; z-index:10; display:flex; align-items:flex-end; justify-content:flex-start; padding-bottom:clamp(16px,3vw,28px); pointer-events:none; }
+    .hero-container { width:100%; max-width:var(--container-max); margin-inline:auto; padding-inline:var(--container-pad); }
+    .hero-title { margin:0; color:#fff; font-weight:800; line-height:1.1; font-size:clamp(2rem,4.5vw,3rem); text-shadow:0 2px 8px rgba(0,0,0,.45); }
+
+    /* ---------- Intro summary (full width) ---------- */
+    .intro { margin: 20px 0 30px; text-align: left; }
+    .summary {
+      width:100%;
+      max-width:none !important;
+      font-size:1rem; line-height:1.65; color:#1f2937;
+    }
+    .summary :where(p, ul, ol, blockquote, figure){
+      width:100%; max-width:none !important; margin-left:0; margin-right:0;
+    }
 
     /* Grid: 3 → 2 → 1 */
     .grid {
@@ -245,15 +265,6 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
     .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
 
     .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
-
-    .hero-bleed {
-      position:relative; left:50%; right:50%;
-      margin-left:-50vw; margin-right:-50vw;
-      width:100vw; max-width:100vw;
-      height: clamp(300px, 38vw, 520px);
-      overflow:hidden; background:#e5e7eb; display:block;
-    }
-    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
 
     .error { color: #b00; }
   </style>

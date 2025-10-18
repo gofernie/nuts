@@ -1,255 +1,208 @@
 ---
 // File: src/pages/types/[slug].astro
+export const prerender = false;
+
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-export async function getStaticPaths() {
-  const url = import.meta.env.PUBLIC_TYPES_JSON; // 🔁 switched from PUBLIC_SHEET_JSON
-  if (!url) return [];
+/* --------- params & source --------- */
+const slugParam = (Astro.params.slug || "").toString().trim();
 
-  let rows:any[] = [];
+const SOURCE_URL =
+  import.meta.env.PUBLIC_TYPES_JSON ||
+  import.meta.env.PUBLIC_SHEET_JSON ||
+  "";
+
+/* --------- helpers --------- */
+const get = (r:any,k:string)=>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+
+const slugify = (s:string)=> s.toLowerCase()
+  .replace(/&/g,"-and-")
+  .replace(/[^a-z0-9]+/g,"-")
+  .replace(/^-+|-+$/g,"");
+
+/* --------- fetch row now (server) --------- */
+let row:any = null;
+let fetchError:string|null = null;
+
+if (!SOURCE_URL) {
+  fetchError = "Missing PUBLIC_TYPES_JSON / PUBLIC_SHEET_JSON in .env";
+} else {
   try {
-    const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch { return []; }
+    const raw = await getJson<any>(SOURCE_URL);
+    const rows:any[] =
+      Array.isArray(raw) ? raw :
+      Array.isArray(raw?.data) ? raw.data :
+      Array.isArray(raw?.rows) ? raw.rows : [];
 
-  const items = rows.map((r:any) => {
-    const get=(k:string)=>(r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-    const title = get("title"); if (!title) return null;
+    row = rows.find(r=>{
+      const s = get(r,"slug") || (get(r,"title") ? slugify(get(r,"title")) : "");
+      return s === slugParam;
+    }) || null;
 
-    const computedSlug = title.toLowerCase()
-      .replace(/&/g,"-and-")
-      .replace(/[^a-z0-9]+/g,"-")
-      .replace(/^-+|-+$/g,"");
-
-    return {
-      slug: get("slug") || computedSlug,
-      title,
-      summary: get("summary"),
-      hero_img: get("hero_img"),
-      map_embed: get("map_embed"),
-      long_copy: get("long_copy"),
-      cta1: get("cta1"),
-      status: get("status"),
-      seo_title: get("seo_title"),
-      seo_description: get("seo_description"),
-    };
-  }).filter((r)=> r && r.slug && r.title && r.slug.toLowerCase()!=="index" && !/^draft$/i.test(r.status||""));
-
-  return items.map((n:any)=>({
-    params:{ slug:n.slug },
-    props:{
-      title: n.title,
-      summary: n.summary || "",
-      hero: heroPath(n.hero_img),
-      cta1: n.cta1 || "",
-      map_embed: (() => {
-        const v = (n.map_embed || "").trim();
-        if (!v) return "";
-        const m = v.match(/src="([^"]+)"/i);
-        if (m?.[1]) return m[1];
-        if (v.includes("google.com/maps") && v.includes("embed")) return v;
-        if (v.includes("google.com/maps")) {
-          try {
-            const u = new URL(v);
-            const q = u.search ? `${u.search}&output=embed` : "?output=embed";
-            return `https://www.google.com/maps${q}`;
-          } catch {}
-        }
-        return `https://www.google.com/maps?q=${encodeURIComponent(v)}&output=embed`;
-      })(),
-      long_copy: n.long_copy || "",
-      // ✅ SEO props
-      seo_title: n.seo_title || "",
-      seo_description: n.seo_description || "",
-    }
-  }));
+    if (!row) fetchError = `No matching row for slug "${slugParam}".`;
+  } catch(e:any){
+    fetchError = `Failed to load sheet: ${e?.message || e}`;
+  }
 }
 
-const {
-  title, summary, hero, map_embed, long_copy, cta1,
-  seo_title, seo_description
-} = Astro.props as any;
+/* --------- derived props (safe fallbacks) --------- */
+const title   = (row && get(row,"title")) || "Property Type";
+const summary = (row && (get(row,"summary") || get(row,"seo_description"))) || "";
+const heroImg = (row && get(row,"hero_img")) || "/img/hero/fallback-1600x800.jpg";
+const hero    = heroPath(heroImg);
 
-// ✅ Compute SEO fallbacks (Types)
-const pageSeoTitle = seo_title || title || "Type";
-const pageSeoDesc  = seo_description || summary || "";
+const pageSeoTitle = (row && get(row,"seo_title")) || title;
+const pageSeoDesc  = (row && get(row,"seo_description")) || summary;
 
-// ✅ RealtyVis script URL from env (set in your .env as PUBLIC_RV_SCRIPT="https://<your RV script>.js")
-const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "";
-const rawCta = (cta1 || "").trim();
-
-// identify type of CTA: an RV block id, or HTML snippet
+/* --------- CTA handling (ID or HTML) --------- */
+const rawCta = (row && (get(row,"cta1") || get(row,"rv_block"))) ||
+               import.meta.env.PUBLIC_DEFAULT_RV_BLOCK || "";
 const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
 const isHtml = !!rawCta && !isRvId;
+
+/* --------- RealtyVis script URL --------- */
+const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
 ---
 
-<Site
-  showHeader={true}
-  title={title}
-  seo_title={pageSeoTitle}
-  seo_description={pageSeoDesc}
->
+<Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
+  <!-- Preload LCP image -->
+  <Fragment slot="head">
+    <link rel="preload" as="image" href={hero} fetchpriority="high" />
+  </Fragment>
 
-  {hero && (
-    <Fragment slot="head">
-      <link rel="preload" as="image" href={hero} fetchpriority="high" />
-    </Fragment>
-  )}
-
-  <!-- LCP hero -->
+  <!-- HERO (full bleed, bottom-left H1, no bg box) -->
   <section class="hero-bleed">
-    {hero && (
-      <img
-        src={hero}
-        alt=""
-        fetchpriority="high"
-        loading="eager"
-        decoding="async"
-        width="2000" height="1000"
-      />
-    )}
-  </section>
-
-  <div class="container intro">
-    <h1>{title}</h1>
-    <article class="long-copy" set:html={summary}></article>
-  </div>
-
-  <!-- =========================
-       LAZY RealtyVis embed
-       ========================= -->
-  {rawCta && (
-    <div class="container cta">
-      <div
-        class="rv-lazy-shell"
-        data-rv-ready="false"
-        data-rv-script={RV_SCRIPT}
-        {...(isRvId ? { 'data-rv-id': rawCta } : {})}
-        {...(isHtml ? { 'data-rv-html': rawCta } : {})}
-      >
-        <div class="rv-skeleton">
-          <div class="rv-skel-bar"></div>
-          <div class="rv-skel-grid">
-            <div class="rv-skel-card"></div>
-            <div class="rv-skel-card"></div>
-            <div class="rv-skel-card"></div>
-          </div>
-          <button class="rv-load-btn" type="button">Load listings</button>
-        </div>
+    <img
+      src={hero}
+      alt={title}
+      fetchpriority="high"
+      loading="eager"
+      decoding="async"
+      width="2000" height="1000"
+    />
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="hero-overlay">
+      <div class="hero-container">
+        <h1 class="hero-title">{title}</h1>
       </div>
     </div>
-  )}
+  </section>
 
-  {long_copy && (
-    <div class="container">
-      <article class="long-copy" set:html={long_copy}></article>
-    </div>
-  )}
+  <!-- Body -->
+  <main class="container body">
+    {summary && (
+      <section class="intro">
+        <article class="summary" set:html={summary}></article>
+      </section>
+    )}
 
-  <!-- Client-side lazy loader -->
-  <script is:inline>
-    (() => {
-      const shells = Array.from(document.querySelectorAll('.rv-lazy-shell'));
-      if (!shells.length) return;
+    {fetchError && (
+      <section class="error"><p>{fetchError}</p></section>
+    )}
 
-      const loadShell = (el) => {
-        if (!el || el.dataset.rvReady === "true") return;
-        const scriptUrl = (el.getAttribute('data-rv-script') || "").trim();
-        const rvId = el.getAttribute('data-rv-id');
-        const rvHtml = el.getAttribute('data-rv-html');
+    {!fetchError && rawCta && (
+      <section id="listings" class="rv-wrap">
+        <h2 class="h2">Current Listings</h2>
 
-        // replace skeleton with actual embed payload
-        if (rvId) {
-          // ID mode: we inject the container + script tag
-          el.innerHTML = `
-            <div data-rv-block="${rvId}"></div>
-          `;
-          // ensure script is present (load once)
-          if (scriptUrl && !window.__rvScriptLoading) {
-            window.__rvScriptLoading = true;
-            const s = document.createElement('script');
-            s.src = scriptUrl;
-            s.async = true;
-            s.onload = () => {
-              window.__rvScriptLoaded = true;
-              // Some libraries need a manual “scan”/“init” – call if present.
-              try { window.RealtyVis && window.RealtyVis.scan && window.RealtyVis.scan(); } catch {}
-            };
-            document.head.appendChild(s);
-          } else if (window.__rvScriptLoaded) {
-            try { window.RealtyVis && window.RealtyVis.scan && window.RealtyVis.scan(); } catch {}
-          }
-        } else if (rvHtml) {
-          // HTML mode: inject raw HTML (kept as-is so scripts load only now)
-          el.innerHTML = rvHtml;
-        }
+        {isRvId ? (
+          <>
+            <div data-rv-block={rawCta}></div>
+            <!-- Load script once & scan -->
+            <script is:inline>
+              (function(){
+                function scan(){ try{ window.RealtyVis?.scan?.(); }catch(e){} }
+                if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
+                  window.__rvScriptLoading = true;
+                  var s = document.createElement('script');
+                  s.src = "{RV_SCRIPT}";
+                  s.async = true; s.defer = true;
+                  s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
+                  s.onerror = function(e){ console.error("RealtyVis script failed", e); };
+                  document.head.appendChild(s);
+                } else if (window.__rvScriptLoaded) {
+                  scan();
+                } else {
+                  setTimeout(scan, 250);
+                }
+              })();
+            </script>
+          </>
+        ) : (
+          /* HTML embed snippet mode */
+          <div class="rv-html" set:html={rawCta}></div>
+        )}
+      </section>
+    )}
 
-        el.dataset.rvReady = "true";
-      };
-
-      // Fallback click (for browsers without IO, or user wants to force-load)
-      document.addEventListener('click', (e) => {
-        const btn = e.target.closest('.rv-load-btn');
-        if (!btn) return;
-        const shell = btn.closest('.rv-lazy-shell');
-        loadShell(shell);
-      });
-
-      // IntersectionObserver lazy-load
-      if ('IntersectionObserver' in window) {
-        const io = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              loadShell(entry.target);
-              io.unobserve(entry.target);
-            }
-          });
-        }, { rootMargin: '200px 0px' });
-
-        shells.forEach((el) => io.observe(el));
-      } else {
-        // No IO support: keep the button fallback visible
-        shells.forEach((el) => {
-          const btn = el.querySelector('.rv-load-btn');
-          if (btn) btn.style.display = 'inline-flex';
-        });
-      }
-    })();
-  </script>
+    {!fetchError && !rawCta && (
+      <section class="note">
+        <p><strong>Heads-up:</strong> No <code>cta1</code>/<code>rv_block</code> set, and no <code>PUBLIC_DEFAULT_RV_BLOCK</code>.</p>
+      </section>
+    )}
+  </main>
 
   <style>
-    .intro { margin: 24px auto 20px; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
-    .intro p { font-size: 1rem; line-height:1.6; color:#1f2937; }
+    :root { --container-max: 1200px; --container-pad: 1rem; }
+    .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
-    .map-wrap h2{ font-size:1.25rem; margin:8px 0 12px; color:#111827; }
-    .map-card{ border:1px solid #eee; border-radius:12px; overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,0.1); }
-
-    .cta-card{ background:#fff; color:#111827; border:2px solid #e5e7eb; border-radius:16px; padding:28px 20px; margin:36px 0; text-align:center; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
-    .cta-card h2{ margin:0 0 10px; font-size:1.75rem; font-weight:700; }
-    .cta-card p{ font-size:1rem; color:#374151; margin-bottom:18px; }
-    .cta-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; background:#0a7bff; color:#fff; text-decoration:none; font-weight:700; font-size:1.125rem; padding:12px 28px; border-radius:999px; box-shadow:0 4px 10px rgba(0,0,0,0.15); transition: background .15s ease, box-shadow .15s ease; }
-    .cta-btn .cta-text{ text-decoration:none; }
-    .cta-btn:hover{ background:#065aa3; box-shadow:0 6px 14px rgba(0,0,0,0.25); }
-
-    .long-copy{ margin:20px 0 48px; font-size:1.05rem; line-height:1.8; color:#1f2937; }
-    .long-copy p{ margin:0 0 1.25em; }
-    .long-copy h2,.long-copy h3{ font-weight:700; color:#111827; line-height:1.3; margin:2em 0 .75em; }
-    .long-copy h2{ font-size:1.5rem; border-left:4px solid #0a7bff; padding-left:.5rem; }
-    .long-copy h3{ font-size:1.25rem; }
-
-    /* --- Lazy RV skeleton & button --- */
-    .rv-lazy-shell{ position:relative; padding:0px; border:0px dashed #e5e7eb; border-radius:14px; min-height:180px; }
-    .rv-skeleton{ display:flex; flex-direction:column; gap:14px; align-items:flex-start; }
-    .rv-skel-bar{ width:180px; height:16px; border-radius:6px; background:linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
-    .rv-skel-grid{ display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:12px; width:100%; }
-    .rv-skel-card{ height:120px; border-radius:12px; background:linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
-    .rv-load-btn{ display:none; padding:10px 16px; border-radius:999px; border:1px solid #d1d5db; background:#fff; font-weight:600; cursor:pointer; }
-    @keyframes skel { 0%{background-position:-200px 0} 100%{background-position:200px 0} }
-    @media (max-width: 900px){
-      .rv-skel-grid{ grid-template-columns: repeat(2,minmax(0,1fr)); }
+    /* ---------- HERO ---------- */
+    .hero-bleed{
+      position:relative;
+      left:50%; right:50%;
+      margin-left:-50vw; margin-right:-50vw;
+      width:100vw; max-width:100vw;
+      height: clamp(300px, 38vw, 520px);
+      overflow:hidden; background:#e5e7eb;
+      line-height:0; font-size:0;
     }
+    .hero-bleed img{
+      display:block;
+      width:100%;
+      height:calc(100% + 1px); /* avoid hairline seam */
+      object-fit:cover; object-position:center;
+    }
+    .hero-scrim{
+      position:absolute; inset:0;
+      background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
+      z-index:5;
+    }
+    .hero-overlay{
+      position:absolute; inset:0; z-index:10;
+      display:flex; align-items:flex-end; justify-content:flex-start;
+      padding-bottom:clamp(16px,3vw,28px);
+      pointer-events:none;
+    }
+    .hero-container{ width:100%; max-width:var(--container-max); margin-inline:auto; padding-inline:var(--container-pad); }
+    .hero-title{
+      margin:0; color:#fff; font-weight:800; line-height:1.1;
+      font-size:clamp(2rem,4.5vw,3rem);
+      text-shadow:0 2px 8px rgba(0,0,0,.45);
+      background:none; padding:0; display:inline-block;
+    }
+
+    /* ---------- Body ---------- */
+    .body{ padding-block: 20px; }
+    .intro{ margin: 0 0 22px; }
+
+    /* FULL-WIDTH summary inside container */
+    .summary{
+      width:100%;
+      max-width:none !important;
+      font-size:1rem; line-height:1.65; color:#1f2937;
+    }
+    .summary :where(p, ul, ol, blockquote, figure){
+      width:100%; max-width:none !important; margin-left:0; margin-right:0;
+    }
+
+    .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
+
+    .note{ color:#666; background:#fafafa; border:1px solid #eee; padding:12px 14px; border-radius:8px; }
+    .error{ border:1px solid #d33; background:#fff5f5; color:#600; padding:12px 14px; border-radius:8px; }
+
+    /* Allow HTML embed to span full container width */
+    .rv-html :where(iframe, div){ width:100% !important; }
   </style>
 </Site>
