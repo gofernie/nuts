@@ -24,7 +24,6 @@ let items: Row[] = [];
 let header: Row | null = null;
 let error: string | null = null;
 
-/* ---------- helpers ---------- */
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -90,7 +89,6 @@ try {
   error = e?.message || String(e);
 }
 
-// Resolve images
 const resolveImg = (v?: string) => {
   const s = (v || "").trim();
   if (!s) return "";
@@ -100,12 +98,8 @@ const resolveImg = (v?: string) => {
 };
 
 const heroSrc = resolveImg(header?.hero_img);
-
-// SEO
 const pageSeoTitle = header?.seo_title || header?.title || "Fernie Neighbourhoods";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
-
-/* Randomize for organic layout */
 const randomized = shuffle(items);
 ---
 
@@ -117,7 +111,6 @@ const randomized = shuffle(items);
     </Fragment>
   )}
 
-  <!-- HERO -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -132,15 +125,13 @@ const randomized = shuffle(items);
     )}
     <div class="hero-scrim" aria-hidden="true"></div>
 
-    <!-- H1 aligned EXACTLY with page .container -->
     <div class="hero-overlay">
-      <div class="container hero-title-container">
+      <div class="container hero-container">
         <h1 class="hero-title">{header?.title || pageSeoTitle}</h1>
       </div>
     </div>
   </section>
 
-  <!-- SUMMARY: full container width -->
   <div class="container">
     {(header?.summary || pageSeoDesc) && (
       <div class="prose prose--wide summary">
@@ -195,10 +186,9 @@ const randomized = shuffle(items);
   </div>
 
   <style>
-    /* Shared container */
-    .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
+    :root { --container-max: 1200px; --container-pad: 1rem; }
+    .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
-    /* ---------- HERO ---------- */
     .hero-bleed {
       position:relative;
       left:50%; right:50%;
@@ -208,21 +198,19 @@ const randomized = shuffle(items);
       overflow:hidden; background:#e5e7eb; display:block;
     }
     .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; z-index:0; }
-
-    .hero-scrim {
-      position:absolute; inset:0;
-      background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
-      z-index:1;
-    }
+    .hero-scrim { position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); z-index:1; }
 
     .hero-overlay {
       position:absolute; inset:0;
-      display:flex; align-items:flex-end; justify-content:flex-start;
+      display:flex; align-items:flex-end;
+      justify-content:flex-start;
       padding-bottom: clamp(16px, 3vw, 28px);
       pointer-events:none; z-index:2;
     }
-
-    .hero-title { /* default look */
+    .hero-overlay .container {
+      padding-inline: var(--container-pad) !important;
+    }
+    .hero-title {
       margin: 0;
       font-size: clamp(2rem, 4.5vw, 3rem);
       line-height: 1.1;
@@ -233,12 +221,23 @@ const randomized = shuffle(items);
       text-align: left;
     }
 
-    /* ---------- SUMMARY ---------- */
+    /* force left alignment */
+    .hero-overlay { justify-content: flex-start !important; text-align: left !important; }
+    .hero-overlay .container,
+    .hero-container { text-align: left !important; }
+    .hero-overlay .hero-title {
+      display: block !important;
+      text-align: left !important;
+      margin: 0 !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      transform: none !important;
+    }
+
     .summary { margin: 18px 0 26px; }
     .prose { color:#374151; font-size:1rem; line-height:1.7; }
     .prose--wide { max-width: none; }
 
-    /* ---------- GRID ---------- */
     .grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -262,43 +261,13 @@ const randomized = shuffle(items);
     .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
     .card:hover .thumb img { transform: scale(1.03); }
 
-    .overlay {
-      position: absolute; inset: 0;
-      display: flex; align-items: flex-end;
-      pointer-events: none;
-      background: linear-gradient(to top, rgba(0,0,0,.35), rgba(0,0,0,0) 55%);
-    }
-    .overlay .title {
-      color: #fff; font-weight: 800; letter-spacing: .2px;
-      font-size: clamp(1rem, 1.6vw, 1.3rem);
-      padding: 12px 14px;
-      text-shadow: 0 1px 2px rgba(0,0,0,.45);
-    }
+    .overlay { position: absolute; inset: 0; display: flex; align-items: flex-end; pointer-events: none; background: linear-gradient(to top, rgba(0,0,0,.35), rgba(0,0,0,0) 55%); }
+    .overlay .title { color: #fff; font-weight: 800; letter-spacing: .2px; font-size: clamp(1rem, 1.6vw, 1.3rem); padding: 12px 14px; text-shadow: 0 1px 2px rgba(0,0,0,.45); }
 
     .body { padding: 10px 12px 14px; }
     .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
 
     .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
-
     .error { color: #b00; }
-
-    /* ------------------------------
-       HARD-LOCK LEFT ALIGNMENT OVERRIDES
-       (placed last to beat late-loading CSS)
-    ------------------------------ */
-    .hero-overlay { justify-content: flex-start !important; }
-    .hero-overlay .container,
-    .hero-title-container { text-align: left !important; }
-
-    .hero-title {
-      display: block !important;
-      text-align: left !important;
-      margin-left: 0 !important;
-      margin-right: 0 !important;
-      transform: none !important;
-    }
-
-    /* If some wrapper applies .center { text-align:center } */
-    .hero-overlay * { text-align: left !important; }
   </style>
 </Site>
