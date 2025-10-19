@@ -30,7 +30,7 @@ function normalizeRow(r) {
 
   return {
     raw_slug: rawSlug,
-    title: title,
+    title,
     summary: String(get("summary")).trim(),
     hero_img: String(get("hero_img")).trim(),
     status: String(get("status")).trim(),
@@ -109,19 +109,9 @@ const headingLead  = pageSeoDesc || "";
     </Fragment>
   )}
 
-  <!-- HERO: H1 ONLY -->
+  <!-- HERO -->
   <section class="hero-bleed">
-    {heroSrc && (
-      <img
-        src={heroSrc}
-        alt=""
-        fetchpriority="high"
-        loading="eager"
-        decoding="async"
-        width="2000"
-        height="1000"
-      />
-    )}
+    {heroSrc && <img src={heroSrc} alt="" fetchpriority="high" loading="eager" decoding="async" />}
     <div class="hero-inner">
       <div class="container">
         <h1>{headingTitle}</h1>
@@ -132,7 +122,6 @@ const headingLead  = pageSeoDesc || "";
   <!-- CONTENT -->
   <div class="container">
     {headingLead && <p class="lead">{headingLead}</p>}
-
     {error && <p class="error">Error: {error}</p>}
     {!error && items.length === 0 && (
       <p>No stays yet. Check <code>PUBLIC_STAY_JSON</code> and your sheet’s <code>status</code>/<code>slug</code>/<code>category</code> columns.</p>
@@ -194,25 +183,57 @@ const headingLead  = pageSeoDesc || "";
   </div>
 
   <style>
+    .container {
+      max-width: var(--container-max);
+      margin-inline: auto;
+      padding-inline: var(--container-pad);
+    }
+
     /* HERO */
     .hero-bleed {
-      position:relative; left:50%; right:50%;
-      margin-left:-50vw; margin-right:-50vw;
-      width:100vw; max-width:100vw;
-      height: clamp(300px, 56.25vw, 580px); /* force 16:9 hero */
-      overflow:hidden; background:#e5e7eb; display:block;
+      position: relative;
+      left: 50%;
+      right: 50%;
+      margin-left: -50vw;
+      margin-right: -50vw;
+      width: 100vw;
+      max-width: 100vw;
+      height: clamp(320px, 46vw, 560px);
+      overflow: hidden;
+      background: #e5e7eb;
+      display: block;
+      margin-bottom: clamp(16px, 2.5vw, 24px);
     }
-    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
+    .hero-bleed img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: center;
+    }
     .hero-inner {
-      position:absolute; inset:0;
-      display:flex; align-items:flex-end;
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-start; /* ✅ align hero content to left */
       background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
-      padding-bottom: 22px;
+      padding-bottom: clamp(16px, 3vw, 28px);
+      pointer-events: none;
+    }
+    .hero-inner .container {
+      width: 100%;
+      display: flex;
+      justify-content: flex-start; /* ✅ keeps h1 aligned with container edge */
+      align-items: flex-end;
     }
     .hero-inner h1 {
-      margin:0 0 6px;
-      color:#fff; font-weight:800; letter-spacing:.2px;
-      font-size: clamp(1.8rem, 3.6vw, 2.6rem);
+      margin: 0;
+      text-align: left; /* ✅ text itself left aligned */
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: .2px;
+      font-size: clamp(2.25rem, 5vw, 3.25rem);
       text-shadow: 0 2px 6px rgba(0,0,0,.35);
     }
 
@@ -230,9 +251,10 @@ const headingLead  = pageSeoDesc || "";
 
     /* GRID */
     .grid4 {
-      display:grid;
+      display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 20px;
+      margin-bottom: clamp(36px, 5vw, 60px);
     }
     @media (max-width: 1200px) { .grid4 { grid-template-columns: repeat(3, minmax(0,1fr)); } }
     @media (max-width: 900px)  { .grid4 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
@@ -250,24 +272,14 @@ const headingLead  = pageSeoDesc || "";
       position: relative;
       background: #f6f6f6;
       overflow: hidden;
-      aspect-ratio: auto !important; /* reset any previous aspect ratio */
     }
     .thumb::before {
       content: "";
       display: block;
-      padding-top: 56.25% !important; /* 16:9 */
+      padding-top: 56.25%;
     }
-    .thumb > * {
-      position: absolute;
-      inset: 0;
-    }
-    .thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      transition: transform .35s ease;
-    }
+    .thumb > * { position: absolute; inset: 0; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
     .card:hover .thumb img { transform: scale(1.03); }
 
     .overlay {
@@ -280,7 +292,7 @@ const headingLead  = pageSeoDesc || "";
       color: #fff; font-weight: 800; letter-spacing: .2px;
       font-size: clamp(1rem, 1.6vw, 1.15rem);
       padding: 12px 14px;
-      text-shadow: 0 1px 2px rgba(0,0,0,.45);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.45);
     }
 
     .body { padding: 10px 12px 14px; }

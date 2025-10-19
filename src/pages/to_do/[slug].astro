@@ -7,12 +7,8 @@ import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
 const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
-
-// ENV
 const url = import.meta.env.PUBLIC_TODO_JSON;
-if (!url) {
-  throw new Error("Missing PUBLIC_TODO_JSON in .env (restart dev).");
-}
+if (!url) throw new Error("Missing PUBLIC_TODO_JSON in .env (restart dev).");
 
 /* ---------- helpers ---------- */
 const get = (r:any,k:string)=>
@@ -25,7 +21,6 @@ const slugify = (v:string) =>
     .replace(/^-+|-+$/g,"");
 
 const parseCard = (raw = "") => {
-  // "Title | Subtitle | Body | /img.webp | /href"
   const [title, subtitle, body, img, href] = (raw || "").split("|").map(s => s.trim());
   if (!title) return null;
   const normImg = img
@@ -36,8 +31,6 @@ const parseCard = (raw = "") => {
 
 /* ---------- load & pick row ---------- */
 let row:any = null;
-let debug:any = { slugParam };
-
 try {
   const raw = await getJson<any>(url);
   const rows: any[] =
@@ -51,7 +44,6 @@ try {
     const computedSlug = slugify(title || "");
     const status = get(r,"status");
     return {
-      _raw: r,
       title,
       slug: explicitSlug || computedSlug,
       summary: get(r,"summary"),
@@ -72,21 +64,15 @@ try {
     !/^inactive$/i.test(n.status || "")
   );
 
-  // try direct match first, then tolerant match
   row =
     normalized.find(n => n.slug === slugParam) ||
     normalized.find(n => slugify(n.title) === slugParam) ||
     null;
-
-  debug.count = normalized.length;
-  debug.found = !!row;
-  debug.sampleSlugs = normalized.slice(0,8).map(n=>n.slug);
 } catch (e:any) {
   throw new Error("Failed to load to_do row: " + (e?.message || String(e)));
 }
 
 if (!row) {
-  // Helpful 404-style message in dev
   throw new Error(`to_do slug not found: "${slugParam}". Check your sheet's "slug" or "title".`);
 }
 
@@ -107,7 +93,7 @@ const pageSeoDesc    = row.seo_description || summary || "";
     </Fragment>
   )}
 
-  <!-- LCP hero -->
+  <!-- HERO with persistent bottom-left H1 -->
   <section class="hero-bleed">
     {hero && (
       <img
@@ -118,13 +104,17 @@ const pageSeoDesc    = row.seo_description || summary || "";
         decoding="async"
         width="2000"
         height="1000"
-        style="width:100%;height:100%;object-fit:cover;object-position:center"
       />
     )}
+    <div class="hero-scrim" aria-hidden="true"></div>
+    <div class="hero-overlay">
+      <div class="hero-container">
+        <h1 class="hero-title">{title}</h1>
+      </div>
+    </div>
   </section>
 
   <div class="container intro">
-    <h1>{title}</h1>
     {summary && <article class="long-copy" set:html={summary}></article>}
   </div>
 
@@ -163,18 +153,51 @@ const pageSeoDesc    = row.seo_description || summary || "";
   )}
 
   <style>
-    .container { max-width: 1300px; margin-inline: auto; padding: 0 1rem; }
+    :root { --container-max: 1200px; --container-pad: 1rem; }
+    .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
+    /* ---------- HERO ---------- */
+    .hero-bleed{
+      position:relative;
+      left:50%; right:50%;
+      margin-left:-50vw; margin-right:-50vw;
+      width:100vw; max-width:100vw;
+      height: clamp(300px, 38vw, 520px);
+      overflow:hidden; background:#e5e7eb;
+    }
+    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
+    .hero-scrim{
+      position:absolute; inset:0;
+      background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
+      z-index:5;
+    }
+    .hero-overlay{
+      position:absolute; inset:0; z-index:10;
+      display:flex; align-items:flex-end; justify-content:flex-start;
+      padding-bottom:clamp(16px,3vw,28px);
+      pointer-events:none;
+    }
+    .hero-container{
+      width:100%;
+      max-width:var(--container-max);
+      margin-inline:auto;
+      padding-inline:var(--container-pad);
+    }
+    .hero-title{
+      margin:0; color:#fff; font-weight:800; line-height:1.1;
+      font-size:clamp(2rem,4.5vw,3rem);
+      text-shadow:0 2px 8px rgba(0,0,0,.45);
+    }
+
+    /* ---------- Intro ---------- */
     .intro { margin: 24px auto 20px; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color:#111827; }
-
     .long-copy { margin: 12px 0 28px; font-size:1.05rem; line-height:1.8; color:#1f2937; }
     .long-copy p { margin: 0 0 1.25em; }
     .long-copy h2, .long-copy h3 { font-weight:700; color:#111827; line-height:1.3; margin:2em 0 .75em; }
     .long-copy h2 { font-size:1.5rem; border-left:4px solid #0a7bff; padding-left:.5rem; }
     .long-copy h3 { font-size:1.25rem; }
 
-    /* ✅ 4-up card grid on desktop */
+    /* ---------- Card grid ---------- */
     .card-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -198,14 +221,8 @@ const pageSeoDesc    = row.seo_description || summary || "";
     .tease-cta { display:inline-flex; gap:6px; font-weight:700; text-decoration:none; color:#0a7bff; border-bottom:2px solid transparent; }
     .tease-cta:hover { border-bottom-color:#0a7bff; }
 
-    /* Page hero */
-    .hero-bleed {
-      position:relative; left:50%; right:50%;
-      margin-left:-50vw; margin-right:-50vw;
-      width:100vw; max-width:100vw;
-      height: clamp(300px, 38vw, 520px);
-      overflow:hidden; background:#e5e7eb;
-    }
-    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
+    .cta-card { margin: 24px 0; text-align:center; background:#f9fafb; padding:24px; border-radius:12px; }
+    .cta-btn { background:#0a7bff; color:#fff; padding:12px 20px; display:inline-block; border-radius:8px; text-decoration:none; font-weight:600; }
+    .cta-btn:hover { background:#095ed0; }
   </style>
 </Site>
