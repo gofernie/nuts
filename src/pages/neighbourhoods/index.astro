@@ -24,15 +24,6 @@ let items: Row[] = [];
 let header: Row | null = null;
 let error: string | null = null;
 
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 try {
   if (!url) throw new Error("Missing PUBLIC_SHEET_JSON in .env (restart dev).");
   const raw = await getJson<any>(url);
@@ -100,7 +91,9 @@ const resolveImg = (v?: string) => {
 const heroSrc = resolveImg(header?.hero_img);
 const pageSeoTitle = header?.seo_title || header?.title || "Fernie Neighbourhoods";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
-const randomized = shuffle(items);
+
+// ⬇️ No shuffle — keep natural sheet order
+const listed = items;
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
@@ -155,11 +148,11 @@ const randomized = shuffle(items);
 
     {error ? (
       <p class="error">Error: {error}</p>
-    ) : randomized.length === 0 ? (
+    ) : listed.length === 0 ? (
       <p>No neighbourhoods yet. Check your <code>PUBLIC_SHEET_JSON</code> URL or add rows to your sheet.</p>
     ) : (
       <section class="grid">
-        {randomized.map((n) => {
+        {listed.map((n) => {
           const primary = resolveImg(n.hero_img);
           const altBase = primary.includes("/images/")
             ? primary.replace("/images/", "/img/")
@@ -262,9 +255,10 @@ const randomized = shuffle(items);
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 20px;
     }
+    @media (max-width: 1200px) { .grid { grid-template-columns: repeat(3, minmax(0,1fr)); } }
     @media (max-width: 900px)  { .grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
     @media (max-width: 640px)  { .grid { grid-template-columns: 1fr; } }
 
