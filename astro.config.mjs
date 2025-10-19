@@ -1,6 +1,7 @@
-import { defineConfig } from 'astro/config'
-import basicSsl from '@vitejs/plugin-basic-ssl'
+import { defineConfig } from 'astro/config';
+import netlify from '@astrojs/netlify';
 
 export default defineConfig({
-  vite: { plugins: [basicSsl()] }
-})
+  output: 'server',
+  adapter: netlify(),
+});

@@ -1,29 +1,88 @@
 ---
+// File: src/components/RealtyVis.astro
+interface Props {
+  blockId: string;           // e.g. "MQP2VMLT-HDQLLMRY"
+  scriptUrl?: string;        // defaults to env or CDN
+  eager?: boolean;           // true = load immediately
+  class?: string;
+}
+
 const {
   blockId,
-  scriptUrl = "https://cdn.realtyvis.com/js/embed.js",
-  minHeight = "900px",
+  scriptUrl = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js",
+  eager = false,
+  class: klass = ""
 } = Astro.props;
+
+const uid = `rv-host-${blockId}-${Math.random().toString(36).slice(2, 8)}`;
 ---
 
-<div data-rv-block={blockId} style={`min-height:${minHeight}`}></div>
+<div id={uid} class={`rv-host ${klass}`} data-rv-block={blockId}></div>
 
-<!-- Eager load, no hoisting issues, re-init on navigation -->
-<script is:inline>
-  (function () {
-    var SRC = {{ scriptUrl: JSON.stringify(scriptUrl) }}.scriptUrl;
-    function init() {
-      if (window.RealtyVis && typeof window.RealtyVis.init === "function") {
-        try { window.RealtyVis.init(); } catch (e) { console.error("RealtyVis init error", e); }
+{/*
+  EAGER: load the script tag right away, then init.
+*/}
+{eager && (
+  <>
+    <script is:inline src={scriptUrl}></script>
+    <script is:inline>
+      // Re-init in case script was already present
+      if (window.RealtyVis?.init) window.RealtyVis.init();
+    </script>
+  </>
+)}
+
+{/*
+  LAZY: load on view using IntersectionObserver.
+  Ensures the script is injected only once per page via window.__rvScriptPromise.
+*/}
+{!eager && (
+  <script is:inline>
+    (() => {
+      const HOST_ID = {JSON.stringify(uid)};
+      const SCRIPT_URL = {JSON.stringify(scriptUrl)};
+
+      const host = document.getElementById(HOST_ID);
+      if (!host) return;
+
+      // Ensure we only ever inject/load the script once
+      if (!window.__rvScriptPromise) {
+        window.__rvScriptPromise = new Promise((resolve, reject) => {
+          // If script already on page, resolve immediately
+          if (window.RealtyVis?.init) { resolve(); return; }
+
+          const s = document.createElement("script");
+          s.src = SCRIPT_URL;
+          s.async = true;
+          s.onload = () => resolve();
+          s.onerror = (e) => reject(e);
+          document.head.appendChild(s);
+        });
       }
-    }
-    if (!document.querySelector('script[src="' + SRC + '"]')) {
-      var s = document.createElement("script");
-      s.src = SRC; s.async = true; s.onload = init;
-      s.onerror = function(){ console.error("Failed to load RealtyVis script"); };
-      document.body.appendChild(s);
-    } else {
-      init();
-    }
-  })();
-</script>
+
+      const loadAndInit = () => {
+        window.__rvScriptPromise
+          .then(() => {
+            if (window.RealtyVis?.init) window.RealtyVis.init();
+          })
+          .catch(() => {
+            // swallow—avoid breaking page if CDN hiccups
+          });
+      };
+
+      // If already visible (e.g., above the fold), just load
+      if ("IntersectionObserver" in window) {
+        const io = new IntersectionObserver((entries) => {
+          if (entries.some(e => e.isIntersecting)) {
+            io.disconnect();
+            loadAndInit();
+          }
+        }, { rootMargin: "200px" });
+        io.observe(host);
+      } else {
+        // Fallback: load after first tick
+        setTimeout(loadAndInit, 0);
+      }
+    })();
+  </script>
+)}

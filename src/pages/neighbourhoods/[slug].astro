@@ -1,5 +1,5 @@
 ---
-// File: src/pages/neighbourhoods/[slug].astro (HERO SECTION ALIGNED LEFT)
+// File: src/pages/neighbourhoods/[slug].astro
 export const prerender = false;
 
 import Site from "../../layouts/Site.astro";
@@ -15,7 +15,10 @@ const SOURCE_URL =
 
 const get = (r:any,k:string)=>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-const slugify = (s:string)=> s.toLowerCase().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+const slugify = (s:string)=> s.toLowerCase()
+  .replace(/&/g,"-and-")
+  .replace(/[^a-z0-9]+/g,"-")
+  .replace(/^-+|-+$/g,"");
 
 let row:any = null;
 let fetchError: string | null = null;
@@ -25,10 +28,9 @@ if (!SOURCE_URL) {
 } else {
   try {
     const raw = await getJson<any>(SOURCE_URL);
-    const rows:any[] =
-      Array.isArray(raw) ? raw :
-      Array.isArray(raw?.data) ? raw.data :
-      Array.isArray(raw?.rows) ? raw.rows : [];
+    const rows:any[] = Array.isArray(raw) ? raw
+      : Array.isArray(raw?.data) ? raw.data
+      : Array.isArray(raw?.rows) ? raw.rows : [];
 
     row = rows.find(r=>{
       const s = get(r,"slug") || (get(r,"title") ? slugify(get(r,"title")) : "");
@@ -69,10 +71,12 @@ function resolveMapSrc(v:string): string {
 }
 const map_embed = resolveMapSrc(map_embedRaw);
 
+// RealtyVis (eager)
 const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
 const rawCta = (cta1 || "").trim();
 const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
 const isHtml = !!rawCta && !isRvId;
+const hostId = `rv-host-${Math.random().toString(36).slice(2,8)}`;
 ---
 
 <Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
@@ -82,7 +86,7 @@ const isHtml = !!rawCta && !isRvId;
     </Fragment>
   )}
 
-  <!-- ✅ HERO -->
+  <!-- HERO -->
   <section class="hero-bleed">
     <img
       src={hero}
@@ -111,23 +115,21 @@ const isHtml = !!rawCta && !isRvId;
 
     {rawCta && (
       <section id="listings" class="rv-wrap">
-        <div
-          class="rv-lazy-shell"
-          data-rv-ready="false"
-          data-rv-script={RV_SCRIPT}
-          {...(isRvId ? { 'data-rv-id': rawCta } : {})}
-          {...(isHtml ? { 'data-rv-html': rawCta } : {})}
-        >
-          <div class="rv-skeleton">
-            <div class="rv-skel-bar"></div>
-            <div class="rv-skel-grid">
-              <div class="rv-skel-card"></div>
-              <div class="rv-skel-card"></div>
-              <div class="rv-skel-card"></div>
-            </div>
-            <button class="rv-load-btn" type="button">Load listings</button>
-          </div>
-        </div>
+        {isRvId ? (
+          <div id={hostId} data-rv-block={rawCta}></div>
+        ) : (
+          <div id={hostId} class="rv-html" set:html={rawCta}></div>
+        )}
+
+        <!-- Eager load: inject script once and init immediately -->
+        <script is:inline src={RV_SCRIPT}></script>
+        <script is:inline>
+          if (window.RealtyVis?.init) { window.RealtyVis.init(); }
+          else {
+            // if the script isn't ready by the time this runs
+            window.addEventListener("load", () => { window.RealtyVis?.init?.(); }, { once: true });
+          }
+        </script>
       </section>
     )}
 
@@ -135,7 +137,13 @@ const isHtml = !!rawCta && !isRvId;
       <section class="map-wrap">
         <h2>Map</h2>
         <div class="map-card">
-          <iframe src={map_embed} width="100%" height="420" style="border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" />
+          <iframe
+            src={map_embed}
+            width="100%"
+            height="420"
+            style="border:0"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade" />
         </div>
       </section>
     )}
@@ -143,6 +151,12 @@ const isHtml = !!rawCta && !isRvId;
     {long_copy && (
       <section class="content">
         <article class="long-copy" set:html={long_copy}></article>
+      </section>
+    )}
+
+    {fetchError && (
+      <section class="error">
+        <p>{fetchError}</p>
       </section>
     )}
   </main>
@@ -175,30 +189,12 @@ const isHtml = !!rawCta && !isRvId;
       object-fit: cover;
       object-position: center;
     }
-    .hero-scrim {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
-      z-index: 1;
-    }
-    .hero-overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 2;
-      display: flex;
-      align-items: flex-end;
-      padding-bottom: clamp(16px, 3vw, 28px);
-      pointer-events: none;
-    }
-    .hero-title {
-      margin: 0;
-      color: #fff;
-      font-weight: 800;
-      font-size: clamp(2rem, 4.5vw, 3rem);
-      line-height: 1.1;
-      text-shadow: 0 2px 8px rgba(0,0,0,.45);
-      text-align: left;
-    }
+    .hero-scrim { position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); z-index: 1; }
+    .hero-overlay { position: absolute; inset: 0; z-index: 2; display: flex;
+      align-items: flex-end; padding-bottom: clamp(16px, 3vw, 28px); pointer-events: none; }
+    .hero-title { margin: 0; color: #fff; font-weight: 800;
+      font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.1; text-shadow: 0 2px 8px rgba(0,0,0,.45); text-align: left; }
 
     /* BODY */
     .neigh-body { padding-top: 0; }
@@ -214,13 +210,8 @@ const isHtml = !!rawCta && !isRvId;
     .map-wrap h2 { font-size: 1.25rem; margin: 8px 0 12px; color: #111827; }
     .map-card { border: 1px solid #eee; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,0.1); }
 
-    /* RV skeleton */
-    .rv-lazy-shell { position: relative; border-radius: 14px; min-height: 180px; }
-    .rv-skeleton { display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
-    .rv-skel-bar { width: 180px; height: 16px; border-radius: 6px; background: linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
-    .rv-skel-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; width: 100%; }
-    .rv-skel-card { height: 120px; border-radius: 12px; background: linear-gradient(90deg,#eee,#f6f6f6,#eee); animation: skel 1.2s infinite linear; }
-    .rv-load-btn { display: none; padding: 10px 16px; border-radius: 999px; border: 1px solid #d1d5db; background: #fff; font-weight: 600; cursor: pointer; }
-    @keyframes skel { 0%{background-position:-200px 0} 100%{background-position:200px 0} }
+    .rv-wrap { margin: 28px 0; }
+    .rv-html { width: 100%; }
+    .error { margin: 24px 0; color: #b91c1c; }
   </style>
 </Site>
