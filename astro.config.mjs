@@ -1,4 +1,7 @@
 // astro.config.mjs
+
+console.log("ASTRO_DISABLE_WASM =", process.env.ASTRO_DISABLE_WASM);
+
 import { defineConfig } from 'astro/config';
 import netlify from '@astrojs/netlify';
 import fs from 'node:fs';

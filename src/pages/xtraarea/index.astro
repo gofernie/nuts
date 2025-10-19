@@ -66,18 +66,18 @@ try {
   const normalized = rows.map(normalize);
 
   // Robust header detection
-  const bySlugIndex   = normalized.find(r => (r.slug ?? "").toLowerCase().trim()   === "index");
-  const byTitleIndex  = normalized.find(r => (r.title ?? "").toLowerCase().trim()  === "index");
-  const byStatusIndex = normalized.find(r => (r.status ?? "").toLowerCase().trim() === "index");
-  const byTitleName   = normalized.find(r => {
-    const t = (r.title ?? "").toLowerCase().trim();
-    return t === "xtraarea" || t === "xtra area" || t === "other areas";
-  });
-  const withContent   = normalized.find(r => !!(r.long_copy || r.summary || r.seo_description));
+  header =
+    normalized.find(r => (r.slug ?? "").toLowerCase().trim() === "index") ??
+    normalized.find(r => (r.title ?? "").toLowerCase().trim() === "index") ??
+    normalized.find(r => (r.status ?? "").toLowerCase().trim() === "index") ??
+    normalized.find(r => {
+      const t = (r.title ?? "").toLowerCase().trim();
+      return t === "xtraarea" || t === "xtra area" || t === "other areas";
+    }) ??
+    normalized.find(r => !!(r.long_copy || r.summary || r.seo_description)) ??
+    null;
 
-  header = bySlugIndex ?? byTitleIndex ?? byStatusIndex ?? byTitleName ?? withContent ?? null;
-
-  // Visible cards only (no index/drafts/hidden/inactive)
+  // Visible cards only
   items = normalized.filter((r) =>
     r.slug && r.title &&
     (r.slug ?? "").toLowerCase().trim()   !== "index" &&
@@ -101,13 +101,10 @@ const resolveImg = (v?: string) => {
   return heroPath(s);
 };
 
-const heroSrc = resolveImg(header?.hero_img);
-
-// Intro priority: long_copy → summary → seo_description
+const heroSrc      = resolveImg(header?.hero_img);
 const heroH1       = header?.title || "Other Areas";
 const introText    = (header?.long_copy || header?.summary || header?.seo_description || "").trim();
 const pageSeoTitle = header?.seo_title || heroH1;
-// Meta description comes **only** from seo_description
 const pageSeoDesc  = (header?.seo_description || "").trim();
 ---
 
@@ -119,7 +116,7 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
     </Fragment>
   )}
 
-  <!-- HERO (full bleed with bottom-left H1) -->
+  <!-- HERO (matching site-wide container width) -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -134,18 +131,14 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
     )}
     <div class="hero-scrim" aria-hidden="true"></div>
     <div class="hero-overlay">
-      <div class="hero-container">
+      <div class="container">
         <h1 class="hero-title">{heroH1}</h1>
       </div>
     </div>
   </section>
 
   <div class="container">
-    <header class="intro">
-      {introText && (
-        <article class="summary" set:html={introText}></article>
-      )}
-    </header>
+    {introText && <article class="summary" set:html={introText}></article>}
 
     {error ? (
       <p class="error">Error: {error}</p>
@@ -170,11 +163,9 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
                     alt={n.title}
                     loading="lazy"
                     decoding="async"
-                    onerror={`
-                      if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
-                      else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
-                      else { const ph = document.createElement('div'); ph.className = 'ph'; ph.setAttribute('aria-hidden','true'); ph.textContent = 'No image'; this.replaceWith(ph); }
-                    `}
+                    onerror={`if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
+                              else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
+                              else { const ph = document.createElement('div'); ph.className = 'ph'; ph.setAttribute('aria-hidden','true'); ph.textContent = 'No image'; this.replaceWith(ph); }`}
                   />
                 ) : (
                   <div class="ph" aria-hidden="true">No image</div>
@@ -194,78 +185,73 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
   </div>
 
   <style>
-    :root { --container-max: 1200px; --container-pad: 1rem; }
-
-    .container { max-width: var(--container-max); margin-inline: auto; padding: 0 var(--container-pad); }
+    /* ✅ Now matches site-wide container */
+    .container {
+      max-width: var(--container-max);
+      margin-inline: auto;
+      padding-inline: var(--container-pad);
+    }
 
     /* ---------- HERO ---------- */
     .hero-bleed {
-      position:relative;
+      position:relative; isolation:isolate;
       left:50%; right:50%;
       margin-left:-50vw; margin-right:-50vw;
       width:100vw; max-width:100vw;
-      height: clamp(300px, 38vw, 520px);
+      height: clamp(320px, 46vw, 560px);
       overflow:hidden; background:#e5e7eb;
-      line-height:0; font-size:0;
+      margin-bottom: clamp(16px, 2.5vw, 24px);
     }
-    .hero-bleed img { width:100%; height:calc(100% + 1px); display:block; object-fit:cover; object-position:center; }
-    .hero-scrim { position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); z-index:5; }
-    .hero-overlay { position:absolute; inset:0; z-index:10; display:flex; align-items:flex-end; justify-content:flex-start; padding-bottom:clamp(16px,3vw,28px); pointer-events:none; }
-    .hero-container { width:100%; max-width:var(--container-max); margin-inline:auto; padding-inline:var(--container-pad); }
-    .hero-title { margin:0; color:#fff; font-weight:800; line-height:1.1; font-size:clamp(2rem,4.5vw,3rem); text-shadow:0 2px 8px rgba(0,0,0,.45); }
+    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
+    .hero-scrim { position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.65), rgba(0,0,0,0) 58%); z-index:10; }
+    .hero-overlay { position:absolute; inset:0; z-index:20; display:flex; align-items:flex-end; justify-content:flex-start; padding-bottom:clamp(16px,3vw,28px); pointer-events:none; }
+    .hero-title { margin:0; color:#fff; font-weight:800; line-height:1.1; font-size:clamp(2.25rem, 5vw, 3.25rem); letter-spacing:.2px; text-shadow:0 3px 10px rgba(0,0,0,.50); }
 
-    /* ---------- Intro summary (full width) ---------- */
-    .intro { margin: 20px 0 30px; text-align: left; }
+    /* ---------- Intro summary ---------- */
     .summary {
-      width:100%;
-      max-width:none !important;
-      font-size:1rem; line-height:1.65; color:#1f2937;
-    }
-    .summary :where(p, ul, ol, blockquote, figure){
-      width:100%; max-width:none !important; margin-left:0; margin-right:0;
+      margin: 0 0 clamp(22px, 3.5vw, 32px);
+      max-width: none;
+      font-size: 1.06rem;
+      line-height: 1.8;
+      color: #1f2937;
     }
 
-    /* Grid: 3 → 2 → 1 */
+    /* ---------- Grid ---------- */
     .grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 16px;
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 26px;
+      margin-bottom: clamp(36px, 5vw, 60px);
     }
-    @media (max-width: 900px)  { .grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
-    @media (max-width: 640px)  { .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1200px) { .grid { grid-template-columns: repeat(3,1fr); } }
+    @media (max-width: 900px)  { .grid { grid-template-columns: repeat(2,1fr); gap:22px; } }
+    @media (max-width: 640px)  { .grid { grid-template-columns: 1fr; gap:18px; } }
 
+    /* ---------- Cards ---------- */
     .card {
-      display: flex; flex-direction: column;
-      background: #fff;
-      border-radius: 14px; overflow: hidden;
-      border: 1px solid #eee; text-decoration: none; color: inherit;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      transform: translateY(0);
-      transition: transform .25s ease, box-shadow .25s ease;
+      display:flex; flex-direction:column;
+      background:#fff; border-radius:14px; overflow:hidden;
+      border:1px solid #ececec; text-decoration:none; color:inherit;
+      box-shadow:0 1px 3px rgba(0,0,0,0.05);
+      transform:translateY(0);
+      transition:transform .25s ease, box-shadow .25s ease;
     }
-    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+    .card:hover { transform:translateY(-6px); box-shadow:0 6px 16px rgba(0,0,0,0.12); }
 
-    .thumb { position: relative; background: #f6f6f6; overflow: hidden; aspect-ratio: 16 / 10; }
-    .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
+    /* 16:9 thumbs */
+    .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
+    .thumb::before { content: ""; display: block; padding-top: 56.25%; } /* 16:9 */
+    .thumb > * { position: absolute; inset: 0; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
     .card:hover .thumb img { transform: scale(1.03); }
 
-    .overlay {
-      position: absolute; inset: 0; display: flex; align-items: flex-end;
-      pointer-events: none;
-      background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
-    }
-    .overlay .title {
-      color: #fff; font-weight: 800; letter-spacing: .2px;
-      font-size: clamp(1rem, 1.6vw, 1.3rem);
-      padding: 12px 14px;
-      text-shadow: 0 1px 2px rgba(0,0,0,.45);
-    }
+    .overlay { position: absolute; inset: 0; display: flex; align-items: flex-end; pointer-events: none; background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); }
+    .overlay .title { color: #fff; font-weight: 800; letter-spacing: .2px; font-size: clamp(1rem, 1.8vw, 1.25rem); padding: 12px 14px; text-shadow: 0 1px 2px rgba(0,0,0,0.45); }
 
-    .body { padding: 10px 12px 14px; }
+    .body { padding: 12px 14px 16px; }
     .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
 
     .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
-
     .error { color: #b00; }
   </style>
 </Site>

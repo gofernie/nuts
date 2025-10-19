@@ -120,18 +120,8 @@ const listed = items;
     <div class="hero-scrim" aria-hidden="true"></div>
 
     <div class="hero-overlay">
-      <div class="container hero-container">
-        <h1
-          class="hero-title"
-          style="
-            left: var(--container-pad);
-            right: auto;
-            bottom: clamp(16px, 3vw, 28px);
-            margin: 0;
-            text-align: left;
-            transform: none;
-          "
-        >
+      <div class="hero-container">
+        <h1 class="hero-title">
           {header?.title || pageSeoTitle}
         </h1>
       </div>
@@ -192,67 +182,48 @@ const listed = items;
     )}
   </div>
 
-  <script is:inline>
-    // Force left alignment on load to beat any JS/CSS overrides
-    window.addEventListener('load', () => {
-      const h = document.querySelector('.hero-title');
-      if (!h) return;
-      Object.assign(h.style, {
-        left: 'var(--container-pad)',
-        right: 'auto',
-        bottom: 'clamp(16px, 3vw, 28px)',
-        margin: '0',
-        textAlign: 'left',
-        transform: 'none',
-        position: 'absolute',
-        display: 'inline-block',
-        width: 'auto',
-        maxWidth: 'calc(100% - (var(--container-pad) * 2))'
-      });
-    });
-  </script>
-
   <style>
-    :root { --container-max: 1200px; --container-pad: 1rem; }
+    :root { --container-max: 1300px; --container-pad: 1rem; } /* ⬅️ updated */
 
     .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
+    /* ---------- HERO ---------- */
     .hero-bleed {
-      position:relative;
-      left:50%; right:50%;
-      margin-left:-50vw; margin-right:-50vw;
-      width:100vw; max-width:100vw;
+      position: relative;
+      isolation: isolate;
+      left: 50%; right: 50%;
+      margin-left: -50vw; margin-right: -50vw;
+      width: 100vw; max-width: 100vw;
       height: clamp(300px, 38vw, 520px);
-      overflow:hidden; background:#e5e7eb; display:block;
+      overflow: hidden; background: #e5e7eb; display: block;
     }
-    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; z-index:0; }
-    .hero-scrim { position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); z-index:1; }
+    .hero-bleed img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; z-index: 0; }
+    .hero-scrim { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); z-index: 10; }
 
-    .hero-overlay { position:absolute; inset:0; pointer-events:none; z-index:2; }
-
-    .hero-container { position:relative; height:100%; max-width:var(--container-max); margin-inline:auto; padding-inline:var(--container-pad); }
+    .hero-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
+    .hero-container { position: relative; height: 100%; max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
     .hero-title {
-      position:absolute !important;
-      left:var(--container-pad) !important;
-      right:auto !important;
-      bottom:clamp(16px, 3vw, 28px) !important;
-      margin:0 !important;
-      text-align:left !important;
-      display:inline-block !important;
-      width:auto !important;
-      max-width:calc(100% - (var(--container-pad) * 2)) !important;
-      font-size:clamp(2rem, 4.5vw, 3rem);
-      line-height:1.1;
-      font-weight:800;
-      color:#fff;
-      text-shadow:0 2px 8px rgba(0,0,0,.45);
+      position: absolute;
+      left: var(--container-pad);
+      bottom: clamp(16px, 3vw, 28px);
+      margin: 0;
+      text-align: left;
+      display: inline-block;
+      width: auto;
+      max-width: calc(100% - (var(--container-pad) * 2));
+      font-size: clamp(2rem, 4.5vw, 3rem);
+      line-height: 1.1;
+      font-weight: 800;
+      color: #fff;
+      text-shadow: 0 2px 8px rgba(0,0,0,.45);
     }
 
     .summary { margin: 18px 0 26px; }
     .prose { color:#374151; font-size:1rem; line-height:1.7; }
     .prose--wide { max-width: none; }
 
+    /* ✅ 4-column grid */
     .grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));

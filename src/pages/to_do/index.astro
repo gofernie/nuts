@@ -1,5 +1,4 @@
 ---
-/* File: src/pages/todo/index.astro */
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
@@ -7,178 +6,122 @@ import { heroPath } from "../../lib/paths";
 const url = import.meta.env.PUBLIC_TODO_JSON;
 const PATH_BASE = "/to_do";
 
-type Row = {
-  slug?: string;
-  title?: string;
-  summary?: string;
-  hero_img?: string;
-  status?: string;
-  seo_title?: string;
-  seo_description?: string;
-  category?: string;  // summer | winter | both
-  sort?: number;
-};
+let items = [];
+let header = null;
+let error = null;
 
-let items: Row[] = [];
-let header: Row | null = null;
-let error: string | null = null;
-
-/* ----------------- helpers ----------------- */
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
+/* helpers */
+function pick(r, k) {
+  return (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 }
 
-function randomHeightClass(): string {
-  // weight toward base/sm for balance
-  const bag = ["h-base","h-base","h-sm","h-sm","h-md","h-md","h-lg"];
-  return bag[Math.floor(Math.random() * bag.length)];
+function normRow(r) {
+  const title = pick(r, "title");
+  const slug = pick(r, "slug") ||
+    title.toLowerCase().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+  const rawCat = pick(r, "category").toLowerCase().replace(/\s+/g, "");
+  const category =
+    rawCat === "summer" ? "summer" :
+    rawCat === "winter" ? "winter" :
+    rawCat === "both" ? "both" : "";
+  const sort = Number.isFinite(+r?.sort) ? +r.sort : Number.MAX_SAFE_INTEGER;
+
+  return {
+    slug,
+    title,
+    summary: pick(r, "summary"),
+    hero_img: pick(r, "hero_img"),
+    status: pick(r, "status"),
+    seo_title: pick(r, "seo_title"),
+    seo_description: pick(r, "seo_description"),
+    category,
+    sort
+  };
 }
+
+let heroSrc = "";
+let pageSeoTitle = "Things To Do in Fernie";
+let pageSeoDesc = "";
+let summer = [];
+let winter = [];
 
 try {
   if (!url) throw new Error("Missing PUBLIC_TODO_JSON in .env (restart dev).");
-  const raw = await getJson<any>(url);
-  const rows: any[] =
-    Array.isArray(raw) ? raw :
-    Array.isArray(raw?.data) ? raw.data :
-    Array.isArray(raw?.rows) ? raw.rows : [];
+  const raw = await getJson(url);
+  const rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
+  const normalized = rows.map(normRow);
 
-  const get = (r:any,k:string)=>
-    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+  header = normalized.find(r => (r.slug || "").toLowerCase() === "index") || null;
 
-  const normalize = (r:any): Row => {
-    const title = get(r,"title");
-    const computedSlug = (title||"").toLowerCase()
-      .replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+  items = normalized.filter(r => {
+    if (!r.slug || !r.title) return false;
+    if (header && r.slug.toLowerCase() === "index") return false;
+    const s = (r.status || "").toLowerCase();
+    return s !== "draft" && s !== "hidden" && s !== "inactive";
+  });
 
-    const rawCat = get(r,"category").toLowerCase().replace(/\s+/g,"");
-    const category =
-      rawCat === "summer" ? "summer" :
-      rawCat === "winter" ? "winter" :
-      rawCat === "both"   ? "both"   : "";
+  items.sort((a, b) => (a.sort - b.sort) || a.title.localeCompare(b.title));
 
-    const sort = Number.isFinite(+r?.sort) ? +r.sort : Number.MAX_SAFE_INTEGER;
+  if (header) {
+    heroSrc = header.hero_img ? heroPath(header.hero_img) : "";
+    pageSeoTitle = header.seo_title || header.title || pageSeoTitle;
+    pageSeoDesc = header.seo_description || header.summary || "";
+  }
 
-    return {
-      slug: get(r,"slug") || computedSlug,
-      title,
-      summary: get(r,"summary"),
-      hero_img: get(r,"hero_img"),
-      status: get(r,"status"),
-      seo_title: get(r,"seo_title"),
-      seo_description: get(r,"seo_description"),
-      category,
-      sort,
-    };
-  };
-
-  const normalized = rows.map(normalize);
-
-  header = normalized.find((r)=> (r.slug ?? "").toLowerCase()==="index") ?? null;
-
-  items = normalized.filter(
-    (r) =>
-      r.slug && r.title &&
-      r.slug.toLowerCase()!=="index" &&
-      !/^draft$/i.test(r.status ?? "") &&
-      !/^hidden$/i.test(r.status ?? "") &&
-      !/^inactive$/i.test(r.status ?? "") &&
-      !!r.category
-  );
-
-  // keep your intended sort as baseline (so “random” doesn’t look chaotic)
-  items.sort((a,b) => (a.sort! - b.sort!) || a.title!.localeCompare(b.title!));
-} catch (e:any) {
+  summer = items.filter(i => i.category === "summer" || i.category === "both");
+  winter = items.filter(i => i.category === "winter" || i.category === "both");
+} catch (e) {
   error = e?.message || String(e);
 }
 
-const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
-const pageSeoTitle = header?.seo_title || header?.title || "Things To Do in Fernie";
-const pageSeoDesc  = header?.seo_description || header?.summary || "";
-
-/* Randomize within each group for organic feel */
-const summer = shuffle(items.filter(i => i.category === "summer" || i.category === "both"));
-const winter = shuffle(items.filter(i => i.category === "winter" || i.category === "both"));
+const headingTitle = header && header.title ? header.title : "Things To Do in Fernie";
+const headingLead = pageSeoDesc || "";
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-
   {heroSrc && (
     <Fragment slot="head">
       <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
     </Fragment>
   )}
 
-  <!-- Page hero -->
+  <!-- HERO -->
   <section class="hero-bleed">
-    {heroSrc && (
-      <img
-        src={heroSrc}
-        alt=""
-        fetchpriority="high"
-        loading="eager"
-        decoding="async"
-        width="2000"
-        height="1000"
-      />
-    )}
+    {heroSrc && <img src={heroSrc} alt="" fetchpriority="high" loading="eager" decoding="async" />}
+    <div class="hero-inner">
+      <div class="container">
+        <h1>{headingTitle}</h1>
+      </div>
+    </div>
   </section>
 
-  <!-- Single container holding intro + sections -->
+  <!-- CONTENT -->
   <div class="container">
-    <header class="intro">
-      <h1>{header?.title || pageSeoTitle}</h1>
-      {(header?.summary || pageSeoDesc) && <p>{header?.summary || pageSeoDesc}</p>}
-    </header>
+    {headingLead && <p class="lead">{headingLead}</p>}
 
     {error && <p class="error">Error: {error}</p>}
-
-    {!error && items.length === 0 && (
-      <p>No activities yet. Check <code>PUBLIC_TODO_JSON</code> and your sheet’s <code>status</code>/<code>slug</code>/<code>category</code> columns.</p>
-    )}
 
     {summer.length > 0 && (
       <section class="group anchor-target" id="summer">
         <h2 class="group-title">Summer Activities</h2>
-        <div class="masonry">
+        <div class="grid4">
           {summer.map((n) => {
-            const primary = n.hero_img ? heroPath(n.hero_img) : "";
-            const altBase = primary.includes("/images/")
-              ? primary.replace("/images/", "/img/")
-              : primary.replace("/img/", "/images/");
-            const filename = (primary.split("/").pop() || "").trim();
-            const finalFallback = filename ? `/img/hero/${filename}` : "";
-
-            const hClass = randomHeightClass();
-
+            const img = n.hero_img ? heroPath(n.hero_img) : "";
             return (
-              <a class={`card ${hClass}`} href={`${PATH_BASE}/${n.slug}`}>
+              <a class="card" href={`${PATH_BASE}/${n.slug}`}>
                 <div class="thumb">
-                  {primary ? (
-                    <img
-                      src={primary}
-                      alt={n.title}
-                      loading="lazy"
-                      decoding="async"
-                      onerror={`if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
-                               else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
-                               else { const ph = document.createElement('div'); ph.className='ph'; ph.setAttribute('aria-hidden','true'); ph.textContent='No image'; this.replaceWith(ph); }`}
-                    />
-                  ) : (
-                    <div class="ph" aria-hidden="true">No image</div>
-                  )}
+                  {img
+                    ? <img src={img} alt={n.title} loading="lazy" decoding="async" />
+                    : <div class="ph" aria-hidden="true">No image</div>}
                   <div class="overlay"><div class="title">{n.title}</div></div>
                 </div>
-
-                {n.summary && (
-                  <div class="body">
-                    <p>{(n.summary).split(/\s+/).slice(0,18).join(" ") + ((n.summary).split(/\s+/).length>18 ? "…" : "")}</p>
-                  </div>
-                )}
+                <div class="body">
+                  <p>
+                    {n.summary
+                      ? n.summary.split(/\s+/).slice(0,18).join(" ") + (n.summary.split(/\s+/).length>18 ? "…" : "")
+                      : "Click to learn more"}
+                  </p>
+                </div>
               </a>
             );
           })}
@@ -189,41 +132,24 @@ const winter = shuffle(items.filter(i => i.category === "winter" || i.category =
     {winter.length > 0 && (
       <section class="group anchor-target" id="winter">
         <h2 class="group-title">Winter Activities</h2>
-        <div class="masonry">
+        <div class="grid4">
           {winter.map((n) => {
-            const primary = n.hero_img ? heroPath(n.hero_img) : "";
-            const altBase = primary.includes("/images/")
-              ? primary.replace("/images/", "/img/")
-              : primary.replace("/img/", "/images/");
-            const filename = (primary.split("/").pop() || "").trim();
-            const finalFallback = filename ? `/img/hero/${filename}` : "";
-
-            const hClass = randomHeightClass();
-
+            const img = n.hero_img ? heroPath(n.hero_img) : "";
             return (
-              <a class={`card ${hClass}`} href={`${PATH_BASE}/${n.slug}`}>
+              <a class="card" href={`${PATH_BASE}/${n.slug}`}>
                 <div class="thumb">
-                  {primary ? (
-                    <img
-                      src={primary}
-                      alt={n.title}
-                      loading="lazy"
-                      decoding="async"
-                      onerror={`if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
-                               else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
-                               else { const ph = document.createElement('div'); ph.className='ph'; ph.setAttribute('aria-hidden','true'); ph.textContent='No image'; this.replaceWith(ph); }`}
-                    />
-                  ) : (
-                    <div class="ph" aria-hidden="true">No image</div>
-                  )}
+                  {img
+                    ? <img src={img} alt={n.title} loading="lazy" decoding="async" />
+                    : <div class="ph" aria-hidden="true">No image</div>}
                   <div class="overlay"><div class="title">{n.title}</div></div>
                 </div>
-
-                {n.summary && (
-                  <div class="body">
-                    <p>{(n.summary).split(/\s+/).slice(0,18).join(" ") + ((n.summary).split(/\s+/).length>18 ? "…" : "")}</p>
-                  </div>
-                )}
+                <div class="body">
+                  <p>
+                    {n.summary
+                      ? n.summary.split(/\s+/).slice(0,18).join(" ") + (n.summary.split(/\s+/).length>18 ? "…" : "")
+                      : "Click to learn more"}
+                  </p>
+                </div>
               </a>
             );
           })}
@@ -233,69 +159,97 @@ const winter = shuffle(items.filter(i => i.category === "winter" || i.category =
   </div>
 
   <style>
-    .container { max-width: 1200px; margin-inline: auto; padding: 0 1rem; }
-
-    .intro { margin: 20px 0 12px; text-align: left; }
-    .intro h1 { font-size: 2.25rem; font-weight: 700; margin: 0 0 6px; color: #111827; }
-    .intro p  { font-size: 1rem; line-height: 1.6; margin: 0; color: #1f2937; }
-
-    .group { margin: 28px 0; }
-    .group-title { margin: 0 0 10px; font-size: 1.4rem; font-weight: 800; color:#111827; }
-
-    /* ===== Masonry via CSS Multi-Columns ===== */
-    :where(.masonry) {
-      column-count: 3 !important;
-      column-gap: 16px !important;
+    .container {
+      max-width: 1300px;
+      margin-inline: auto;
+      padding: 0 1rem;
     }
-    @media (max-width: 1100px) { :where(.masonry){ column-count: 2 !important; } }
-    @media (max-width: 640px)  { :where(.masonry){ column-count: 1 !important; } }
 
-    /* Column items */
-    .masonry > .card {
-      display: inline-block !important;
-      width: 100% !important;
-      margin: 0 0 16px !important;
-      break-inside: avoid !important;
-      -webkit-column-break-inside: avoid !important;
-      -moz-column-break-inside: avoid !important;
-      column-break-inside: avoid !important;
-
-      background: #fff;
-      border-radius: 14px;
+    /* HERO */
+    .hero-bleed {
+      position: relative;
+      left: 50%;
+      right: 50%;
+      margin-left: -50vw;
+      margin-right: -50vw;
+      width: 100vw;
+      max-width: 100vw;
+      height: clamp(300px, 38vw, 520px);
       overflow: hidden;
-      border: 1px solid #eee;
-      text-decoration: none;
-      color: inherit;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      transform: translateY(0);
-      transition: transform .25s ease, box-shadow .25s ease;
+      background: #e5e7eb;
+      display: block;
     }
-    .masonry > .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-
-    /* Variable image heights */
-    .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
-    .card.h-base .thumb { height: clamp(180px, 26vw, 320px); }
-    .card.h-sm   .thumb { height: clamp(150px, 22vw, 260px); }
-    .card.h-md   .thumb { height: clamp(220px, 30vw, 380px); }
-    .card.h-lg   .thumb { height: clamp(280px, 36vw, 460px); }
-
-    .thumb img {
-      position: absolute; inset: 0;
-      width: 100%; height: 100%; object-fit: cover; display: block;
-      transition: transform .35s ease;
+    .hero-bleed img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: center;
     }
-    .card:hover .thumb img { transform: scale(1.03); }
-
-    /* Overlay title */
-    .overlay {
+    .hero-inner {
       position: absolute; inset: 0;
       display: flex; align-items: flex-end;
-      pointer-events: none;
+      background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
+      padding-bottom: 22px;
+    }
+    .hero-inner .container {
+      width: 100%;
+      max-width: 1300px;
+      margin-inline: auto;
+      padding: 0 1rem;
+    }
+    .hero-inner h1 {
+      margin: 0;
+      color: #fff; font-weight: 800; letter-spacing: .2px;
+      font-size: clamp(1.8rem, 3.6vw, 2.6rem);
+      text-shadow: 0 2px 6px rgba(0,0,0,.35);
+    }
+
+    .lead {
+      margin: 24px 0 28px;
+      font-size: 1.05rem;
+      line-height: 1.65;
+      color: #1f2937;
+      max-width: 850px;
+    }
+
+    /* SECTIONS */
+    .group { margin: 34px 0 44px; }
+    .group-title { margin: 0 0 10px; font-size: 1.35rem; font-weight: 800; color:#111827; }
+
+    /* 4-wide grid */
+    .grid4 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 20px;
+    }
+    @media (max-width: 1200px) { .grid4 { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+    @media (max-width: 900px)  { .grid4 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    @media (max-width: 560px)  { .grid4 { grid-template-columns: 1fr; } }
+
+    /* Cards */
+    .card {
+      background:#fff; border-radius:14px; overflow:hidden; border:1px solid #eee;
+      text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,0.05);
+      transform:translateY(0); transition: transform .25s ease, box-shadow .25s ease;
+    }
+    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+
+    /* 16:9 thumb */
+    .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
+    .thumb::before { content:""; display:block; padding-top:56.25%; } /* 16:9 */
+    .thumb > * { position:absolute; inset:0; }
+    .thumb img { width:100%; height:100%; object-fit:cover; display:block; transition: transform .35s ease; }
+    .card:hover .thumb img { transform: scale(1.03); }
+
+    .overlay {
+      position: absolute; inset: 0;
+      display: flex; align-items: flex-end; pointer-events: none;
       background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
     }
     .overlay .title {
-      color: #fff; font-weight: 800; letter-spacing: .2px;
-      font-size: clamp(1rem, 1.6vw, 1.3rem);
+      color:#fff; font-weight:800; letter-spacing:.2px;
+      font-size: clamp(1rem, 1.6vw, 1.15rem);
       padding: 12px 14px;
       text-shadow: 0 1px 2px rgba(0,0,0,.45);
     }
@@ -303,12 +257,9 @@ const winter = shuffle(items.filter(i => i.category === "winter" || i.category =
     .body { padding: 10px 12px 14px; }
     .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
 
-    .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
+    .ph { position:absolute; inset:0; display:grid; place-items:center; font-size:12px; color:#999; background:#f6f6f6; }
 
-    /* Page hero */
-    .hero-bleed { position:relative; left:50%; right:50%; margin-left:-50vw; margin-right:-50vw; width:100vw; max-width:100vw; height: clamp(300px, 38vw, 520px); overflow:hidden; background:#e5e7eb; display:block; }
-    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
-
+    .error { color:#b00; }
     .anchor-target { scroll-margin-top: calc(var(--header-h, 52px) + 25px); }
   </style>
 </Site>
