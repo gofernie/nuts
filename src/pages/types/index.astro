@@ -1,4 +1,5 @@
 ---
+/** File: src/pages/types/index.astro */
 import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
@@ -19,6 +20,7 @@ type Row = {
   cta1?: string;
   cta2?: string;
   cta3?: string;
+  sort?: number | string;
 };
 
 let items: Row[] = [];
@@ -50,44 +52,46 @@ const normalize = (r:any): Row => {
     cta1: get(r,"cta1"),
     cta2: get(r,"cta2"),
     cta3: get(r,"cta3"),
+    sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
   };
 };
 
 try {
   if (!url) throw new Error("Missing PUBLIC_TYPES_JSON in .env (restart dev).");
   const raw = await getJson<any>(url);
+
   const rows: any[] =
     Array.isArray(raw) ? raw :
     Array.isArray(raw?.data) ? raw.data :
-    Array.isArray(raw?.rows) ? raw.rows : [];
+    Array.isArray(raw?.rows) ? raw.rows :
+    [];
 
   const normalized = rows.map(normalize);
 
-  // header detection
+  // pick header row
   const bySlugIndex   = normalized.find(r => (r.slug ?? "").toLowerCase().trim()   === "index");
   const byTitleIndex  = normalized.find(r => (r.title ?? "").toLowerCase().trim()  === "index");
   const byStatusIndex = normalized.find(r => (r.status ?? "").toLowerCase().trim() === "index");
   const byTitlePT     = normalized.find(r => (r.title ?? "").toLowerCase().trim()  === "property types");
   const withContent   = normalized.find(r => !!(r.long_copy || r.summary || r.seo_description));
-
   header = bySlugIndex ?? byTitleIndex ?? byStatusIndex ?? byTitlePT ?? withContent ?? null;
 
-  // cards
-  items = normalized.filter((r) =>
-    r.slug && r.title &&
-    (r.slug ?? "").toLowerCase().trim()   !== "index" &&
-    (r.title ?? "").toLowerCase().trim()  !== "index" &&
-    (r.status ?? "").toLowerCase().trim() !== "index" &&
-    !/^draft$/i.test(r.status ?? "") &&
-    !/^hidden$/i.test(r.status ?? "") &&
-    !/^inactive$/i.test(r.status ?? "")
-  );
+  // list items
+  items = normalized
+    .filter((r) =>
+      r.slug && r.title &&
+      (r.slug ?? "").toLowerCase().trim()   !== "index" &&
+      (r.title ?? "").toLowerCase().trim()  !== "index" &&
+      (r.status ?? "").toLowerCase().trim() !== "index" &&
+      !/^draft$/i.test(r.status ?? "") &&
+      !/^hidden$/i.test(r.status ?? "") &&
+      !/^inactive$/i.test(r.status ?? ""))
+    .sort((a,b) => (Number(a.sort) - Number(b.sort)) || (a.title||"").localeCompare(b.title||""));
 
 } catch (e:any) {
   error = e?.message || String(e);
 }
 
-// Resolve images
 const resolveImg = (v?: string) => {
   const s = (v || "").trim();
   if (!s) return "";
@@ -96,7 +100,7 @@ const resolveImg = (v?: string) => {
   return heroPath(s);
 };
 
-const heroSrc = resolveImg(header?.hero_img);
+const heroSrc      = resolveImg(header?.hero_img);
 const heroH1       = header?.title || "Property Types";
 const introText    = (header?.long_copy || header?.summary || header?.seo_description || "").trim();
 const pageSeoTitle = header?.seo_title || heroH1;
@@ -104,19 +108,14 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-  {heroSrc && (
-    <Fragment slot="head">
-      <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
-    </Fragment>
-  )}
-
-  <!-- HERO (reusable pinned-H1 hero) -->
+  <!-- Aligned hero (matches .container: 1200 / pad 12) -->
   <HeroBleed
     src={heroSrc}
     title={heroH1}
-    alt=""
-    preload={false}                        /* already preloaded */
-    height={{ min: 320, vw: 46, max: 560 }}/* match other indexes */
+    preload={true}
+    containerMax={1200}
+    flush={false}
+    containerPad={12}
   />
 
   <div class="container">
@@ -143,7 +142,7 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
           const finalFallback = filename ? `/img/hero/${filename}` : "";
 
           return (
-            <a class="card" href={`${PATH_BASE}/${n.slug}`}>
+            <a class="card" href={`${PATH_BASE}/${n.slug}`} data-astro-prefetch="hover">
               <div class="thumb">
                 {primary ? (
                   <img
@@ -177,6 +176,7 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
   <style>
     .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
+    /* Intro */
     .intro { margin: 18px 0 26px; text-align: left; }
     .prose { color:#374151; font-size:1rem; line-height:1.7; }
     .prose--wide { max-width: none; }
@@ -214,10 +214,4 @@ const pageSeoDesc  = (header?.seo_description || "").trim();
     .overlay .title { color: #fff; font-weight: 800; letter-spacing: .2px; font-size: clamp(1rem, 1.6vw, 1.3rem); padding: 12px 14px; text-shadow: 0 1px 2px rgba(0,0,0,0.45); }
 
     .body { padding: 10px 12px 14px; }
-    .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
-
-    .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
-
-    .error { color: #b00; }
-  </style>
-</Site>
+    .body p {

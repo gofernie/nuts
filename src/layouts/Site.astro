@@ -79,6 +79,7 @@ const NAV_ORDER = [
 
     <slot name="head" />
 
+    <!-- Small mobile-only rule to hide/show nav -->
     <style>
       @media (max-width:900px){
         header nav{ display:none !important; }
@@ -86,11 +87,12 @@ const NAV_ORDER = [
       }
     </style>
 
+    <!-- GLOBAL styles trimmed to avoid touching any hero/H1 -->
     <style is:global>
       :root {
         --header-h: 52px;
         --bg:#06576b10; --ink:#271f11; --ink-muted:#1f2937; --hover-bg:rgba(243,244,246,.9);
-        --hero-h: 55vh;
+        --hero-h: 55vh;              /* harmless if left in */
         --hero-min: 340px;
         --container-pad: 12px;
         --container-max: 1200px;
@@ -105,96 +107,6 @@ const NAV_ORDER = [
         font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
         background: var(--bg);
         color: var(--ink);
-      }
-
-      /* === Hero Bleed Core === */
-      .hero-bleed {
-        position: relative;
-        isolation: isolate;
-        left: 50%; right: 50%;
-        width: calc(100vw + var(--bleed-fix)*2);
-        margin-left: calc(-50vw - var(--bleed-fix));
-        margin-right: calc(-50vw - var(--bleed-fix));
-        height: var(--hero-h);
-        min-height: var(--hero-min);
-        padding-top: var(--header-h);
-        background-color: #e5e7eb;
-        border-bottom: 1px solid #eee;
-        overflow: hidden;
-      }
-      .hero-bleed>img {
-        position: absolute;
-        inset: 0;
-        width: 100%; height: 100%;
-        object-fit: cover;
-        object-position: center;
-        z-index: 0;
-      }
-      .hero-bleed::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        z-index: 1;
-        pointer-events: none;
-        background: linear-gradient(to top, rgba(0,0,0,0.35), rgba(0,0,0,0) 55%);
-      }
-
-      /* === Title Container Alignment === */
-      .hero-bleed .hero__inner,
-      .hero-bleed > .container {
-        padding-inline-start: max(var(--container-pad), calc((100vw - var(--container-max)) / 2 + var(--container-pad)));
-        padding-inline-end: max(var(--container-pad), calc((100vw - var(--container-max)) / 2 + var(--container-pad)));
-        padding-block-end: clamp(14px, 2.5vh, 28px);
-        max-width: unset;
-        margin: 0;
-        position: relative;
-        z-index: 2;
-      }
-      .hero-bleed .hero__content {
-        position: absolute;
-        left: 0; right: 0; bottom: 0;
-        z-index: 2;
-      }
-
-      /* === Title Styles === */
-      .hero-bleed .hero__title,
-      .hero-bleed h1 {
-        margin: 0;
-        color: #fff;
-        font-weight: 800;
-        line-height: 1.05;
-        font-size: clamp(32px, 6vw, 56px);
-        text-align: left;
-        text-wrap: balance;
-        text-shadow:
-          0 2px 12px rgba(0,0,0,.70),
-          0 0 22px rgba(0,0,0,.35);
-        filter: brightness(1.18);
-        -webkit-text-stroke: 0.25px rgba(0,0,0,.25);
-        z-index: 3;
-      }
-
-      /* === Compat Rule for Bare H1 === */
-      .hero-bleed > h1:not(.hero__title),
-      .hero-bleed > .page-title {
-        position: absolute;
-        inset-block-end: 0;
-        inset-inline: 0;
-        z-index: 3;
-        padding-inline-start: max(var(--container-pad), calc((100vw - var(--container-max)) / 2 + var(--container-pad)));
-        padding-inline-end: max(var(--container-pad), calc((100vw - var(--container-max)) / 2 + var(--container-pad)));
-        padding-block-end: clamp(14px, 2.5vh, 28px);
-        margin: 0;
-        color: #fff;
-        font-weight: 800;
-        line-height: 1.05;
-        font-size: clamp(32px, 6vw, 56px);
-        text-align: left;
-        text-shadow:
-          0 2px 12px rgba(0,0,0,.70),
-          0 0 22px rgba(0,0,0,.35);
-        filter: brightness(1.18);
-        -webkit-text-stroke: 0.25px rgba(0,0,0,.25);
       }
 
       /* === Container === */
@@ -382,6 +294,7 @@ const NAV_ORDER = [
       </div>
     </footer>
 
+    <!-- Load RealtyVis once per page -->
     <script is:inline>
       if (typeof window !== "undefined" && !window.__rvLoaded) {
         const s=document.createElement("script");
@@ -392,6 +305,7 @@ const NAV_ORDER = [
       }
     </script>
 
+    <!-- Accessibility: ensure iframes have titles -->
     <script is:inline>
       (function(){
         const DEFAULTS=[

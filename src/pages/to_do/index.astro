@@ -1,228 +1,177 @@
 ---
-// File: src/pages/to_do/index.astro
+/** File: src/pages/to_do/index.astro */
 import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-const url = import.meta.env.PUBLIC_TODO_JSON;
 const PATH_BASE = "/to_do";
 
-let items = [];
-let header = null;
-let error = null;
+/* ---------- helpers ---------- */
+const RESERVED = new Set(["index","page","pages","all","view","list"]);
+const get = (r:any,k:string)=>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
-/* helpers */
-function pick(r, k) {
-  return (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-}
+const slugify = (v:string) =>
+  (v ?? "").toLowerCase().trim()
+    .replace(/&/g,"-and-")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"");
 
-function normRow(r) {
-  const title = pick(r, "title");
-  const slug = pick(r, "slug") ||
-    title.toLowerCase().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
-  const rawCat = pick(r, "category").toLowerCase().replace(/\s+/g, "");
-  const category =
-    rawCat === "summer" ? "summer" :
-    rawCat === "winter" ? "winter" :
-    rawCat === "both" ? "both" : "";
-  const sort = Number.isFinite(+r?.sort) ? +r.sort : Number.MAX_SAFE_INTEGER;
+const visible = (r:any) => {
+  const s = get(r,"status").toLowerCase();
+  const rawSlug = get(r,"slug").toLowerCase();
+  return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
+};
 
-  return {
-    slug,
-    title,
-    summary: pick(r, "summary"),
-    hero_img: pick(r, "hero_img"),
-    status: pick(r, "status"),
-    seo_title: pick(r, "seo_title"),
-    seo_description: pick(r, "seo_description"),
-    category,
-    sort
-  };
-}
+type Row = {
+  slug?: string;
+  title?: string;
+  summary?: string;
+  long_copy?: string;
+  hero_img?: string;
+  status?: string;
+  seo_title?: string;
+  seo_description?: string;
+  sort?: number|string;
+};
 
-let heroSrc = "";
-let pageSeoTitle = "Things To Do in Fernie";
-let pageSeoDesc = "";
-let summer = [];
-let winter = [];
+let items: Row[] = [];
+let header: Row | null = null;
+let error: string | null = null;
 
 try {
+  const url = import.meta.env.PUBLIC_TODO_JSON;
   if (!url) throw new Error("Missing PUBLIC_TODO_JSON in .env (restart dev).");
-  const raw = await getJson(url);
-  const rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
-  const normalized = rows.map(normRow);
 
-  header = normalized.find(r => (r.slug || "").toLowerCase() === "index") || null;
+  const raw = await getJson<any>(url);
+  const rows:any[] =
+    Array.isArray(raw) ? raw :
+    Array.isArray(raw?.data) ? raw.data :
+    Array.isArray(raw?.rows) ? raw.rows : [];
 
-  items = normalized.filter(r => {
-    if (!r.slug || !r.title) return false;
-    if (header && r.slug.toLowerCase() === "index") return false;
-    const s = (r.status || "").toLowerCase();
-    return s !== "draft" && s !== "hidden" && s !== "inactive";
+  // 🪄 more flexible header detection
+  const headerCandidates = rows.filter((r:any) => {
+    const slug = get(r,"slug").toLowerCase();
+    const status = get(r,"status").toLowerCase();
+    const hasSummary =
+      !!get(r,"summary") ||
+      !!get(r,"long_copy") ||
+      !!get(r,"seo_description") ||
+      !!get(r,"description");
+    return slug === "index" || status === "header" || hasSummary;
   });
 
-  items.sort((a, b) => (a.sort - b.sort) || a.title.localeCompare(b.title));
+  header =
+    headerCandidates.find(r => get(r,"slug").toLowerCase() === "index") ??
+    headerCandidates.find(r => get(r,"status").toLowerCase() === "header") ??
+    headerCandidates[0] ??
+    null;
 
-  if (header) {
-    heroSrc = header.hero_img ? heroPath(header.hero_img) : "";
-    pageSeoTitle = header.seo_title || header.title || pageSeoTitle;
-    pageSeoDesc = header.seo_description || header.summary || "";
-  }
+  items = rows
+    .filter(r => visible(r))
+    .map(r => ({
+      slug: get(r,"slug") || slugify(get(r,"title")),
+      title: get(r,"title"),
+      summary: get(r,"summary"),
+      hero_img: get(r,"hero_img"),
+      sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
+      seo_title: get(r,"seo_title"),
+      seo_description: get(r,"seo_description"),
+    }))
+    .filter(r => r.slug && r.title)
+    .sort((a,b) => (Number(a.sort) - Number(b.sort)) || a.title!.localeCompare(b.title!));
 
-  summer = items.filter(i => i.category === "summer" || i.category === "both");
-  winter = items.filter(i => i.category === "winter" || i.category === "both");
-} catch (e) {
-  error = e?.message || String(e);
+} catch (e:any) {
+  error = e?.message || "Failed to load data.";
 }
 
-const headingTitle = header?.title || "Things To Do in Fernie";
-const headingLead = pageSeoDesc || "";
+// 📝 fallbacks to ensure summary text renders
+const pageTitle = get(header,"title") || "Things To Do in Fernie";
+const pageSummary =
+  get(header,"summary") ||
+  get(header,"long_copy") ||
+  get(header,"seo_description") ||
+  get(header,"description") ||
+  "";
+const heroImg = get(header,"hero_img");
+const seoTitle = get(header,"seo_title") || pageTitle;
+const seoDesc  = get(header,"seo_description") || pageSummary;
+
+// set to true if your summary text contains HTML markup
+const SUMMARY_IS_HTML = false;
 ---
 
-<Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-  {heroSrc && (
-    <Fragment slot="head">
-      <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
-    </Fragment>
-  )}
-
-  <!-- HERO (shared component for consistent pinned H1) -->
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
   <HeroBleed
-    src={heroSrc}
-    title={headingTitle}
-    alt=""
-    preload={false}
-    height={{ min: 320, vw: 46, max: 560 }}
+    src={heroImg ? heroPath(heroImg) : ""}
+    title={pageTitle}
+    containerMax={1200}
+    flush={false}
+    containerPad={12}
   />
 
-  <!-- CONTENT -->
+  {pageSummary && (
+    <div class="container summary-wrap">
+      {SUMMARY_IS_HTML
+        ? <div class="lead" set:html={pageSummary}></div>
+        : <p class="lead">{pageSummary}</p>}
+    </div>
+  )}
+
   <div class="container">
-    {headingLead && <p class="lead">{headingLead}</p>}
+    {error && <p class="err">{error}</p>}
 
-    {error && <p class="error">Error: {error}</p>}
-
-    {summer.length > 0 && (
-      <section class="group anchor-target" id="summer">
-        <h2 class="group-title">Summer Activities</h2>
-        <div class="grid4">
-          {summer.map((n) => {
-            const img = n.hero_img ? heroPath(n.hero_img) : "";
-            return (
-              <a class="card" href={`${PATH_BASE}/${n.slug}`}>
-                <div class="thumb">
-                  {img
-                    ? <img src={img} alt={n.title} loading="lazy" decoding="async" />
-                    : <div class="ph" aria-hidden="true">No image</div>}
-                  <div class="overlay"><div class="title">{n.title}</div></div>
-                </div>
-                <div class="body">
-                  <p>
-                    {n.summary
-                      ? n.summary.split(/\s+/).slice(0,18).join(" ") + (n.summary.split(/\s+/).length>18 ? "…" : "")
-                      : "Click to learn more"}
-                  </p>
-                </div>
-              </a>
-            );
-          })}
-        </div>
-      </section>
-    )}
-
-    {winter.length > 0 && (
-      <section class="group anchor-target" id="winter">
-        <h2 class="group-title">Winter Activities</h2>
-        <div class="grid4">
-          {winter.map((n) => {
-            const img = n.hero_img ? heroPath(n.hero_img) : "";
-            return (
-              <a class="card" href={`${PATH_BASE}/${n.slug}`}>
-                <div class="thumb">
-                  {img
-                    ? <img src={img} alt={n.title} loading="lazy" decoding="async" />
-                    : <div class="ph" aria-hidden="true">No image</div>}
-                  <div class="overlay"><div class="title">{n.title}</div></div>
-                </div>
-                <div class="body">
-                  <p>
-                    {n.summary
-                      ? n.summary.split(/\s+/).slice(0,18).join(" ") + (n.summary.split(/\s+/).length>18 ? "…" : "")
-                      : "Click to learn more"}
-                  </p>
-                </div>
-              </a>
-            );
-          })}
-        </div>
-      </section>
+    {!error && (
+      <div class="grid">
+        {items.map((it) => (
+          <a class="card" href={`${PATH_BASE}/${it.slug}`} data-astro-prefetch="hover">
+            {it.hero_img && (
+              <img src={heroPath(it.hero_img)} alt={it.title} loading="lazy" decoding="async" />
+            )}
+            <div class="body">
+              <h2>{it.title}</h2>
+              {it.summary && <p>{it.summary}</p>}
+            </div>
+          </a>
+        ))}
+      </div>
     )}
   </div>
 
   <style>
-    /* Inherit site-wide width from Site.astro */
-    .container {
-      max-width: var(--container-max);
-      margin-inline: auto;
-      padding-inline: var(--container-pad);
+    .container{
+      max-width:1200px;
+      margin-inline:auto;
+      padding-inline:12px;
     }
+    .summary-wrap{ padding-top:16px; padding-bottom:8px; }
+    .lead{ margin: 0; font-size: 1.075rem; line-height: 1.6; color:#111827; }
+    .err{ color:#b91c1c; background:#fee2e2; padding:.75rem 1rem; border-radius:.5rem; margin-top:12px; }
 
-    .lead {
-      margin: 24px 0 28px;
-      font-size: 1.05rem;
-      line-height: 1.65;
-      color: #1f2937;
-      max-width: 850px;
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 16px;
+      margin-top: 18px;
     }
+    @media (max-width:1200px){ .grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
+    @media (max-width:900px){  .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    @media (max-width:560px){  .grid{ grid-template-columns: 1fr; } }
 
-    /* SECTIONS */
-    .group { margin: 34px 0 44px; }
-    .group-title { margin: 0 0 10px; font-size: 1.35rem; font-weight: 800; color:#111827; }
-
-    /* 4-wide grid */
-    .grid4 {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 20px;
-      margin-bottom: clamp(36px, 5vw, 60px);
+    .card{
+      display:flex; flex-direction:column;
+      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+      overflow:hidden; text-decoration:none; color:inherit;
+      transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
     }
-    @media (max-width: 1200px) { .grid4 { grid-template-columns: repeat(3, minmax(0,1fr)); } }
-    @media (max-width: 900px)  { .grid4 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
-    @media (max-width: 560px)  { .grid4 { grid-template-columns: 1fr; } }
-
-    /* Cards */
-    .card {
-      background:#fff; border-radius:14px; overflow:hidden; border:1px solid #eee;
-      text-decoration:none; color:inherit; box-shadow:0 1px 3px rgba(0,0,0,0.05);
-      transform:translateY(0); transition: transform .25s ease, box-shadow .25s ease;
+    .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
+    .card img{ width:100%; aspect-ratio: 16/9; object-fit: cover; display:block; }
+    .card .body{ padding:12px; }
+    .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; }
+    .card .body p{
+      margin:0; color:#374151; line-height:var(--card-text-lh,1.35);
+      display:-webkit-box; -webkit-line-clamp:var(--card-text-lines,3); -webkit-box-orient:vertical; overflow:hidden;
     }
-    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-
-    /* 16:9 thumb */
-    .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
-    .thumb::before { content:""; display:block; padding-top:56.25%; }
-    .thumb > * { position:absolute; inset:0; }
-    .thumb img { width:100%; height:100%; object-fit:cover; display:block; transition: transform .35s ease; }
-    .card:hover .thumb img { transform: scale(1.03); }
-
-    .overlay {
-      position: absolute; inset: 0;
-      display: flex; align-items: flex-end; pointer-events: none;
-      background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
-    }
-    .overlay .title {
-      color:#fff; font-weight:800; letter-spacing:.2px;
-      font-size: clamp(1rem, 1.6vw, 1.15rem);
-      padding: 12px 14px;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.45);
-    }
-
-    .body { padding: 10px 12px 14px; }
-    .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
-
-    .ph { position:absolute; inset:0; display:grid; place-items:center; font-size:12px; color:#999; background:#f6f6f6; }
-
-    .error { color:#b00; }
-    .anchor-target { scroll-margin-top: calc(var(--header-h, 52px) + 25px); }
   </style>
 </Site>
