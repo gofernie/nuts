@@ -5,6 +5,7 @@ export const prerender = false;
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
+import HeroBleed from "../../components/HeroBleed.astro"; // ⬅️ NEW
 
 const slugParam = (Astro.params.slug || "").toString().trim();
 
@@ -80,28 +81,17 @@ const isHtml = !!rawCta && !isRvId;
 ---
 
 <Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-  <!-- Preload LCP image -->
-  <Fragment slot="head">
-    <link rel="preload" as="image" href={hero} fetchpriority="high" />
-  </Fragment>
-
-  <!-- HERO (full-bleed; H1 aligned with global .container like Types slug) -->
-  <section class="hero-bleed">
-    <img
-      src={hero}
-      alt={title}
-      fetchpriority="high"
-      loading="eager"
-      decoding="async"
-      width="2000" height="1000"
-    />
-    <div class="hero-scrim" aria-hidden="true"></div>
-    <div class="hero-overlay">
-      <div class="hero-container">
-        <h1 class="hero-title">{title}</h1>
-      </div>
-    </div>
-  </section>
+  <!-- HERO via component (flush left; matches Types slug height/feel) -->
+  <HeroBleed
+    src={hero}
+    title={title}
+    alt={title}
+    preload
+    height={{ min: 300, vw: 38, max: 520 }}
+    gradient="linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%)"
+    containerMax={1200}
+    flush={true}
+  />
 
   <!-- BODY -->
   <main class="container body">
@@ -167,51 +157,10 @@ const isHtml = !!rawCta && !isRvId;
   </main>
 
   <style>
-    /* Use the same variables the Types slug uses (from Site.astro) */
+    /* Container matches Types slug */
     .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
-    /* ---------- HERO (matches Types slug) ---------- */
-    .hero-bleed{
-      position:relative;
-      left:50%; right:50%;
-      margin-left:-50vw; margin-right:-50vw;
-      width:100vw; max-width:100vw;
-      height: clamp(300px, 38vw, 520px);
-      overflow:hidden; background:#e5e7eb;
-      line-height:0; font-size:0;
-    }
-    .hero-bleed img{
-      display:block;
-      width:100%;
-      height:calc(100% + 1px); /* avoid hairline seam */
-      object-fit:cover; object-position:center;
-    }
-    .hero-scrim{
-      position:absolute; inset:0;
-      background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
-      z-index:5;
-    }
-    .hero-overlay{
-      position:absolute; inset:0; z-index:10;
-      display:flex; align-items:flex-end; justify-content:flex-start;
-      padding-bottom:clamp(16px,3vw,28px);
-      pointer-events:none;
-    }
-    .hero-container{
-      width:100%;
-      max-width: var(--container-max);
-      margin-inline:auto;
-      padding-inline: var(--container-pad);
-      text-align:left;
-    }
-    .hero-title{
-      margin:0; color:#fff; font-weight:800; line-height:1.1;
-      font-size:clamp(2rem,4.5vw,3rem);
-      text-shadow:0 2px 8px rgba(0,0,0,.45);
-      background:none; padding:0; display:inline-block;
-    }
-
-    /* ---------- Body (same rhythm) ---------- */
+    /* Body rhythm */
     .body{ padding-block: 20px; }
     .intro{ margin: 0 0 22px; }
 

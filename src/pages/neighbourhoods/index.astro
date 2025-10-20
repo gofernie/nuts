@@ -1,5 +1,6 @@
 ---
 import Site from "../../layouts/Site.astro";
+import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
@@ -26,12 +27,10 @@ let error: string | null = null;
 try {
   if (!url) throw new Error("Missing PUBLIC_SHEET_JSON in .env (restart dev).");
   const raw = await getJson<any>(url);
-
   const rows: any[] =
     Array.isArray(raw) ? raw :
     Array.isArray(raw?.data) ? raw.data :
-    Array.isArray(raw?.rows) ? raw.rows :
-    [];
+    Array.isArray(raw?.rows) ? raw.rows : [];
 
   const get = (r:any,k:string)=>
     (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
@@ -90,49 +89,27 @@ const resolveImg = (v?: string) => {
 const heroSrc = resolveImg(header?.hero_img);
 const pageSeoTitle = header?.seo_title || header?.title || "Fernie Neighbourhoods";
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
+const headingTitle = header?.title || pageSeoTitle;
 const listed = items;
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-
   {heroSrc && (
     <Fragment slot="head">
       <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
     </Fragment>
   )}
 
-  <!-- HERO -->
-  <section class="hero-bleed">
-    {heroSrc && (
-      <img
-        src={heroSrc}
-        alt=""
-        fetchpriority="high"
-        loading="eager"
-        decoding="async"
-        width="2000"
-        height="1000"
-      />
-    )}
-    <div class="hero-scrim" aria-hidden="true"></div>
+  <!-- HERO (reusable pinned-H1 hero) -->
+  <HeroBleed
+    src={heroSrc}
+    title={headingTitle}
+    alt=""
+    preload={false}                        /* already preloaded above */
+    height={{ min: 320, vw: 46, max: 560 }}/* same feel as other indexes */
+  />
 
-    <!-- ✅ Inline flex: no flash to center -->
-    <div
-      class="hero-overlay"
-      style="display:flex;justify-content:flex-start;align-items:flex-end;text-align:left;"
-    >
-      <div
-        class="container"
-        style="display:flex;justify-content:flex-start;align-items:flex-end;width:100%;max-width:var(--container-max);padding-inline:var(--container-pad);margin-inline:auto;"
-      >
-        <h1 class="hero-title">
-          {header?.title || pageSeoTitle}
-        </h1>
-      </div>
-    </div>
-  </section>
-
-  <!-- SUMMARY -->
+  <!-- SUMMARY + GRID -->
   <div class="container">
     {(header?.summary || pageSeoDesc) && (
       <div class="prose prose--wide summary">
@@ -189,38 +166,11 @@ const listed = items;
   <style>
     .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
-    /* ---------- HERO ---------- */
-    .hero-bleed {
-      position: relative;
-      isolation: isolate;
-      left: 50%; right: 50%;
-      margin-left: -50vw; margin-right: -50vw;
-      width: 100vw; max-width: 100vw;
-      height: clamp(320px, 46vw, 560px);
-      overflow: hidden; background: #e5e7eb;
-      margin-bottom: clamp(16px, 2.5vw, 24px);
-    }
-    .hero-bleed img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; }
-    .hero-scrim { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%); z-index: 10; }
-
-    /* reinforcement only */
-    .hero-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 20; display:flex; align-items:flex-end; justify-content:flex-start; padding-bottom: clamp(16px, 3vw, 28px); }
-    .hero-title {
-      margin: 0;
-      text-align: left;
-      max-width: 100%;
-      font-size: clamp(2.25rem, 5vw, 3.25rem);
-      line-height: 1.1;
-      font-weight: 800;
-      color: #fff;
-      text-shadow: 0 2px 8px rgba(0,0,0,.45);
-    }
-
     .summary { margin: 18px 0 26px; }
     .prose { color:#374151; font-size:1rem; line-height:1.7; }
     .prose--wide { max-width: none; }
 
-    /* ✅ 4-column grid */
+    /* Grid */
     .grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -242,7 +192,6 @@ const listed = items;
     }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
 
-    /* 🔒 16:9 thumbs */
     .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
     .thumb::before { content: ""; display: block; padding-top: 56.25%; }
     .thumb > * { position: absolute; inset: 0; }

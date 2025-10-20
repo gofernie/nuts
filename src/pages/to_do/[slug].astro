@@ -5,6 +5,7 @@ export const prerender = false;
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
+import HeroBleed from "../../components/HeroBleed.astro"; // ⬅️ use shared hero
 
 const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
 const url = import.meta.env.PUBLIC_TODO_JSON;
@@ -87,32 +88,19 @@ const pageSeoDesc    = row.seo_description || summary || "";
 ---
 
 <Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
+  <!-- HERO (component; flush-left H1; no-jump) -->
   {hero && (
-    <Fragment slot="head">
-      <link rel="preload" as="image" href={hero} fetchpriority="high" />
-    </Fragment>
+    <HeroBleed
+      src={hero}
+      title={title}
+      alt={title}
+      preload
+      height={{ min: 300, vw: 38, max: 520 }}
+      gradient="linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%)"
+      containerMax={1200}
+      flush={true}
+    />
   )}
-
-  <!-- HERO with persistent bottom-left H1 -->
-  <section class="hero-bleed">
-    {hero && (
-      <img
-        src={hero}
-        alt={title}
-        fetchpriority="high"
-        loading="eager"
-        decoding="async"
-        width="2000"
-        height="1000"
-      />
-    )}
-    <div class="hero-scrim" aria-hidden="true"></div>
-    <div class="hero-overlay">
-      <div class="hero-container">
-        <h1 class="hero-title">{title}</h1>
-      </div>
-    </div>
-  </section>
 
   <div class="container intro">
     {summary && <article class="long-copy" set:html={summary}></article>}
@@ -155,39 +143,6 @@ const pageSeoDesc    = row.seo_description || summary || "";
   <style>
     :root { --container-max: 1200px; --container-pad: 1rem; }
     .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
-
-    /* ---------- HERO ---------- */
-    .hero-bleed{
-      position:relative;
-      left:50%; right:50%;
-      margin-left:-50vw; margin-right:-50vw;
-      width:100vw; max-width:100vw;
-      height: clamp(300px, 38vw, 520px);
-      overflow:hidden; background:#e5e7eb;
-    }
-    .hero-bleed img { width:100%; height:100%; display:block; object-fit:cover; object-position:center; }
-    .hero-scrim{
-      position:absolute; inset:0;
-      background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
-      z-index:5;
-    }
-    .hero-overlay{
-      position:absolute; inset:0; z-index:10;
-      display:flex; align-items:flex-end; justify-content:flex-start;
-      padding-bottom:clamp(16px,3vw,28px);
-      pointer-events:none;
-    }
-    .hero-container{
-      width:100%;
-      max-width:var(--container-max);
-      margin-inline:auto;
-      padding-inline:var(--container-pad);
-    }
-    .hero-title{
-      margin:0; color:#fff; font-weight:800; line-height:1.1;
-      font-size:clamp(2rem,4.5vw,3rem);
-      text-shadow:0 2px 8px rgba(0,0,0,.45);
-    }
 
     /* ---------- Intro ---------- */
     .intro { margin: 24px auto 20px; }

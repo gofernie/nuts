@@ -1,0 +1,118 @@
+---
+/**
+ * HeroBleed.astro
+ * Full-bleed hero with bottom-left H1 aligned to container edge — no initial shift.
+ *
+ * Props:
+ * - src?: string
+ * - title?: string
+ * - alt?: string
+ * - height?: { min?: number; vw?: number; max?: number }
+ * - gradient?: string
+ * - preload?: boolean
+ * - containerMax?: number   (defaults 1200)  ← avoids CSS var FOUC
+ * - flush?: boolean         (true = no left gutter)
+ * - containerPad?: number   (only used if flush=false; defaults 16)
+ */
+export interface Props {
+  src?: string;
+  title?: string;
+  alt?: string;
+  height?: { min?: number; vw?: number; max?: number };
+  gradient?: string;
+  preload?: boolean;
+  containerMax?: number;
+  flush?: boolean;
+  containerPad?: number;
+}
+const {
+  src = "",
+  title = "",
+  alt = "",
+  height = { min: 320, vw: 46, max: 560 },
+  gradient = "linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%)",
+  preload = false,
+
+  // 🔒 numeric values ensure first-paint stability
+  containerMax = 1200,
+  flush = true,
+  containerPad = 16,
+} = Astro.props as Props;
+
+const hMin = Number.isFinite(height?.min) ? height!.min : 320;
+const hVw  = Number.isFinite(height?.vw)  ? height!.vw  : 46;
+const hMax = Number.isFinite(height?.max) ? height!.max : 560;
+
+// Compute stable inline styles for the H1 (no CSS vars)
+const leftExpr  = flush
+  ? `calc((100vw - ${containerMax}px) / 2)`
+  : `calc((100vw - ${containerMax}px) / 2 + ${containerPad}px)`;
+
+const widthExpr = flush
+  ? `${containerMax}px`
+  : `calc(${containerMax}px - ${containerPad * 2}px)`;
+---
+
+{preload && src && (
+  <Fragment slot="head">
+    <link rel="preload" as="image" href={src} fetchpriority="high" />
+  </Fragment>
+)}
+
+<section class="hero-bleed" style={`--h-min:${hMin}px; --h-vw:${hVw}vw; --h-max:${hMax}px; --scrim:${gradient};`}>
+  {src && (
+    <img
+      src={src}
+      alt={alt}
+      fetchpriority="high"
+      loading="eager"
+      decoding="async"
+      width="2000"
+      height="1000"
+    />
+  )}
+  <div class="hero-scrim" aria-hidden="true"></div>
+
+  {title && (
+    <h1
+      class="hero-pin"
+      style={`left:${leftExpr};width:${widthExpr};`}
+    >
+      {title}
+    </h1>
+  )}
+</section>
+
+<style>
+  .hero-bleed {
+    position: relative;
+    isolation: isolate;
+    left: 50%; right: 50%;
+    margin-left: -50vw; margin-right: -50vw;
+    width: 100vw; max-width: 100vw;
+    height: clamp(var(--h-min), var(--h-vw), var(--h-max));
+    overflow: hidden;
+    background: #e5e7eb;
+    display: block;
+    margin-bottom: clamp(16px, 2.5vw, 24px);
+  }
+  .hero-bleed img {
+    width: 100%; height: 100%; display: block;
+    object-fit: cover; object-position: center;
+  }
+  .hero-scrim {
+    position: absolute; inset: 0; z-index: 10;
+    background: var(--scrim);
+  }
+
+  /* Base pin (inline style sets exact left/width) */
+  .hero-pin {
+    position: absolute; z-index: 20; margin: 0;
+    bottom: clamp(16px, 3vw, 28px);
+    pointer-events: none;
+    color: #fff; font-weight: 600; line-height: 1.1;
+    font-size: clamp(2.25rem, 5vw, 3.25rem);
+    text-shadow: 0 2px 8px rgba(0,0,0,.45);
+    text-align: left;
+  }
+</style>
