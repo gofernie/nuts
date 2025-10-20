@@ -32,7 +32,6 @@ export async function getStaticPaths() {
   const items = rows.map((r:any) => {
     const status  = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
     const rawSlug = String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase();
-
     const hidden = status === "hidden" || status === "inactive" || rawSlug === "index";
     if (hidden) return null;
 
@@ -99,6 +98,7 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     containerMax={1200}
     containerPad={12}
     flush={false}
+    preload={false}
   />
 
   {summary && (
@@ -109,36 +109,37 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     </div>
   )}
 
-  {/* Listings block */}
   {rawCta && (
     <div class="container listings-wrap">
       <h2 class="h2">Current Listings</h2>
 
       {isRvId ? (
-        <>
-          <div data-rv-block={rawCta}></div>
-          <script is:inline>
-            (function(){
-              function scan(){ try{ window.RealtyVis?.scan?.(); }catch(e){} }
-              if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
-                window.__rvScriptLoading = true;
-                var s = document.createElement('script');
-                s.src = "{RV_SCRIPT}";
-                s.async = true; s.defer = true;
-                s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
-                s.onerror = function(e){ console.error("RealtyVis script failed", e); };
-                document.head.appendChild(s);
-              } else if (window.__rvScriptLoaded) {
-                scan();
-              } else {
-                setTimeout(scan, 250);
-              }
-            })();
-          </script>
-        </>
+        <div id="rv-block" data-rv-block={rawCta}></div>
       ) : (
         <div class="rv-html" set:html={rawCta}></div>
       )}
+
+      <script is:inline>
+        (function(){
+          // Immediate mount: guarantees rendering without IntersectionObserver
+          const RV_URL = {JSON.stringify(RV_SCRIPT)};
+          function scan(){ try { window.RealtyVis?.scan?.(); } catch(e){} }
+
+          if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
+            window.__rvScriptLoading = true;
+            var s = document.createElement('script');
+            s.src = RV_URL;
+            s.async = true; s.defer = true;
+            s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
+            s.onerror = function(e){ console.error("RealtyVis script failed", e); };
+            document.head.appendChild(s);
+          } else if (window.__rvScriptLoaded) {
+            scan();
+          } else {
+            setTimeout(scan, 250);
+          }
+        })();
+      </script>
     </div>
   )}
 
@@ -162,25 +163,14 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
       margin-inline:auto;
       padding-inline:12px;
     }
-
-    /* Under hero */
     .summary-wrap{ padding-top:16px; padding-bottom:8px; }
-    .lead{
-      margin:0;
-      font-size:1.075rem;
-      line-height:1.6;
-      color:#111827;
-    }
+    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
 
-    /* Listings */
     .listings-wrap{ padding-top:16px; padding-bottom:8px; }
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
-    .rv-html :where(iframe, div){ width:100% !important; }
 
-    /* Long copy */
     .body-wrap{ padding-top:12px; }
 
-    /* Note */
     .note{
       color:#666; background:#fafafa; border:1px solid #eee;
       padding:12px 14px; border-radius:8px; margin-top:16px;
