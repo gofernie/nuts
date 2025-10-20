@@ -70,7 +70,7 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
 ---
 
 <Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-  <!-- HERO (✨ adopted from to_do: simple container-aligned hero, no height/gradient/preload) -->
+  <!-- Hero -->
   <HeroBleed
     src={hero}
     title={title}
@@ -79,15 +79,14 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     containerPad={12}
   />
 
-  <!-- Body -->
-  <main class="container body">
-    {summary && (
-      <section class="intro">
-        <!-- keep your summary as HTML (matches your current slug behavior) -->
-        <article class="summary" set:html={summary}></article>
-      </section>
-    )}
+  <!-- Summary block (matches TODO/STAY slug) -->
+  {summary && (
+    <div class="container summary-wrap">
+      <div class="lead" set:html={summary}></div>
+    </div>
+  )}
 
+  <main class="container body">
     {fetchError && (
       <section class="error"><p>{fetchError}</p></section>
     )}
@@ -132,22 +131,19 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
   </main>
 
   <style>
-    :root { --container-max: 1200px; --container-pad: 1rem; }
+    :root { --container-max: 1200px; --container-pad: 12px; }
     .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
-    /* ---------- Body ---------- */
+    /* MATCHES TODO/STAY SLUG */
+    .summary-wrap{ padding-top:16px; padding-bottom:8px; }
+    .lead{
+      margin:0;
+      font-size:1.075rem;
+      line-height:1.6;
+      color:#111827;
+    }
+
     .body{ padding-block: 20px; }
-    .intro{ margin: 0 0 22px; }
-
-    .summary{
-      width:100%;
-      max-width:none !important;
-      font-size:1rem; line-height:1.65; color:#1f2937;
-    }
-    .summary :where(p, ul, ol, blockquote, figure){
-      width:100%; max-width:none !important; margin-left:0; margin-right:0;
-    }
-
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
 
     .note{ color:#666; background:#fafafa; border:1px solid #eee; padding:12px 14px; border-radius:8px; }

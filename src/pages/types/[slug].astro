@@ -1,163 +1,127 @@
 ---
 // File: src/pages/types/[slug].astro
-export const prerender = false;
+export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
+import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
-import HeroBleed from "../../components/HeroBleed.astro"; // ⬅️ NEW
 
-/* --------- params & source --------- */
-const slugParam = (Astro.params.slug || "").toString().trim();
+/* ---------- tiny util ---------- */
+const slugify = (v:string) =>
+  (v ?? "").toLowerCase().trim()
+    .replace(/&/g,"-and-")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"");
 
-const SOURCE_URL =
-  import.meta.env.PUBLIC_TYPES_JSON ||
-  import.meta.env.PUBLIC_SHEET_JSON ||
-  "";
+/* ---------- static paths ---------- */
+export async function getStaticPaths() {
+  const url = import.meta.env.PUBLIC_TYPES_JSON;
+  if (!url) return [];
 
-/* --------- helpers --------- */
-const get = (r:any,k:string)=>
-  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-
-const slugify = (s:string)=> s.toLowerCase()
-  .replace(/&/g,"-and-")
-  .replace(/[^a-z0-9]+/g,"-")
-  .replace(/^-+|-+$/g,"");
-
-/* --------- fetch row now (server) --------- */
-let row:any = null;
-let fetchError:string|null = null;
-
-if (!SOURCE_URL) {
-  fetchError = "Missing PUBLIC_TYPES_JSON / PUBLIC_SHEET_JSON in .env";
-} else {
+  let rows:any[] = [];
   try {
-    const raw = await getJson<any>(SOURCE_URL);
-    const rows:any[] =
-      Array.isArray(raw) ? raw :
-      Array.isArray(raw?.data) ? raw.data :
-      Array.isArray(raw?.rows) ? raw.rows : [];
-
-    row = rows.find(r=>{
-      const s = get(r,"slug") || (get(r,"title") ? slugify(get(r,"title")) : "");
-      return s === slugParam;
-    }) || null;
-
-    if (!row) fetchError = `No matching row for slug "${slugParam}".`;
-  } catch(e:any){
-    fetchError = `Failed to load sheet: ${e?.message || e}`;
+    const raw = await getJson<any>(url);
+    rows = Array.isArray(raw) ? raw
+      : Array.isArray(raw?.data) ? raw.data
+      : Array.isArray(raw?.rows) ? raw.rows : [];
+  } catch {
+    return [];
   }
+
+  const items = rows.map((r:any) => {
+    const status  = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
+    const rawSlug = String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase();
+
+    const hidden = status === "hidden" || status === "inactive" || rawSlug === "index";
+    if (hidden) return null;
+
+    const title  = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
+    const slug   = rawSlug || slugify(title);
+    if (!slug) return null;
+
+    return { params: { slug } };
+  }).filter(Boolean) as { params: { slug: string } }[];
+
+  return items;
 }
 
-/* --------- derived props (safe fallbacks) --------- */
-const title   = (row && get(row,"title")) || "Property Type";
-const summary = (row && (get(row,"summary") || get(row,"seo_description"))) || "";
-const heroImg = (row && get(row,"hero_img")) || "/img/hero/fallback-1600x800.jpg";
-const hero    = heroPath(heroImg);
+/* ---------- page data ---------- */
+const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
+const url = import.meta.env.PUBLIC_TYPES_JSON;
+if (!url) throw new Error("Missing PUBLIC_TYPES_JSON in .env (restart dev).");
 
-const pageSeoTitle = (row && get(row,"seo_title")) || title;
-const pageSeoDesc  = (row && get(row,"seo_description")) || summary;
+let row:any = null;
+try {
+  const raw = await getJson<any>(url);
+  const rows:any[] = Array.isArray(raw) ? raw
+    : Array.isArray(raw?.data) ? raw.data
+    : Array.isArray(raw?.rows) ? raw.rows : [];
 
-/* --------- CTA handling (ID or HTML) --------- */
-const rawCta = (row && (get(row,"cta1") || get(row,"rv_block"))) ||
-               import.meta.env.PUBLIC_DEFAULT_RV_BLOCK || "";
-const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
-const isHtml = !!rawCta && !isRvId;
+  row = rows.find((r:any) => {
+    const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase();
+    const title   = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
+    const computed = (rawSlug || slugify(title)).toLowerCase();
+    return computed === slugParam;
+  });
+} catch (e) {
+  console.error("[types slug] JSON fetch failed:", e);
+}
 
-/* --------- RealtyVis script URL --------- */
-const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
+if (!row) {
+  throw new Error(`Type slug not found: ${slugParam}`);
+}
+
+/* ---------- fields ---------- */
+const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Property Type").trim();
+const summary  = String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
+const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
+const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
+const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
+const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
+
+const SUMMARY_IS_HTML = false;
+const BODY_IS_HTML    = true;
 ---
 
-<Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-  <!-- HERO via component (flush-left H1, consistent height/gradient) -->
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
   <HeroBleed
-    src={hero}
+    src={heroImg ? heroPath(heroImg) : ""}
     title={title}
-    alt={title}
-    preload
-    height={{ min: 300, vw: 38, max: 520 }}
-    gradient="linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%)"
     containerMax={1200}
-    flush={true}
+    flush={false}
+    containerPad={12}
   />
 
-  <!-- Body -->
-  <main class="container body">
-    {summary && (
-      <section class="intro">
-        <article class="summary" set:html={summary}></article>
-      </section>
-    )}
+  {summary && (
+    <div class="container summary-wrap">
+      {SUMMARY_IS_HTML
+        ? <div class="lead" set:html={summary}></div>
+        : <p class="lead">{summary}</p>}
+    </div>
+  )}
 
-    {fetchError && (
-      <section class="error"><p>{fetchError}</p></section>
-    )}
-
-    {!fetchError && rawCta && (
-      <section id="listings" class="rv-wrap">
-        <h2 class="h2">Current Listings</h2>
-
-        {isRvId ? (
-          <>
-            <div data-rv-block={rawCta}></div>
-            <!-- Load script once & scan -->
-            <script is:inline>
-              (function(){
-                function scan(){ try{ window.RealtyVis?.scan?.(); }catch(e){} }
-                if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
-                  window.__rvScriptLoading = true;
-                  var s = document.createElement('script');
-                  s.src = "{RV_SCRIPT}";
-                  s.async = true; s.defer = true;
-                  s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
-                  s.onerror = function(e){ console.error("RealtyVis script failed", e); };
-                  document.head.appendChild(s);
-                } else if (window.__rvScriptLoaded) {
-                  scan();
-                } else {
-                  setTimeout(scan, 250);
-                }
-              })();
-            </script>
-          </>
-        ) : (
-          /* HTML embed snippet mode */
-          <div class="rv-html" set:html={rawCta}></div>
-        )}
-      </section>
-    )}
-
-    {!fetchError && !rawCta && (
-      <section class="note">
-        <p><strong>Heads-up:</strong> No <code>cta1</code>/<code>rv_block</code> set, and no <code>PUBLIC_DEFAULT_RV_BLOCK</code>.</p>
-      </section>
-    )}
-  </main>
+  {body && (
+    <div class="container body-wrap">
+      {BODY_IS_HTML
+        ? <div class="lead" set:html={body}></div>
+        : <p class="lead">{body}</p>}
+    </div>
+  )}
 
   <style>
-    :root { --container-max: 1200px; --container-pad: 1rem; }
-    .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
-
-    /* ---------- Body ---------- */
-    .body{ padding-block: 20px; }
-    .intro{ margin: 0 0 22px; }
-
-    /* FULL-WIDTH summary inside container */
-    .summary{
-      width:100%;
-      max-width:none !important;
-      font-size:1rem; line-height:1.65; color:#1f2937;
+    .container{
+      max-width:1200px;
+      margin-inline:auto;
+      padding-inline:12px;
     }
-    .summary :where(p, ul, ol, blockquote, figure){
-      width:100%; max-width:none !important; margin-left:0; margin-right:0;
+    .summary-wrap{ padding-top:16px; padding-bottom:8px; }
+    .lead{
+      margin:0;
+      font-size:1.075rem;
+      line-height:1.6;
+      color:#111827;
     }
-
-    .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
-
-    .note{ color:#666; background:#fafafa; border:1px solid #eee; padding:12px 14px; border-radius:8px; }
-    .error{ border:1px solid #d33; background:#fff5f5; color:#600; padding:12px 14px; border-radius:8px; }
-
-    /* Allow HTML embed to span full container width */
-    .rv-html :where(iframe, div){ width:100% !important; }
+    .body-wrap{ padding-top:12px; }
   </style>
 </Site>
