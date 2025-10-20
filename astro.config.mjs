@@ -1,54 +1,46 @@
 // astro.config.mjs
-console.log("→ Starting Astro with HTTPS…");
-
 import { defineConfig } from 'astro/config';
 import netlify from '@astrojs/netlify';
 import fs from 'node:fs';
 import path from 'node:path';
 
-// Detect whether we're in `astro dev` or `astro build`
-const isDev = process.argv.some(arg => arg === 'dev');
+const isDev = process.argv.includes('dev');    // true for `astro dev`
+const isCI  = !!process.env.CI || !!process.env.NETLIFY;
 
-// --- HTTPS Cert Paths ---
-const keyPath  = path.resolve('certs/localhost-key.pem');
-const certPath = path.resolve('certs/localhost.pem');
+// Only use HTTPS locally (not in CI)
+const useHttps = isDev && !isCI;
 
-function read(file) {
-  if (!fs.existsSync(file)) {
-    throw new Error(
-      `⚠️ HTTPS cert missing: ${file}\n` +
-      `   Run:\n` +
-      `     mkcert -install\n` +
-      `     mkcert -key-file certs/localhost-key.pem -cert-file certs/localhost.pem "localhost" 127.0.0.1 ::1\n`
-    );
+let httpsConfig = undefined;
+if (useHttps) {
+  const keyPath  = path.resolve('certs/localhost-key.pem');
+  const certPath = path.resolve('certs/localhost.pem');
+  if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+    httpsConfig = {
+      key:  fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath),
+    };
+  } else {
+    // Fall back to HTTP if certs aren't present locally
+    console.warn('[astro.config] HTTPS certs not found; falling back to HTTP for dev.');
   }
-  return fs.readFileSync(file);
 }
 
-console.log(`• Using key:  ${keyPath}  (${fs.existsSync(keyPath) ? 'found' : 'MISSING'})`);
-console.log(`• Using cert: ${certPath}  (${fs.existsSync(certPath) ? 'found' : 'MISSING'})`);
-
 export default defineConfig({
+  // You have server-rendered routes → keep SSR output
   output: 'server',
 
-  // Only apply adapter in build (removes Netlify dev middleware during local dev)
+  // Use Netlify adapter for builds; no adapter in `astro dev`
   adapter: isDev ? undefined : netlify({ devMiddleware: false }),
 
+  // Local dev server config (Netlify ignores this during CI/build)
   server: {
     host: true,
     port: 4321,
-    https: {
-      key:  read(keyPath),
-      cert: read(certPath),
-    },
+    https: httpsConfig,   // only defined in local dev when certs exist
   },
 
+  // Also tell Vite to serve HTTPS only in local dev when certs exist
   vite: {
-    server: {
-      https: {
-        key:  read(keyPath),
-        cert: read(certPath),
-      },
-    },
+    server: { https: httpsConfig },
   },
 });
