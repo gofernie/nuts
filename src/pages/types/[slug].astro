@@ -82,6 +82,14 @@ const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?
 
 const SUMMARY_IS_HTML = false;
 const BODY_IS_HTML    = true;
+
+/* ---------- listings / CTA ---------- */
+const rawCta =
+  String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
+  String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
+
+const isRvId    = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
+const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
@@ -89,8 +97,8 @@ const BODY_IS_HTML    = true;
     src={heroImg ? heroPath(heroImg) : ""}
     title={title}
     containerMax={1200}
-    flush={false}
     containerPad={12}
+    flush={false}
   />
 
   {summary && (
@@ -98,6 +106,39 @@ const BODY_IS_HTML    = true;
       {SUMMARY_IS_HTML
         ? <div class="lead" set:html={summary}></div>
         : <p class="lead">{summary}</p>}
+    </div>
+  )}
+
+  {/* Listings block */}
+  {rawCta && (
+    <div class="container listings-wrap">
+      <h2 class="h2">Current Listings</h2>
+
+      {isRvId ? (
+        <>
+          <div data-rv-block={rawCta}></div>
+          <script is:inline>
+            (function(){
+              function scan(){ try{ window.RealtyVis?.scan?.(); }catch(e){} }
+              if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
+                window.__rvScriptLoading = true;
+                var s = document.createElement('script');
+                s.src = "{RV_SCRIPT}";
+                s.async = true; s.defer = true;
+                s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
+                s.onerror = function(e){ console.error("RealtyVis script failed", e); };
+                document.head.appendChild(s);
+              } else if (window.__rvScriptLoaded) {
+                scan();
+              } else {
+                setTimeout(scan, 250);
+              }
+            })();
+          </script>
+        </>
+      ) : (
+        <div class="rv-html" set:html={rawCta}></div>
+      )}
     </div>
   )}
 
@@ -109,12 +150,20 @@ const BODY_IS_HTML    = true;
     </div>
   )}
 
+  {!rawCta && (
+    <div class="container note">
+      <p><strong>Heads-up:</strong> No <code>cta1</code>/<code>rv_block</code> set, and no <code>PUBLIC_DEFAULT_RV_BLOCK</code>.</p>
+    </div>
+  )}
+
   <style>
     .container{
       max-width:1200px;
       margin-inline:auto;
       padding-inline:12px;
     }
+
+    /* Under hero */
     .summary-wrap{ padding-top:16px; padding-bottom:8px; }
     .lead{
       margin:0;
@@ -122,6 +171,19 @@ const BODY_IS_HTML    = true;
       line-height:1.6;
       color:#111827;
     }
+
+    /* Listings */
+    .listings-wrap{ padding-top:16px; padding-bottom:8px; }
+    .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
+    .rv-html :where(iframe, div){ width:100% !important; }
+
+    /* Long copy */
     .body-wrap{ padding-top:12px; }
+
+    /* Note */
+    .note{
+      color:#666; background:#fafafa; border:1px solid #eee;
+      padding:12px 14px; border-radius:8px; margin-top:16px;
+    }
   </style>
 </Site>
