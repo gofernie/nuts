@@ -4,7 +4,7 @@ import netlify from '@astrojs/netlify';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const isDev = process.argv.includes('dev');    // true for `astro dev`
+const isDev = process.argv.includes('dev');         // true only for `astro dev`
 const isCI  = !!process.env.CI || !!process.env.NETLIFY;
 
 // Only use HTTPS locally (not in CI)
@@ -25,20 +25,21 @@ if (useHttps) {
 }
 
 export default defineConfig({
-  // Required for SSR routes
+  // You have SSR routes
   output: 'server',
 
-  // ✅ Always install Netlify adapter in non-dev builds
-  adapter: netlify({ devMiddleware: false }),
+  // ✅ Do NOT load adapter in dev (prevents Netlify dev middleware)
+  // ✅ Load adapter for production builds / CI
+  adapter: isDev ? undefined : netlify({ devMiddleware: false }),
 
-  // Local dev server config — Netlify ignores this in CI
+  // Local dev server
   server: {
     host: true,
     port: 4321,
     https: httpsConfig,
   },
 
-  // Also configure Vite dev server
+  // Vite dev server HTTPS
   vite: {
     server: { https: httpsConfig },
   },

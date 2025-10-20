@@ -79,7 +79,7 @@ const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").tri
 const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
 const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
 
-const SUMMARY_IS_HTML = false;
+const SUMMARY_IS_HTML = true;   // <- allow HTML from the sheet
 const BODY_IS_HTML    = true;
 
 /* ---------- listings / CTA ---------- */
@@ -122,7 +122,7 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
       <script is:inline>
         (function(){
           // Immediate mount: guarantees rendering without IntersectionObserver
-          const RV_URL = {JSON.stringify(RV_SCRIPT)};
+          const RV_URL = "{RV_SCRIPT}";
           function scan(){ try { window.RealtyVis?.scan?.(); } catch(e){} }
 
           if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
