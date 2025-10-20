@@ -2,18 +2,20 @@
   "name": "proto-photon",
   "type": "module",
   "version": "0.0.1",
- "scripts": {
-  "dev": "cross-env ASTRO_DISABLE_WASM=true astro dev",
-  "build": "cross-env ASTRO_DISABLE_WASM=true astro build",
-  "preview": "astro preview",
-  "astro": "astro"
-}
-,
+  "scripts": {
+    "dev": "cross-env ASTRO_DISABLE_WASM=true astro dev",
+    "build": "cross-env ASTRO_DISABLE_WASM=true astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
   "dependencies": {
-    "@astrojs/netlify": "^6.5.13"
+    "@astrojs/netlify": "^6.5.13",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@astrojs/compiler": "^2.10.3",
+    "@astrojs/react": "^4.4.0",
     "@vitejs/plugin-basic-ssl": "^2.1.0",
     "astro": "^5.14.0",
     "cross-env": "^10.1.0",
