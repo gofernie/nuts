@@ -20,26 +20,25 @@ if (useHttps) {
       cert: fs.readFileSync(certPath),
     };
   } else {
-    // Fall back to HTTP if certs aren't present locally
     console.warn('[astro.config] HTTPS certs not found; falling back to HTTP for dev.');
   }
 }
 
 export default defineConfig({
-  // You have server-rendered routes → keep SSR output
+  // Required for SSR routes
   output: 'server',
 
-  // Use Netlify adapter for builds; no adapter in `astro dev`
-  adapter: isDev ? undefined : netlify({ devMiddleware: false }),
+  // ✅ Always install Netlify adapter in non-dev builds
+  adapter: netlify({ devMiddleware: false }),
 
-  // Local dev server config (Netlify ignores this during CI/build)
+  // Local dev server config — Netlify ignores this in CI
   server: {
     host: true,
     port: 4321,
-    https: httpsConfig,   // only defined in local dev when certs exist
+    https: httpsConfig,
   },
 
-  // Also tell Vite to serve HTTPS only in local dev when certs exist
+  // Also configure Vite dev server
   vite: {
     server: { https: httpsConfig },
   },
