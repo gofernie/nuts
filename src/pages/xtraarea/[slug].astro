@@ -5,7 +5,7 @@ export const prerender = false;
 import Site from "../../layouts/Site.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
-import HeroBleed from "../../components/HeroBleed.astro"; // ⬅️ NEW
+import HeroBleed from "../../components/HeroBleed.astro";
 
 /* --------- params & source --------- */
 const slugParam = (Astro.params.slug || "").toString().trim();
@@ -19,7 +19,8 @@ const SOURCE_URL =
 const get = (r:any,k:string)=>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
-const slugify = (s:string)=> s.toLowerCase()
+const slugify = (s:string)=> (s ?? "")
+  .toLowerCase().trim()
   .replace(/&/g,"-and-")
   .replace(/[^a-z0-9]+/g,"-")
   .replace(/^-+|-+$/g,"");
@@ -69,22 +70,20 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
 ---
 
 <Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-  <!-- HERO (component version, flush-left H1, consistent height) -->
+  <!-- HERO (✨ adopted from to_do: simple container-aligned hero, no height/gradient/preload) -->
   <HeroBleed
     src={hero}
     title={title}
-    alt={title}
-    preload
-    height={{ min: 300, vw: 38, max: 520 }}
-    gradient="linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%)"
     containerMax={1200}
-    flush={true}
+    flush={false}
+    containerPad={12}
   />
 
   <!-- Body -->
   <main class="container body">
     {summary && (
       <section class="intro">
+        <!-- keep your summary as HTML (matches your current slug behavior) -->
         <article class="summary" set:html={summary}></article>
       </section>
     )}

@@ -5,8 +5,24 @@ import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-const url       = import.meta.env.PUBLIC_XTRAAREA_JSON;
 const PATH_BASE = "/xtraarea";
+
+/* ---------- helpers ---------- */
+const RESERVED = new Set(["index","page","pages","all","view","list"]);
+const get = (r:any,k:string)=>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+
+const slugify = (v:string) =>
+  (v ?? "").toLowerCase().trim()
+    .replace(/&/g,"-and-")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"");
+
+const visible = (r:any) => {
+  const s = get(r,"status").toLowerCase();
+  const rawSlug = get(r,"slug").toLowerCase();
+  return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
+};
 
 type Row = {
   slug?: string;
@@ -17,209 +33,155 @@ type Row = {
   status?: string;
   seo_title?: string;
   seo_description?: string;
-  cta1?: string;
-  cta2?: string;
-  cta3?: string;
+  sort?: number|string;
 };
 
 let items: Row[] = [];
 let header: Row | null = null;
 let error: string | null = null;
 
-/* ---------- helpers ---------- */
-const get = (r:any,k:string)=>
-  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-
-const slugify = (v:string) =>
-  (v ?? "").toLowerCase().trim()
-    .replace(/&/g,"-and-")
-    .replace(/[^a-z0-9]+/g,"-")
-    .replace(/^-+|-+$/g,"");
-
-const normalize = (r:any): Row => {
-  const title = get(r,"title");
-  const computedSlug = slugify(title || "");
-  return {
-    slug: get(r,"slug") || computedSlug,
-    title,
-    summary: get(r,"summary"),
-    long_copy: get(r,"long_copy"),
-    hero_img: get(r,"hero_img"),
-    status: get(r,"status"),
-    seo_title: get(r,"seo_title"),
-    seo_description: get(r,"seo_description"),
-    cta1: get(r,"cta1"),
-    cta2: get(r,"cta2"),
-    cta3: get(r,"cta3"),
-  };
-};
-
 try {
+  const url = import.meta.env.PUBLIC_XTRAAREA_JSON;
   if (!url) throw new Error("Missing PUBLIC_XTRAAREA_JSON in .env (restart dev).");
-  const raw = await getJson<any>(url);
 
-  const rows: any[] =
+  const raw = await getJson<any>(url);
+  const rows:any[] =
     Array.isArray(raw) ? raw :
     Array.isArray(raw?.data) ? raw.data :
-    Array.isArray(raw?.rows) ? raw.rows :
-    [];
+    Array.isArray(raw?.rows) ? raw.rows : [];
 
-  const normalized = rows.map(normalize);
+  // 🪄 more flexible header detection (identical logic)
+  const headerCandidates = rows.filter((r:any) => {
+    const slug = get(r,"slug").toLowerCase();
+    const status = get(r,"status").toLowerCase();
+    const hasSummary =
+      !!get(r,"summary") ||
+      !!get(r,"long_copy") ||
+      !!get(r,"seo_description") ||
+      !!get(r,"description");
+    return slug === "index" || status === "header" || hasSummary;
+  });
 
   header =
-    normalized.find(r => (r.slug ?? "").toLowerCase().trim() === "index") ??
-    normalized.find(r => (r.title ?? "").toLowerCase().trim() === "index") ??
-    normalized.find(r => (r.status ?? "").toLowerCase().trim() === "index") ??
-    normalized.find(r => {
-      const t = (r.title ?? "").toLowerCase().trim();
-      return t === "xtraarea" || t === "xtra area" || t === "other areas";
-    }) ??
-    normalized.find(r => !!(r.long_copy || r.summary || r.seo_description)) ??
+    headerCandidates.find(r => get(r,"slug").toLowerCase() === "index") ??
+    headerCandidates.find(r => get(r,"status").toLowerCase() === "header") ??
+    headerCandidates[0] ??
     null;
 
-  items = normalized.filter((r) =>
-    r.slug && r.title &&
-    (r.slug ?? "").toLowerCase().trim()   !== "index" &&
-    (r.title ?? "").toLowerCase().trim()  !== "index" &&
-    (r.status ?? "").toLowerCase().trim() !== "index" &&
-    !/^draft$/i.test(r.status ?? "") &&
-    !/^hidden$/i.test(r.status ?? "") &&
-    !/^inactive$/i.test(r.status ?? "")
-  );
+  items = rows
+    .filter(r => visible(r))
+    .map(r => ({
+      slug: get(r,"slug") || slugify(get(r,"title")),
+      title: get(r,"title"),
+      summary: get(r,"summary"),
+      hero_img: get(r,"hero_img"),
+      sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
+      seo_title: get(r,"seo_title"),
+      seo_description: get(r,"seo_description"),
+    }))
+    .filter(r => r.slug && r.title)
+    .sort((a,b) => (Number(a.sort) - Number(b.sort)) || a.title!.localeCompare(b.title!));
 
 } catch (e:any) {
-  error = e?.message || String(e);
+  error = e?.message || "Failed to load data.";
 }
 
-// Resolve images
-const resolveImg = (v?: string) => {
-  const s = (v || "").trim();
-  if (!s) return "";
-  if (/^(https?:)?\/\//i.test(s)) return s;
-  if (s.startsWith("/")) return s;
-  return heroPath(s);
-};
+// 📝 fallbacks to ensure summary text renders (same structure)
+const pageTitle = get(header,"title") || "Explore More in Fernie";
+const pageSummary =
+  get(header,"summary") ||
+  get(header,"long_copy") ||
+  get(header,"seo_description") ||
+  get(header,"description") ||
+  "";
+const heroImg = get(header,"hero_img");
+const seoTitle = get(header,"seo_title") || pageTitle;
+const seoDesc  = get(header,"seo_description") || pageSummary;
 
-const heroSrc      = resolveImg(header?.hero_img);
-const heroH1       = header?.title || "Other Areas";
-const introText    = (header?.long_copy || header?.summary || header?.seo_description || "").trim();
-const pageSeoTitle = header?.seo_title || heroH1;
-const pageSeoDesc  = (header?.seo_description || "").trim();
+// set to true if your summary text contains HTML markup
+const SUMMARY_IS_HTML = false;
 ---
 
-<Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-  {heroSrc && (
-    <Fragment slot="head">
-      <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
-    </Fragment>
-  )}
-
-  <!-- HERO (shared component for consistent left-aligned H1) -->
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
   <HeroBleed
-    src={heroSrc}
-    title={heroH1}
-    alt=""
-    preload={false}                        /* already preloaded */
-    height={{ min: 320, vw: 46, max: 560 }}/* same feel as other indexes */
+    src={heroImg ? heroPath(heroImg) : ""}
+    title={pageTitle}
+    containerMax={1200}
+    flush={false}
+    containerPad={12}
   />
 
+  {pageSummary && (
+    <div class="container summary-wrap">
+      {SUMMARY_IS_HTML
+        ? <div class="lead" set:html={pageSummary}></div>
+        : <p class="lead">{pageSummary}</p>}
+    </div>
+  )}
+
   <div class="container">
-    {introText && <article class="summary" set:html={introText}></article>}
+    {error && <p class="err">{error}</p>}
 
-    {error ? (
-      <p class="error">Error: {error}</p>
-    ) : items.length === 0 ? (
-      <p>No areas yet. Check your <code>PUBLIC_XTRAAREA_JSON</code> URL or add rows to your sheet.</p>
-    ) : (
-      <section class="grid">
-        {items.map((n) => {
-          const primary = resolveImg(n.hero_img);
-          const altBase = primary.includes("/images/")
-            ? primary.replace("/images/", "/img/")
-            : primary.replace("/img/", "/images/");
-          const filename = (primary.split("/").pop() || "").trim();
-          const finalFallback = filename ? `/img/hero/${filename}` : "";
-
-          return (
-            <a class="card" href={`${PATH_BASE}/${n.slug}`}>
-              <div class="thumb">
-                {primary ? (
-                  <img
-                    src={primary}
-                    alt={n.title}
-                    loading="lazy"
-                    decoding="async"
-                    onerror={`if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
-                              else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
-                              else { const ph = document.createElement('div'); ph.className = 'ph'; ph.setAttribute('aria-hidden','true'); ph.textContent = 'No image'; this.replaceWith(ph); }`}
-                  />
-                ) : (
-                  <div class="ph" aria-hidden="true">No image</div>
-                )}
-                <div class="overlay"><div class="title">{n.title}</div></div>
-              </div>
-              <div class="body">
-                {n.summary
-                  ? <p>{(n.summary).split(/\s+/).slice(0,18).join(" ") + ((n.summary).split(/\s+/).length>18 ? "…" : "")}</p>
-                  : <p>{n.title}</p>}
-              </div>
-            </a>
-          );
-        })}
-      </section>
+    {!error && (
+      <div class="grid">
+        {items.map((it) => (
+          <a class="card" href={`${PATH_BASE}/${it.slug}`} data-astro-prefetch="hover">
+            {it.hero_img && (
+              <img src={heroPath(it.hero_img)} alt={it.title} loading="lazy" decoding="async" />
+            )}
+            <div class="body">
+              <h2>{it.title}</h2>
+              {it.summary && <p>{it.summary}</p>}
+            </div>
+          </a>
+        ))}
+      </div>
     )}
   </div>
 
   <style>
-    .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
+    /* EXACT same container + summary styles as to_do */
+    .container{
+      max-width:1200px;
+      margin-inline:auto;
+      padding-inline:12px;
+    }
+    .summary-wrap{ padding-top:16px; padding-bottom:8px; }
+    .lead{ margin: 0; font-size: 1.075rem; line-height: 1.6; color:#111827; }
 
-    /* Intro summary */
-    .summary {
-      margin: 18px 0 26px;
-      font-size: 1.06rem;
-      line-height: 1.8;
-      color: #1f2937;
-      max-width: none;
+    .err{ color:#b91c1c; background:#fee2e2; padding:.75rem 1rem; border-radius:.5rem; margin-top:12px; }
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+    @media (max-width:1200px){ .grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
+    @media (max-width:900px){  .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    @media (max-width:560px){  .grid{ grid-template-columns: 1fr; } }
+
+    .card{
+      display:flex; flex-direction:column;
+      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+      overflow:hidden; text-decoration:none; color:inherit;
+      transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+    .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
+    .card img{ width:100%; aspect-ratio: 16/9; object-fit: cover; display:block; }
+    .card .body{ padding:12px; }
+    .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; }
+    .card .body p{
+      margin:0; color:#374151; line-height:var(--card-text-lh,1.35);
+      display:-webkit-box; -webkit-line-clamp:var(--card-text-lines,3); -webkit-box-orient:vertical; overflow:hidden;
     }
 
-    /* Grid */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 20px;
-      margin-bottom: clamp(36px, 5vw, 60px);
+    /* 🔒 Optional strict-match guard (use if you still see a font mismatch)
+       This forces the summary to use the same base body font/weight. */
+    .summary-wrap .lead{
+      font-family: inherit;
+      font-weight: 400;
+      letter-spacing: normal;
     }
-    @media (max-width: 1200px) { .grid { grid-template-columns: repeat(3, minmax(0,1fr)); } }
-    @media (max-width: 900px)  { .grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
-    @media (max-width: 640px)  { .grid { grid-template-columns: 1fr; } }
-
-    /* Cards */
-    .card {
-      display: flex; flex-direction: column;
-      background: #fff;
-      border-radius: 14px; overflow: hidden;
-      border: 1px solid #eee; text-decoration: none; color: inherit;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      transform: translateY(0);
-      transition: transform .25s ease, box-shadow .25s ease;
-    }
-    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-
-    /* 16:9 thumbs */
-    .thumb { position: relative; background: #f6f6f6; overflow: hidden; }
-    .thumb::before { content: ""; display: block; padding-top: 56.25%; }
-    .thumb > * { position: absolute; inset: 0; }
-    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
-    .card:hover .thumb img { transform: scale(1.03); }
-
-    .overlay { position: absolute; inset: 0; display: flex; align-items: flex-end; pointer-events: none; background: linear-gradient(to top, rgba(0,0,0,.35), rgba(0,0,0,0) 55%); }
-    .overlay .title { color: #fff; font-weight: 800; letter-spacing: .2px; font-size: clamp(1rem, 1.6vw, 1.3rem); padding: 12px 14px; text-shadow: 0 1px 2px rgba(0,0,0,0.45); }
-
-    .body { padding: 10px 12px 14px; }
-    .body p { margin: 0; color: #4b5563; font-size: .96rem; line-height: 1.35; }
-
-    .ph { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: #999; background: #f6f6f6; }
-
-    .error { color: #b00; }
   </style>
 </Site>
