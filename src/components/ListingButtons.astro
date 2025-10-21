@@ -1,0 +1,46 @@
+---
+/**
+ * ListingButtons.astro
+ * Props:
+ * - items: Array<{ label: string; href: string; test?: string }>
+ *   - label: button text
+ *   - href: destination URL
+ *   - test (optional): regex string to detect "active" for routes that don't match exactly
+ *
+ * Usage examples below.
+ */
+const { items = [] } = Astro.props;
+
+const cur = Astro.url.pathname.replace(/\/+$/, "") || "/";
+const isActive = (href: string, test?: string) => {
+  const h = (href || "").replace(/\/+$/, "") || "/";
+  if (test) {
+    try { return new RegExp(test).test(cur); } catch { /* ignore bad regex */ }
+  }
+  return cur === h;
+};
+---
+<nav class="listing-buttons" aria-label="Listing filters">
+  {items.map(({ label, href, test }) => {
+    const active = isActive(href, test);
+    return (
+      <a
+        class={`btn-link${active ? " is-active" : ""}`}
+        href={href}
+        aria-current={active ? "page" : undefined}
+      >
+        {label}
+      </a>
+    );
+  })}
+</nav>
+
+<style>
+  /* Optional: active styles (plays nice with your existing CSS) */
+  .btn-link.is-active {
+    background: var(--color-primary-bg, #111);
+    color: var(--color-on-primary, #fff);
+    border-color: var(--color-primary-border, #111);
+    font-weight: 600;
+  }
+</style>

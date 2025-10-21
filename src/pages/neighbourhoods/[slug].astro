@@ -6,6 +6,7 @@ import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
+import ListingButtons from "../../components/ListingButtons.astro"; // NEW ✅
 
 /* ---------- tiny util ---------- */
 const slugify = (v:string) =>
@@ -79,8 +80,13 @@ const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").tri
 const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
 const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
 
-const SUMMARY_IS_HTML = true;   // <- allow HTML from the sheet
+const SUMMARY_IS_HTML = true;
 const BODY_IS_HTML    = true;
+
+// NEW ✅ read optional buttons string from your sheet (spare_2 in any casing)
+const buttonsCell = String(
+  row?.spare_2 ?? row?.Spare_2 ?? row?.SPARE_2 ?? ""
+).trim();
 
 /* ---------- listings / CTA ---------- */
 const rawCta =
@@ -109,6 +115,13 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     </div>
   )}
 
+  {/* NEW ✅ optional buttons — render only if cell has content */}
+  {buttonsCell && (
+    <div class="container" style="margin-top:8px;">
+      <ListingButtons raw={buttonsCell} />
+    </div>
+  )}
+
   {rawCta && (
     <div class="container listings-wrap">
       <h2 class="h2">Current Listings</h2>
@@ -121,7 +134,6 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
 
       <script is:inline>
         (function(){
-          // Immediate mount: guarantees rendering without IntersectionObserver
           const RV_URL = "{RV_SCRIPT}";
           function scan(){ try { window.RealtyVis?.scan?.(); } catch(e){} }
 
