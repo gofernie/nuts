@@ -1,5 +1,7 @@
 ---
 // File: src/pages/stay/index.astro
+export const prerender = true;
+
 import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";

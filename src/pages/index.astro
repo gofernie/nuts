@@ -1,5 +1,7 @@
 ---
 // src/pages/index.astro
+export const prerender = true;
+
 import Site from "../layouts/Site.astro";
 import { getJson } from "../lib/fetchJson";
 import { heroPath } from "../lib/paths";
