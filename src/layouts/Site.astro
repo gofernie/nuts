@@ -92,7 +92,7 @@ const NAV_ORDER = [
       :root {
         --header-h: 52px;
         --bg:#47414e10; --ink:#271f11; --ink-muted:#1f2937; --hover-bg:rgba(243,244,246,.9);
-        --hero-h: 55vh;              /* harmless if left in */
+        --hero-h: 55vh;
         --hero-min: 340px;
         --container-pad: 12px;
         --container-max: 1200px;
@@ -236,37 +236,30 @@ const NAV_ORDER = [
       }
       footer.site-footer .footer-links a:hover { text-decoration: underline; }
 
-
-.listing-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  justify-content: flex-start; /* 👈 THIS aligns them left */
-}
-
-
-.btn-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--color-border, #ccc);
-  background: var(--color-bg, #fff);
-  border-radius: 6px;
-  font-size: 0.95rem;
-  text-decoration: none;
-  color: var(--color-text, #333);
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.btn-link:hover {
-  background: var(--color-bg-hover, #f5f5f5);
-  border-color: var(--color-border-hover, #999);
-}
-
-
-
+      .listing-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        justify-content: flex-start; /* 👈 aligns buttons left */
+      }
+      .btn-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--color-border, #ccc);
+        background: var(--color-bg, #fff);
+        border-radius: 6px;
+        font-size: 0.95rem;
+        text-decoration: none;
+        color: var(--color-text, #333);
+        transition: background 0.2s, border-color 0.2s;
+      }
+      .btn-link:hover {
+        background: var(--color-bg-hover, #f5f5f5);
+        border-color: var(--color-border-hover, #999);
+      }
     </style>
 
     <script is:inline>
@@ -326,43 +319,61 @@ const NAV_ORDER = [
       </div>
     </footer>
 
-    <!-- Load RealtyVis once per page -->
+    <!-- RealtyVis: load once and re-init on navigations & BFCache restores -->
     <script is:inline>
-      if (typeof window !== "undefined" && !window.__rvLoaded) {
-        const s=document.createElement("script");
-        s.src="https://cdn.realtyvis.com/js/embed.js";
-        s.defer=true;
-        document.body.appendChild(s);
-        window.__rvLoaded=true;
-      }
-    </script>
+      (function initRV() {
+        function tryInit() {
+          if (window.RealtyVis && typeof window.RealtyVis.init === "function") {
+            requestAnimationFrame(() => window.RealtyVis.init());
+          }
+        }
 
-    <!-- Accessibility: ensure iframes have titles -->
-    <script is:inline>
-      (function(){
-        const DEFAULTS=[
-          {test:/google\.com\/maps|maps\.google/i,title:"Embedded Google Map"},
-          {test:/realtyvis|cdn\.realtyvis/i,title:"Embedded RealtyVis content"},
+        if (!window.__rvLoaded) {
+          const s = document.createElement("script");
+          s.src = "https://cdn.realtyvis.com/js/embed.js";
+          s.async = true;
+          s.onload = () => { window.__rvLoaded = true; tryInit(); };
+          document.head.appendChild(s);
+        } else {
+          tryInit();
+        }
+
+        document.addEventListener("astro:page-load", tryInit);
+
+        window.addEventListener("pageshow", (e) => {
+          if (e.persisted) tryInit();
+        });
+
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) tryInit();
+        });
+      })();
+
+      // Accessibility: ensure iframes have titles
+      (function () {
+        const DEFAULTS = [
+          { test: /google\.com\/maps|maps\.google/i, title: "Embedded Google Map" },
+          { test: /realtyvis|cdn\.realtyvis/i,       title: "Embedded RealtyVis content" },
         ];
-        function ensureTitle(frame){
-          if(!(frame instanceof HTMLIFrameElement))return;
-          if(frame.hasAttribute("title") && frame.getAttribute("title")?.trim())return;
-          const src=frame.getAttribute("src")||"";
-          const match=DEFAULTS.find(d=>d.test.test(src));
-          const t=frame.getAttribute("data-title")||(match?match.title:"Embedded content");
-          frame.setAttribute("title",t);
+        function ensureTitle(frame) {
+          if (!(frame instanceof HTMLIFrameElement)) return;
+          if (frame.hasAttribute("title") && frame.getAttribute("title")?.trim()) return;
+          const src = frame.getAttribute("src") || "";
+          const match = DEFAULTS.find((d) => d.test.test(src));
+          const t = frame.getAttribute("data-title") || (match ? match.title : "Embedded content");
+          frame.setAttribute("title", t);
         }
         document.querySelectorAll("iframe").forEach(ensureTitle);
-        const mo=new MutationObserver(muts=>{
-          for(const m of muts){
-            m.addedNodes?.forEach(n=>{
-              if(n instanceof HTMLIFrameElement)ensureTitle(n);
-              else if(n instanceof HTMLElement)n.querySelectorAll?.("iframe").forEach(ensureTitle);
+        const mo = new MutationObserver((muts) => {
+          for (const m of muts) {
+            m.addedNodes?.forEach((n) => {
+              if (n instanceof HTMLIFrameElement) ensureTitle(n);
+              else if (n instanceof HTMLElement) n.querySelectorAll?.("iframe").forEach(ensureTitle);
             });
           }
         });
-        mo.observe(document.documentElement,{subtree:true,childList:true});
-        window.addEventListener("load",()=>document.querySelectorAll("iframe").forEach(ensureTitle));
+        mo.observe(document.documentElement, { subtree: true, childList: true });
+        window.addEventListener("load", () => document.querySelectorAll("iframe").forEach(ensureTitle));
       })();
     </script>
   </body>
