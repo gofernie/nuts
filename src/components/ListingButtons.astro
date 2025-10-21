@@ -1,27 +1,55 @@
 ---
-/**
- * ListingButtons.astro
- * Props:
- * - items: Array<{ label: string; href: string; test?: string }>
- *   - label: button text
- *   - href: destination URL
- *   - test (optional): regex string to detect "active" for routes that don't match exactly
- *
- * Usage examples below.
- */
-const { items = [] } = Astro.props;
+type Btn = { label: string; href: string; test?: string };
+const { items = [], raw = "" } = Astro.props;
+
+const norm = (s:string) => (s || "").trim();
+const isHttp = (u:string)=> /^https?:\/\//i.test(u);
+
+function titleFromHref(href:string){
+  const seg = (href || "/").replace(/\/+$/,"").split("/").pop() || href;
+  const words = seg.replace(/[-_]+/g," ").replace(/[^a-z0-9 ]/gi," ").trim();
+  const nice = words.replace(/\s+/g," ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  return nice || "View Listings";
+}
+function parseRaw(rawStr = ""): Btn[] {
+  const s = norm(rawStr);
+  if (!s) return [];
+  const parts = s.split(/,|\n/).map(norm).filter(Boolean);
+  const out: Btn[] = [];
+  for (const part of parts) {
+    if (part.includes("|")) {
+      const [labelRaw, hrefRaw, testRaw] = part.split("|").map(norm);
+      const href = hrefRaw || "";
+      const label = labelRaw || titleFromHref(href);
+      if (href) out.push({ label, href, test: testRaw || undefined });
+    } else {
+      const href = norm(part);
+      if (href) out.push({ label: titleFromHref(href), href });
+    }
+  }
+  const seen = new Set<string>();
+  return out.filter(b => {
+    const key = b.href.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+const fromRaw = parseRaw(raw);
+const list: Btn[] = (items.length ? items : fromRaw).filter(b => norm(b.href));
 
 const cur = Astro.url.pathname.replace(/\/+$/, "") || "/";
 const isActive = (href: string, test?: string) => {
   const h = (href || "").replace(/\/+$/, "") || "/";
-  if (test) {
-    try { return new RegExp(test).test(cur); } catch { /* ignore bad regex */ }
-  }
+  if (test) { try { return new RegExp(test).test(cur); } catch {} }
+  if (isHttp(h)) return false;
   return cur === h;
 };
+
+if (list.length === 0) Astro.self.close();
 ---
 <nav class="listing-buttons" aria-label="Listing filters">
-  {items.map(({ label, href, test }) => {
+  {list.map(({ label, href, test }) => {
     const active = isActive(href, test);
     return (
       <a
@@ -36,7 +64,6 @@ const isActive = (href: string, test?: string) => {
 </nav>
 
 <style>
-  /* Optional: active styles (plays nice with your existing CSS) */
   .btn-link.is-active {
     background: var(--color-primary-bg, #111);
     color: var(--color-on-primary, #fff);
