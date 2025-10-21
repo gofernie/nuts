@@ -56,6 +56,9 @@ const summary = (row && (get(row,"summary") || get(row,"seo_description"))) || "
 const heroImg = (row && get(row,"hero_img")) || "/img/hero/fallback-1600x800.jpg";
 const hero    = heroPath(heroImg);
 
+// 🔹 Optional hero preload for faster LCP
+const heroPreload = hero ? { href: hero } : null;
+
 const pageSeoTitle = (row && get(row,"seo_title")) || title;
 const pageSeoDesc  = (row && get(row,"seo_description")) || summary;
 
@@ -64,14 +67,12 @@ const rawCta = (row && (get(row,"cta1") || get(row,"rv_block"))) ||
                import.meta.env.PUBLIC_DEFAULT_RV_BLOCK || "";
 const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
 const isHtml = !!rawCta && !isRvId;
-
-/* --------- RealtyVis script URL --------- */
-const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
 ---
 
-<Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-  <!-- Hero -->
+<Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc} heroPreload={heroPreload}>
+  <!-- ✅ Hero paints first via the named slot -->
   <HeroBleed
+    slot="hero"
     src={hero}
     title={title}
     containerMax={1200}
@@ -86,7 +87,7 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     </div>
   )}
 
-  <main class="container body">
+  <div role="region" class="container body">
     {fetchError && (
       <section class="error"><p>{fetchError}</p></section>
     )}
@@ -96,30 +97,12 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
         <h2 class="h2">Current Listings</h2>
 
         {isRvId ? (
-          <>
-            <div data-rv-block={rawCta}></div>
-            <script is:inline>
-              (function(){
-                function scan(){ try{ window.RealtyVis?.scan?.(); }catch(e){} }
-                if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
-                  window.__rvScriptLoading = true;
-                  var s = document.createElement('script');
-                  s.src = "{RV_SCRIPT}";
-                  s.async = true; s.defer = true;
-                  s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
-                  s.onerror = function(e){ console.error("RealtyVis script failed", e); };
-                  document.head.appendChild(s);
-                } else if (window.__rvScriptLoaded) {
-                  scan();
-                } else {
-                  setTimeout(scan, 250);
-                }
-              })();
-            </script>
-          </>
+          <div data-rv-block={rawCta}></div>
         ) : (
           <div class="rv-html" set:html={rawCta}></div>
         )}
+
+        {/* ⛔ No per-page RV loader: Site.astro loads & inits it globally */}
       </section>
     )}
 
@@ -128,7 +111,7 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
         <p><strong>Heads-up:</strong> No <code>cta1</code>/<code>rv_block</code> set, and no <code>PUBLIC_DEFAULT_RV_BLOCK</code>.</p>
       </section>
     )}
-  </main>
+  </div>
 
   <style>
     :root { --container-max: 1200px; --container-pad: 12px; }

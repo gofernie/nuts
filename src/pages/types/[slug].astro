@@ -87,18 +87,21 @@ const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
-const isRvId    = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
-const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
+const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
+
+// 🔹 Optional hero preload so Site.astro can emit <link rel="preload">
+const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
   <HeroBleed
+    slot="hero"
     src={heroImg ? heroPath(heroImg) : ""}
     title={title}
     containerMax={1200}
     containerPad={12}
     flush={false}
-    preload={false}
+    preload={false}  <!-- Site handles preload via heroPreload -->
   />
 
   {summary && (
@@ -119,27 +122,7 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
         <div class="rv-html" set:html={rawCta}></div>
       )}
 
-      <script is:inline>
-        (function(){
-          // Immediate mount: guarantees rendering without IntersectionObserver
-          const RV_URL = {JSON.stringify(RV_SCRIPT)};
-          function scan(){ try { window.RealtyVis?.scan?.(); } catch(e){} }
-
-          if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
-            window.__rvScriptLoading = true;
-            var s = document.createElement('script');
-            s.src = RV_URL;
-            s.async = true; s.defer = true;
-            s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
-            s.onerror = function(e){ console.error("RealtyVis script failed", e); };
-            document.head.appendChild(s);
-          } else if (window.__rvScriptLoaded) {
-            scan();
-          } else {
-            setTimeout(scan, 250);
-          }
-        })();
-      </script>
+      {/* ⛔ Removed per-page RV loader — Site.astro loads & inits it globally */}
     </div>
   )}
 

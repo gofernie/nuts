@@ -5,7 +5,23 @@ const {
   seo_description = "",
   summary = "",
   showHeader = true,
-  class: bodyClass = ""
+  class: bodyClass = "",
+  /** Optional: pass a preload for the hero image to cut resource-load delay
+   *  Example from a page:
+   *  <Site heroPreload={{
+   *    href: "/img/hero/elkford_hero-1600.webp",
+   *    imagesrcset: "/img/hero/elkford_hero-1200.webp 1200w, /img/hero/elkford_hero-1600.webp 1600w, /img/hero/elkford_hero-2000.webp 2000w",
+   *    imagesizes: "100vw"
+   *  }}>
+   */
+  heroPreload = null as null | {
+    href: string;
+    imagesrcset?: string;
+    imagesizes?: string;
+    as?: "image";
+    type?: string;
+    crossorigin?: "" | "anonymous" | "use-credentials";
+  }
 } = Astro.props;
 
 import { getJson } from "../lib/fetchJson";
@@ -77,6 +93,22 @@ const NAV_ORDER = [
     <title>{seo_title}</title>
     {metaDescription && <meta name="description" content={metaDescription} />}
 
+    <!-- 🔌 Preconnect to RealtyVis CDN to shave DNS/TLS time -->
+    <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin />
+
+    <!-- ✅ Optional hero responsive preload (Early Hints-friendly) -->
+    {heroPreload && (
+      <link
+        rel="preload"
+        as={heroPreload.as || "image"}
+        href={heroPreload.href}
+        { ...(heroPreload.imagesrcset ? { imagesrcset: heroPreload.imagesrcset } : {}) }
+        { ...(heroPreload.imagesizes ? { imagesizes: heroPreload.imagesizes } : { imagesizes: "100vw" }) }
+        { ...(heroPreload.type ? { type: heroPreload.type } : {}) }
+        { ...(heroPreload.crossorigin ? { crossorigin: heroPreload.crossorigin } : {}) }
+      />
+    )}
+
     <slot name="head" />
 
     <!-- Small mobile-only rule to hide/show nav -->
@@ -85,6 +117,20 @@ const NAV_ORDER = [
         header nav{ display:none !important; }
         header nav.open{ display:flex !important; }
       }
+    </style>
+
+    <!-- 🌟 LCP helpers: below-fold gating + hero utilities (minimal & safe) -->
+    <style>
+      :root { --container-max: 1200px; --container-pad: 12px; }
+      .below-fold > * { content-visibility: auto; contain-intrinsic-size: 1000px; }
+      /* hero helpers (won’t conflict if you already style these elsewhere) */
+      .hb { position: relative; overflow: clip; }
+      .hb__img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .hb__overlay { position: absolute; inset: 0; pointer-events: none; }
+      .hb__inner { position: absolute; inset-inline: 0; inset-block-end: 0; padding: clamp(16px, 5vw, 32px); }
+      .hb__text { width: min(var(--container-max), 100% - 2*var(--container-pad)); margin-inline: auto; color: #fff; }
+      .hb__title { margin: 0; font-size: clamp(28px, 6vw, 52px); line-height: 1.05; letter-spacing: -0.02em; text-wrap: balance; }
+      .hb__lead { margin-top: .6rem; font-size: clamp(16px, 2.6vw, 20px); opacity: .95; max-width: 68ch; }
     </style>
 
     <!-- GLOBAL styles trimmed to avoid touching any hero/H1 -->
@@ -305,7 +351,13 @@ const NAV_ORDER = [
     )}
 
     <main id="main" role="main">
-      <slot />
+      <!-- ✅ If a page provides a hero slot, it renders here first for faster LCP -->
+      <slot name="hero" />
+
+      <!-- ✅ Everything else yields to the hero paint -->
+      <div class="below-fold">
+        <slot />
+      </div>
     </main>
 
     <footer class="site-footer" role="contentinfo">
@@ -319,34 +371,39 @@ const NAV_ORDER = [
       </div>
     </footer>
 
-    <!-- RealtyVis: load once and re-init on navigations & BFCache restores -->
+    <!-- RealtyVis: defer loading until idle/interaction, then keep your re-init hooks -->
     <script is:inline>
-      (function initRV() {
+      (function rvLoader() {
         function tryInit() {
-          if (window.RealtyVis && typeof window.RealtyVis.init === "function") {
-            requestAnimationFrame(() => window.RealtyVis.init());
+          if (window.RealtyVis) {
+            requestAnimationFrame(() => {
+              window.RealtyVis.init?.();
+              window.RealtyVis.scan?.();
+            });
           }
         }
-
-        if (!window.__rvLoaded) {
+        function loadScriptOnce() {
+          if (window.__rvLoaded) { tryInit(); return; }
           const s = document.createElement("script");
           s.src = "https://cdn.realtyvis.com/js/embed.js";
-          s.async = true;
+          s.defer = true;
           s.onload = () => { window.__rvLoaded = true; tryInit(); };
           document.head.appendChild(s);
-        } else {
-          tryInit();
         }
 
+        // 🚀 Defer off the critical path
+        addEventListener("pointerdown", loadScriptOnce, { once:true });
+        addEventListener("keydown",     loadScriptOnce, { once:true });
+        if ("requestIdleCallback" in window) {
+          requestIdleCallback(loadScriptOnce, { timeout: 3000 });
+        } else {
+          setTimeout(loadScriptOnce, 2500);
+        }
+
+        // Keep SPA/bfcache re-init behavior
         document.addEventListener("astro:page-load", tryInit);
-
-        window.addEventListener("pageshow", (e) => {
-          if (e.persisted) tryInit();
-        });
-
-        document.addEventListener("visibilitychange", () => {
-          if (!document.hidden) tryInit();
-        });
+        window.addEventListener("pageshow", (e) => { if (e.persisted) tryInit(); });
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) tryInit(); });
       })();
 
       // Accessibility: ensure iframes have titles
