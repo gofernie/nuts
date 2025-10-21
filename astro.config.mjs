@@ -1,6 +1,7 @@
 // astro.config.mjs
 import { defineConfig } from 'astro/config';
 import netlify from '@astrojs/netlify';
+import sitemap from '@astrojs/sitemap';                // 👈 add this
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -25,12 +26,24 @@ if (useHttps) {
 }
 
 export default defineConfig({
+  // 👇 required for sitemap to build absolute URLs
+  site: 'https://fernie.homes',
+
   // You have SSR routes
   output: 'server',
 
   // ✅ Do NOT load adapter in dev (prevents Netlify dev middleware)
   // ✅ Load adapter for production builds / CI
   adapter: isDev ? undefined : netlify({ devMiddleware: false }),
+
+  // Add sitemap integration
+  integrations: [
+    sitemap({
+      // optional tuning:
+      changefreq: 'weekly',
+      // filter: (page) => !page.pathname.startsWith('/admin'), // example
+    }),
+  ],
 
   // Local dev server
   server: {
