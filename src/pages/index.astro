@@ -3,7 +3,6 @@
 export const prerender = true;
 
 import Site from "../layouts/Site.astro";
-import HeroBleed from "../components/HeroBleed.astro";
 import { getJson } from "../lib/fetchJson";
 import { heroPath } from "../lib/paths";
 
@@ -79,27 +78,36 @@ try {
 }
 
 const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
-const heroH1       = header?.title || "Fernie Real Estate"; // H1
+const heroH1       = header?.title || "Fernie Real Estate"; // ✅ H1 uses TITLE only
 const pageSeoTitle = header?.seo_title || heroH1;
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
-
-// 🔹 Let Site emit <link rel="preload"> for the hero
-const heroPreload = heroSrc ? { href: heroSrc } : null;
 ---
 
-<Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc} heroPreload={heroPreload}>
-  <!-- ✅ Hero paints first via the named slot -->
+<Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
+
   {heroSrc && (
-    <HeroBleed
-      slot="hero"
-      src={heroSrc}
-      title={heroH1}
-      containerMax={1200}
-      containerPad={12}
-      flush={false}
-      /* Site handles preload via heroPreload */
-    />
+    <Fragment slot="head">
+      <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
+    </Fragment>
   )}
+
+  <!-- HERO with H1 overlay -->
+  <section class="hero-bleed">
+    {heroSrc && (
+      <img
+        src={heroSrc}
+        alt=""
+        fetchpriority="high"
+        loading="eager"
+        decoding="async"
+        width="2000"
+        height="1000"
+      />
+    )}
+    <div class="hero-overlay">
+      <h1>{heroH1}</h1>
+    </div>
+  </section>
 
   <div class="container">
     <section class="grid-wrap">
@@ -156,6 +164,48 @@ const heroPreload = heroSrc ? { href: heroSrc } : null;
 
   <style>
     .container { max-width: 1200px; margin: 24px auto 0; padding: 0 1rem; }
+
+    .hero-bleed {
+      position: relative;
+      width: 100%;
+      height:75vh;
+      min-height: 420px;
+      overflow: clip;
+      isolation: isolate;
+      background: #e5e7eb;
+    }
+    .hero-bleed img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      z-index: 0;
+    }
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      color: white;
+      padding: 0 1rem;
+      background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%);
+    }
+    .hero-overlay h1 {
+      font-size: 3.25rem;
+      font-weight: 800;
+      line-height: 1.1;
+      margin: 0;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+      letter-spacing: -0.01em;
+    }
+    @media (min-width: 768px) { .hero-overlay h1 { font-size: 4.25rem; } }
+    @media (min-width: 1024px){ .hero-overlay h1 { font-size: 4.75rem; } }
 
     .grid-wrap { margin-top: 24px; }
     .grid {
