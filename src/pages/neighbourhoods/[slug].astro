@@ -6,7 +6,7 @@ import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
-import ListingButtons from "../../components/ListingButtons.astro"; // NEW ✅
+import ListingButtons from "../../components/ListingButtons.astro";
 
 /* ---------- tiny util ---------- */
 const slugify = (v:string) =>
@@ -83,18 +83,15 @@ const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?
 const SUMMARY_IS_HTML = true;
 const BODY_IS_HTML    = true;
 
-// NEW ✅ read optional buttons string from your sheet (spare_2 in any casing)
-const buttonsCell = String(
-  row?.spare_2 ?? row?.Spare_2 ?? row?.SPARE_2 ?? ""
-).trim();
+// Optional buttons (spare_2)
+const buttonsCell = String(row?.spare_2 ?? row?.Spare_2 ?? row?.SPARE_2 ?? "").trim();
 
 /* ---------- listings / CTA ---------- */
 const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
-const isRvId    = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
-const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
+const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
@@ -115,7 +112,6 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     </div>
   )}
 
-  {/* NEW ✅ optional buttons — render only if cell has content */}
   {buttonsCell && (
     <div class="container" style="margin-top:8px;">
       <ListingButtons raw={buttonsCell} />
@@ -132,24 +128,14 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
         <div class="rv-html" set:html={rawCta}></div>
       )}
 
+      <!-- 🚫 Removed per-page script loader; Site.astro loads + inits globally -->
+      <!-- ✅ Add a tiny re-scan hook so BFCache/visibility restore is instant -->
       <script is:inline>
         (function(){
-          const RV_URL = "{RV_SCRIPT}";
-          function scan(){ try { window.RealtyVis?.scan?.(); } catch(e){} }
-
-          if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
-            window.__rvScriptLoading = true;
-            var s = document.createElement('script');
-            s.src = RV_URL;
-            s.async = true; s.defer = true;
-            s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
-            s.onerror = function(e){ console.error("RealtyVis script failed", e); };
-            document.head.appendChild(s);
-          } else if (window.__rvScriptLoaded) {
-            scan();
-          } else {
-            setTimeout(scan, 250);
-          }
+          function rescan(){ requestAnimationFrame(()=>window.RealtyVis?.scan?.()); }
+          // when returning from bfcache or tab becomes visible again
+          window.addEventListener('pageshow', rescan);
+          document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) rescan(); });
         })();
       </script>
     </div>
@@ -175,15 +161,11 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
       margin-inline:auto;
       padding-inline:12px;
     }
-
     .summary-wrap{ padding-top:16px; padding-bottom:8px; }
     .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-
     .listings-wrap{ padding-top:16px; padding-bottom:8px; }
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
-
     .body-wrap{ padding-top:12px; }
-
     .note{
       color:#666; background:#fafafa; border:1px solid #eee;
       padding:12px 14px; border-radius:8px; margin-top:16px;
