@@ -236,13 +236,15 @@ const NAV_ORDER = [
       }
       footer.site-footer .footer-links a:hover { text-decoration: underline; }
 
-<style>
+
 .listing-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 1rem;
+  justify-content: flex-start; /* 👈 THIS aligns them left */
 }
+
 
 .btn-link {
   display: inline-flex;
@@ -262,7 +264,7 @@ const NAV_ORDER = [
   background: var(--color-bg-hover, #f5f5f5);
   border-color: var(--color-border-hover, #999);
 }
-</style>
+
 
 
     </style>
