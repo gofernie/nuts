@@ -102,15 +102,10 @@ const seoDesc  = get(header,"seo_description") || pageSummary;
 
 // set to true if your summary text contains HTML markup
 const SUMMARY_IS_HTML = false;
-
-// 🔹 Optional hero preload so Site.astro can emit <link rel="preload">
-const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
-  <!-- ✅ Hero paints first via the named slot -->
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
   <HeroBleed
-    slot="hero"
     src={heroImg ? heroPath(heroImg) : ""}
     title={pageTitle}
     containerMax={1200}

@@ -7,9 +7,10 @@ import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import SnowReport from "../../components/SnowReport.astro";
-import WeatherReport from "../../components/WeatherReport.astro";
-
 const PATH_BASE = "/neighbourhoods";
+import WeatherReport from "../../components/WeatherReport.astro";
+import EndlessRunner from "../../components/EndlessRunner";
+
 
 /* ---------- helpers ---------- */
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
@@ -70,7 +71,8 @@ try {
   header =
     headerCandidates.find(r => get(r,"slug").toLowerCase() === "index") ??
     headerCandidates.find(r => get(r,"status").toLowerCase() === "header") ??
-    headerCandidates[0] ?? null;
+    headerCandidates[0] ??
+    null;
 
   items = rows
     .filter(r => visible(r))
@@ -104,15 +106,10 @@ const seoDesc  = get(header,"seo_description") || pageSummary;
 
 // set to true if your summary text contains HTML markup
 const SUMMARY_IS_HTML = false;
-
-// 🔹 Optional hero preload (lets Site.astro add <link rel="preload">)
-const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
-  <!-- ✅ Hero paints first via the named slot -->
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
   <HeroBleed
-    slot="hero"
     src={heroImg ? heroPath(heroImg) : ""}
     title={pageTitle}
     containerMax={1200}
@@ -148,15 +145,22 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     )}
   </div>
 
-  <section class="container">
-    <h2 class="sr-only">Fernie Snow Report</h2>
-    <SnowReport />
-  </section>
+  
 
-  <section class="container" style="margin-top:1rem">
+<section class="container">
+  <h2 class="sr-only">Fernie Snow Report</h2>
+  <SnowReport />
+</section>
+
+<section class="container" style="margin-top:1rem">
     <h2 class="sr-only">Fernie Weather Report</h2>
-    <WeatherReport />
-  </section>
+  <WeatherReport />
+</section>
+
+
+
+
+
 
   <style>
     .container{
