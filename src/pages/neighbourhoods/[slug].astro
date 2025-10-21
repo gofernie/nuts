@@ -117,7 +117,7 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
 
   {/* NEW ✅ optional buttons — render only if cell has content */}
   {buttonsCell && (
-    <div class="container" style="margin-top:8px;">
+    <div class="container" id="filters" style="margin-top:8px;">
       <ListingButtons raw={buttonsCell} />
     </div>
   )}

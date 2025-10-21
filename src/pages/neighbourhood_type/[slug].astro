@@ -6,6 +6,7 @@ import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
+import ListingButtons from "../../components/ListingButtons.astro"; // ✅ NEW
 
 /* ---------- tiny util ---------- */
 const slugify = (v:string) =>
@@ -102,6 +103,11 @@ const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?
 const SUMMARY_IS_HTML = false;
 const BODY_IS_HTML    = true;
 
+// ✅ NEW: read the optional buttons string from this tab (spare_2)
+const buttonsCell = String(
+  row?.spare_2 ?? row?.Spare_2 ?? row?.SPARE_2 ?? ""
+).trim();
+
 /* ---------- listings / CTA ---------- */
 const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
@@ -129,9 +135,16 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     </div>
   )}
 
+  {/* ✅ NEW: optional buttons from spare_2 — render only if present */}
+  {buttonsCell && (
+    <div class="container" style="margin-top:8px;"  id="filters">
+      <ListingButtons raw={buttonsCell} />
+    </div>
+  )}
+
   {rawCta && (
     <div class="container listings-wrap">
-      <h2 class="h2">Current Listings</h2>
+      <h2 class="h2">Current {title} For Sale</h2>
 
       {isRvId ? (
         <div id="rv-block" data-rv-block={rawCta}></div>
