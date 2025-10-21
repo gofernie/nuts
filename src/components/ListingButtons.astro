@@ -1,21 +1,7 @@
 ---
 type Btn = { label: string; href: string; test?: string };
 
-interface Props {
-  items?: Btn[];
-  raw?: string;
-  anchor?: string;   // e.g. "#filters" (default)
-  sticky?: boolean;  // set true to make the bar sticky
-  class?: string;    // extra classes for <nav>
-}
-
-const {
-  items = [],
-  raw = "",
-  anchor = "#filters",
-  sticky = false,
-  class: extraClass = "",
-} = Astro.props as Props;
+const { items = [], raw = "" } = Astro.props;
 
 const norm = (s:string) => (s || "").trim();
 const isHttp = (u:string)=> /^https?:\/\//i.test(u);
@@ -45,7 +31,6 @@ function parseRaw(rawStr = ""): Btn[] {
       if (href) out.push({ label: titleFromHref(href), href });
     }
   }
-  // de-dupe by href
   const seen = new Set<string>();
   return out.filter(b => {
     const key = b.href.toLowerCase();
@@ -68,28 +53,14 @@ const isActive = (href: string, test?: string) => {
 
 if (list.length === 0) Astro.self.close();
 ---
-<nav
-  class={`listing-buttons ${sticky ? "is-sticky" : ""} ${extraClass}`.trim()}
-  aria-label="Listing filters"
->
+<nav class="listing-buttons" aria-label="Listing filters">
   {list.map(({ label, href, test }) => {
     const active = isActive(href, test);
-
-    // Append anchor to internal links if there isn't already a hash
-    const finalHref =
-      (sameOrigin(href) && anchor && !href.includes("#"))
-        ? `${href}${anchor}`
-        : href;
-
-    // External links can optionally open new tab; keeping same-tab here
-    const isExternal = isHttp(href);
-
     return (
       <a
         class={`btn-link${active ? " is-active" : ""}`}
-        href={finalHref}
+        href={href}
         aria-current={active ? "page" : undefined}
-        rel={isExternal ? "noopener" : undefined}
       >
         {label}
       </a>
@@ -98,20 +69,10 @@ if (list.length === 0) Astro.self.close();
 </nav>
 
 <style>
-  /* Active state – uses your palette */
   .btn-link.is-active {
     background: var(--color-primary-bg, #111);
     color: var(--color-on-primary, #fff);
     border-color: var(--color-primary-border, #111);
     font-weight: 600;
-  }
-
-  /* Optional sticky behavior */
-  .listing-buttons.is-sticky {
-    position: sticky;
-    top: var(--anchor-offset, 0); /* set to header height if you add a sticky header */
-    background: var(--color-page, #fff);
-    padding-block: 0.25rem;
-    z-index: 10;
   }
 </style>
