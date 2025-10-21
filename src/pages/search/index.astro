@@ -3,7 +3,7 @@
 import Site from "../../layouts/Site.astro";
 import RealtyVis from "../../components/RealtyVis.astro"; // ✅ Add this line
 
-const hero = "/img/hero/search_hero.webp"; // hardcoded
+const hero = "/img/hero/search_hero.webp";
 const pageTitle = "Search Listings";
 const pageSummary =
   "Find Fernie homes, condos, townhomes, and investment properties. Filter by price, beds, and more.";
@@ -18,25 +18,26 @@ const seo_description =
     <link rel="preload" as="image" href={hero} fetchpriority="high" />
   </Fragment>
 
-
-
-
-
-<div class="container cta">
-  <div data-rv-block="MQP2VMLT-HDQLLMRY"></div>
-</div>
-
-<style>
-  .cta {
-    margin-top: 90px;   /* 👈 this adds the top space */
-    margin-bottom: 24px; /* optional */
-    text-align: center;
-  }
-</style>
-
-
+  <div class="container search-wrapper">
+    <div class="search-card">
+      <div data-rv-block="MQP2VMLT-HDQLLMRY"></div>
+    </div>
+  </div>
 
   <style>
+    .search-wrapper {
+      margin-top: 90px; /* 👈 adds the top spacing */
+      margin-bottom: 24px;
+    }
+
+    .search-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 24px 20px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    }
+
     .intro {
       margin: 24px auto 20px;
     }
@@ -50,16 +51,6 @@ const seo_description =
       font-size: 1rem;
       line-height: 1.6;
       color: #1f2937;
-    }
-
-    .search-card {
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 16px;
-      padding: 16px;
-      margin: 16px 0 40px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-      overflow: hidden;
     }
 
     .search-placeholder {
