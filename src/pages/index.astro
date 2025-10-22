@@ -17,10 +17,11 @@ type Row = {
   seo_description?: string;
   cta1?: string; // RealtyVis block ID or full snippet
   cta2?: string; // Feature copy (HTML/text)
-  cta3?: string; // Optional extra (unused here but ready)
+  cta3?: string; // Optional extra
 };
 
 let header: Row | null = null;
+let allItems: Row[] = [];
 let items: Row[] = [];
 let error: string | null = null;
 
@@ -61,25 +62,51 @@ try {
     Array.isArray(rawHome?.rows) ? rawHome.rows : [];
   header = homeRows.length ? normalize(homeRows[0]) : null;
 
-  // Neighbourhood teaser
+  // Neighbourhoods source
   if (listUrl) {
     const rawList = await getJson<any>(listUrl);
     const rows:any[] =
       Array.isArray(rawList) ? rawList :
       Array.isArray(rawList?.data) ? rawList.data :
       Array.isArray(rawList?.rows) ? rawList.rows : [];
-    items = rows.map(normalize).filter(visible).slice(0, 6);
+    allItems = rows.map(normalize).filter(visible);
   }
 } catch (e:any) {
   error = e?.message || String(e);
 }
 
+/* ---- Random neighbourhoods (always include Ski Hill) ---- */
+const MAX_NEIGH_CARDS = 4; // ⬅️ show only 4 cards
+const MUST_SLUGS = new Set(["skihill","ski-hill","fernie-ski-hill","ski-hill-condos"]); // tweak if needed
+
+function chooseNeighbourCards(list: Row[], max = MAX_NEIGH_CARDS): Row[] {
+  if (!list.length) return [];
+  const lower = (s:string)=> (s||"").toLowerCase();
+  const must = list.find(r => MUST_SLUGS.has(lower(r.slug||"")) || /ski.*hill/.test(lower(r.slug||"")));
+  const rest = list.filter(r => r !== must);
+
+  // shuffle rest
+  const a = [...rest];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+
+  const picked: Row[] = [];
+  if (must) picked.push(must);
+  picked.push(...a.slice(0, Math.max(0, max - picked.length)));
+  return picked.slice(0, max);
+}
+
+items = chooseNeighbourCards(allItems);
+
+/* ---- SEO / hero ---- */
 const heroSrc      = header?.hero_img ? heroPath(header.hero_img) : "";
 const heroH1       = header?.title || "Fernie Real Estate";
 const pageSeoTitle = header?.seo_title || heroH1;
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
 
-// Weather coords (default: Fernie Alpine Resort)
+/* ---- Weather coords (default: FAR) ---- */
 const WX_LAT = Number(import.meta.env.PUBLIC_WEATHER_LAT ?? "") || 49.463;
 const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
 ---
@@ -92,7 +119,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     </Fragment>
   )}
 
-  <!-- HERO -->
+  <!-- HERO (summary moved BELOW hero per request) -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -107,9 +134,17 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     )}
     <div class="hero-overlay">
       <h1>{heroH1}</h1>
-      {header?.summary && <p class="hero-lead">{header.summary}</p>}
     </div>
   </section>
+
+  <!-- Summary under hero -->
+  {header?.summary && (
+    <div class="container">
+      <section class="section">
+        <div class="lead-under-hero">{header.summary}</div>
+      </section>
+    </div>
+  )}
 
   <div class="container">
 
@@ -190,7 +225,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       </div>
     </section>
 
-    <!-- NEIGHBOURHOODS TEASER -->
+    <!-- NEIGHBOURHOODS TEASER (random + always ski hill) -->
     {items.length > 0 && (
       <section class="section">
         <div class="section-head">
@@ -202,7 +237,11 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
             const primary = n.hero_img ? heroPath(n.hero_img) : "";
             return (
               <a class="card" href={`/neighbourhoods/${n.slug}`}>
-                <div class="thumb">{primary ? <img src={primary} alt={n.title} loading="lazy" decoding="async" /> : <div class="ph">No image</div>}</div>
+                <div class="thumb">
+                  {primary
+                    ? <img src={primary} alt={n.title} loading="lazy" decoding="async" />
+                    : <div class="ph">No image</div>}
+                </div>
                 <div class="body">
                   <strong>{n.title}</strong>
                   {n.summary && <p>{n.summary}</p>}
@@ -244,86 +283,105 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     (function(){
       const sk = document.getElementById('rv-skeleton');
       if (!sk) return;
+      const kill = () => sk.remove();
       const obs = new MutationObserver(() => {
-        const rv = document.querySelector('[data-rv-block], .rv-root, iframe[src*="realtyvis"], [data-rv-mounted]');
-        if (rv) {
-          sk.remove();
-          obs.disconnect();
-        }
+        const rv =
+          document.querySelector('[data-rv-block] .rv-root, .rv-root, iframe[src*="realtyvis"], [data-rv-mounted]');
+        if (rv) { kill(); obs.disconnect(); }
       });
       obs.observe(document.body, { childList: true, subtree: true });
-      // safety timeout
-      setTimeout(()=> sk.remove(), 8000);
+      setTimeout(kill, 9000); // safety timeout
     })();
 
-    // Weather + Snow (Open-Meteo)
-    (async () => {
+    // Weather + Snow (Open-Meteo) — robust to schema differences
+    function renderWeatherRobust() {
       const lat = {WX_LAT};
       const lon = {WX_LON};
+
       const url = new URL("https://api.open-meteo.com/v1/forecast");
       url.searchParams.set("latitude", String(lat));
       url.searchParams.set("longitude", String(lon));
-      url.searchParams.set("current", "temperature_2m,precipitation,wind_speed_10m");
-      url.searchParams.set("daily", "snowfall_sum,snow_depth_max,precipitation_sum,temperature_2m_max,temperature_2m_min");
       url.searchParams.set("timezone", "auto");
+      url.searchParams.set("current_weather", "true"); // legacy/robust current block
+      url.searchParams.set("current", "temperature_2m,precipitation,wind_speed_10m"); // new schema
+      url.searchParams.set("daily", "snowfall_sum,snow_depth_max,snow_depth,precipitation_sum,temperature_2m_max,temperature_2m_min");
 
-      try {
-        const res = await fetch(url.toString(), { cache: "no-store" });
-        const data = await res.json();
+      fetch(url.toString(), { cache: "no-store" })
+        .then(r => r.json())
+        .then(data => {
+          const $ = (id) => document.getElementById(id);
 
-        const temp = Math.round(data.current?.temperature_2m ?? 0);
-        const wind = Math.round(data.current?.wind_speed_10m ?? 0);
-        const precip = data.current?.precipitation ?? 0;
+          // Current (prefer new schema, fallback to legacy)
+          const curNew = data?.current ?? {};
+          const curOld = data?.current_weather ?? {};
+          const tempC  = Number.isFinite(curNew.temperature_2m) ? curNew.temperature_2m
+                      : Number.isFinite(curOld.temperature)     ? curOld.temperature
+                      : null;
+          const windK  = Number.isFinite(curNew.wind_speed_10m) ? curNew.wind_speed_10m
+                      : Number.isFinite(curOld.windspeed)       ? curOld.windspeed
+                      : null;
+          const precip = Number.isFinite(curNew.precipitation)  ? curNew.precipitation : 0;
 
-        const el = (id) => document.getElementById(id);
-        if (el("temp"))    el("temp").textContent = temp;
-        if (el("winds"))   el("winds").textContent = `Wind ${wind} km/h`;
-        if (el("precip"))  el("precip").textContent = `Precip ${precip.toFixed(1)} mm`;
+          if ($("temp")   && tempC !== null) $("temp").textContent = String(Math.round(tempC));
+          if ($("winds")  && windK !== null) $("winds").textContent = `Wind ${Math.round(windK)} km/h`;
+          if ($("precip")) $("precip").textContent = `Precip ${Number(precip||0).toFixed(1)} mm`;
 
-        const daily = document.getElementById("wx-daily");
-        if (daily) {
-          daily.innerHTML = (data.daily?.time || []).slice(0,5).map((d,i)=>{
-            const dt = new Date(d+"T00:00:00");
-            const label = dt.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
-            const tmax = Math.round(data.daily.temperature_2m_max[i]);
-            const tmin = Math.round(data.daily.temperature_2m_min[i]);
-            const snow = (data.daily.snowfall_sum[i] ?? 0).toFixed(1);
-            const p = (data.daily.precipitation_sum[i] ?? 0).toFixed(1);
-            return `
-              <div class="wx-day">
-                <div class="wx-day-label">${label}</div>
-                <div class="wx-day-temps">${tmax}° / ${tmin}°</div>
-                <div class="wx-day-snow">${snow} cm snow</div>
-                <div class="wx-day-precip">${p} mm precip</div>
-              </div>`;
-          }).join("");
-        }
+          // Daily
+          const t       = data?.daily?.time || [];
+          const tmax    = data?.daily?.temperature_2m_max || [];
+          const tmin    = data?.daily?.temperature_2m_min || [];
+          const snow    = data?.daily?.snowfall_sum || [];
+          const depth   = data?.daily?.snow_depth_max || data?.daily?.snow_depth || [];
+          const precipD = data?.daily?.precipitation_sum || [];
 
-        const snow24 = data.daily?.snowfall_sum?.[0] ?? 0;
-        const snow72 = (data.daily?.snowfall_sum?.[0] ?? 0)
-                     + (data.daily?.snowfall_sum?.[1] ?? 0)
-                     + (data.daily?.snowfall_sum?.[2] ?? 0);
-        const depth  = data.daily?.snow_depth_max?.[0] ?? 0;
+          const dailyEl = $("wx-daily");
+          if (dailyEl && t.length) {
+            dailyEl.innerHTML = t.slice(0,5).map((d,i)=>{
+              const dt = new Date(d + "T00:00:00");
+              const label = dt.toLocaleDateString(undefined,{ weekday:"short", month:"short", day:"numeric" });
+              const hi = Math.round(Number(tmax[i] ?? 0));
+              const lo = Math.round(Number(tmin[i] ?? 0));
+              const sn = Number(snow[i] ?? 0).toFixed(1);
+              const p  = Number(precipD[i] ?? 0).toFixed(1);
+              return `
+                <div class="wx-day">
+                  <div class="wx-day-label">${label}</div>
+                  <div class="wx-day-temps">${hi}° / ${lo}°</div>
+                  <div class="wx-day-snow">${sn} cm snow</div>
+                  <div class="wx-day-precip">${p} mm precip</div>
+                </div>
+              `;
+            }).join("");
+          }
 
-        if (el("snow24"))    el("snow24").textContent   = `${snow24.toFixed(1)} cm`;
-        if (el("snow72"))    el("snow72").textContent   = `${snow72.toFixed(1)} cm`;
-        if (el("snowDepth")) el("snowDepth").textContent= `${depth.toFixed(0)} cm`;
-      } catch {}
-    })();
+          const s24 = Number(snow?.[0] ?? 0);
+          const s72 = Number((snow?.[0] ?? 0) + (snow?.[1] ?? 0) + (snow?.[2] ?? 0));
+          const dep = Number(depth?.[0] ?? 0);
+
+          if ($("snow24"))   $("snow24").textContent   = `${s24.toFixed(1)} cm`;
+          if ($("snow72"))   $("snow72").textContent   = `${s72.toFixed(1)} cm`;
+          if ($("snowDepth"))$("snowDepth").textContent= `${dep.toFixed(0)} cm`;
+        })
+        .catch(()=>{ /* silent */ });
+    }
+    addEventListener("astro:page-load", renderWeatherRobust, { once: true });
+    addEventListener("pageshow", (e)=>{ if (e.persisted) renderWeatherRobust(); });
   </script>
 
   <style>
     .container { max-width: 1200px; margin: 24px auto 0; padding: 0 1rem; }
 
     /* HERO */
-    .hero-bleed { position: relative; width: 100%; height: 72vh; min-height: 420px; overflow: clip; isolation: isolate; background: #e5e7eb; }
+    .hero-bleed { position: relative; width: 100%; height: 80vh; min-height: 420px; overflow: clip; isolation: isolate; background: #e5e7eb; }
     .hero-bleed img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
     .hero-overlay {
       position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; text-align: center; color: white; padding: 0 1rem;
       background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%);
     }
     .hero-overlay h1 { font-size: clamp(2.5rem, 6vw, 4.75rem); line-height: 1.1; margin: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: -0.01em; }
-    .hero-lead { max-width: 68ch; margin: .6rem auto 0; text-wrap: balance; }
+
+    /* Summary under hero */
+    .lead-under-hero { font-size: clamp(1rem, 2.4vw, 1.15rem); line-height: 1.6; color: #1f2937; max-width: 75ch; }
 
     .section { margin: 28px 0 40px; }
     .section-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:12px; }
@@ -354,10 +412,10 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .cta:hover { opacity: .9; }
     @media (max-width: 900px) { .feature-inner { grid-template-columns: 1fr; } }
 
-    /* NEIGHBOURHOODS GRID */
+    /* NEIGHBOURHOODS GRID — softer lift */
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-    .card { display:flex; flex-direction:column; background:#fff; border:1px solid #eee; border-radius:12px; overflow:hidden; text-decoration:none; color:inherit; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); transition: .25s; }
+    .card { display:flex; flex-direction:column; background:#fff; border:1px solid #eee; border-radius:12px; overflow:hidden; text-decoration:none; color:inherit; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transform: translateY(0); transition: transform .25s ease, box-shadow .25s ease; }
+    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
     .thumb { aspect-ratio: 16/9; background:#f6f6f6; display:grid; place-items:center; }
     .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
     .ph { font-size:12px; color:#999; }
