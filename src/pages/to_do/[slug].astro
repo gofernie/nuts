@@ -7,82 +7,57 @@ import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-/* ---------- tiny util ---------- */
 const slugify = (v:string) =>
-  (v ?? "").toLowerCase().trim()
-    .replace(/&/g,"-and-")
-    .replace(/[^a-z0-9]+/g,"-")
-    .replace(/^-+|-+$/g,"");
+  (v ?? "").toLowerCase().trim().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
 
-/* ---------- static paths ---------- */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_TODO_JSON;
   if (!url) return [];
-
   let rows:any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch {
-    return [];
-  }
+    rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
+  } catch { return []; }
 
   const items = rows.map((r:any) => {
     const status  = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
     const rawSlug = String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase();
-
     const hidden = status === "hidden" || status === "inactive" || rawSlug === "index";
     if (hidden) return null;
-
     const title  = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
     const slug   = rawSlug || slugify(title);
     if (!slug) return null;
-
     return { params: { slug } };
   }).filter(Boolean) as { params: { slug: string } }[];
 
   return items;
 }
 
-/* ---------- page data ---------- */
 const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
 const url = import.meta.env.PUBLIC_TODO_JSON;
 if (!url) throw new Error("Missing PUBLIC_TODO_JSON in .env (restart dev).");
 
+let rows:any[] = [];
 let row:any = null;
 let indexRow:any = null;
 
 try {
   const raw = await getJson<any>(url);
-  const rows:any[] = Array.isArray(raw) ? raw
-    : Array.isArray(raw?.data) ? raw.data
-    : Array.isArray(raw?.rows) ? raw.rows : [];
-
-  // current page row
+  rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
   row = rows.find((r:any) => {
     const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase();
     const title   = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
     const computed = (rawSlug || slugify(title)).toLowerCase();
     return computed === slugParam;
   });
-
-  // the "index" row on the to_do tab (slug exactly 'index' or blank)
-  indexRow = rows.find((r:any) => {
-    const rs = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase();
-    return rs === "index";
-  }) || null;
-
+  // Use INDEX row's CTA1 for the embed after body
+  indexRow = rows.find((r:any) => String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "index").trim().toLowerCase() === "index") || null;
 } catch (e) {
   console.error("[to_do slug] JSON fetch failed:", e);
 }
 
-if (!row) {
-  throw new Error(`To Do slug not found: ${slugParam}`);
-}
+if (!row) throw new Error(`To Do slug not found: ${slugParam}`);
 
-/* ---------- fields ---------- */
 const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Things To Do in Fernie").trim();
 const summary  = String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
 const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
@@ -93,73 +68,86 @@ const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?
 const SUMMARY_IS_HTML = false;
 const BODY_IS_HTML    = true;
 
-/* ---------- RealtyVis embed from:
-      1) this row's cta1/rv_block
-      2) index row's cta1/rv_block
-      3) PUBLIC_DEFAULT_RV_BLOCK (optional fallback)
---------------------------------- */
+// Embed from INDEX row's cta1 (or fallback env)
 const rawCta =
-  String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(indexRow?.cta1 ?? indexRow?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
-const isRvId    = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
-const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
+const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
+const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
+  <!-- Force-load RealtyVis -->
+  <Fragment slot="head">
+    <script is:inline>
+      (function(){
+        if (window.__rvScriptLoaded || window.__rvScriptLoading) return;
+        window.__rvScriptLoading = true;
+        const s = document.createElement('script');
+        s.src = {JSON.stringify(RV_URL)};
+        s.defer = true; s.async = true;
+        s.onload = function(){ window.__rvScriptLoaded = true; try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(e){} };
+        s.onerror = e => { console.error("RealtyVis script failed to load", e); window.__rvScriptLoading = false; };
+        document.head.appendChild(s);
+      })();
+    </script>
+  </Fragment>
+
   <HeroBleed
     src={heroImg ? heroPath(heroImg) : ""}
     title={title}
     containerMax={1200}
-    flush={false}
     containerPad={12}
+    flush={false}
+    preload={false}
   />
 
   {summary && (
     <div class="container summary-wrap">
-      {SUMMARY_IS_HTML
-        ? <div class="lead" set:html={summary}></div>
-        : <p class="lead">{summary}</p>}
+      {SUMMARY_IS_HTML ? <div class="lead" set:html={summary}></div> : <p class="lead">{summary}</p>}
     </div>
   )}
 
   {body && (
     <div class="container body-wrap">
-      {BODY_IS_HTML
-        ? <div class="lead" set:html={body}></div>
-        : <p class="lead">{body}</p>}
+      {BODY_IS_HTML ? <div class="lead" set:html={body}></div> : <p class="lead">{body}</p>}
     </div>
   )}
 
   {rawCta && (
     <div class="container listings-wrap">
-      <h2 class="h2">Related Listings</h2>
+      <h2 class="h2">Current Fernie Listings</h2>
 
       {isRvId ? (
-        <div id="rv-block" data-rv-block={rawCta}></div>
+        <div id="rv-root" data-rv-block={rawCta}></div>
       ) : (
-        <div class="rv-html" set:html={rawCta}></div>  /* paste-in embed HTML also works */
+        <div id="rv-root" class="rv-html" set:html={rawCta}></div>
       )}
 
       <script is:inline>
         (function(){
-          const RV_URL = "{RV_SCRIPT}";
-          function scan(){ try { window.RealtyVis?.scan?.(); } catch(e){} }
-
-          if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
-            window.__rvScriptLoading = true;
-            var s = document.createElement('script');
-            s.src = RV_URL;
-            s.async = true; s.defer = true;
-            s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
-            s.onerror = function(e){ console.error("RealtyVis script failed", e); };
-            document.head.appendChild(s);
-          } else if (window.__rvScriptLoaded) {
-            scan();
-          } else {
-            setTimeout(scan, 250);
+          const root = document.getElementById('rv-root');
+          function mounted(r = document){
+            return !!(
+              r.querySelector('[data-rv-card]') ||
+              r.querySelector('.rv-card') ||
+              r.querySelector('.rv-root') ||
+              r.querySelector('iframe[src*="realtyvis"]') ||
+              r.querySelector('[data-rv-mounted]')
+            );
           }
+          function rescan(){ try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(e){} }
+
+          const mo = new MutationObserver(() => { if (mounted(root)) mo.disconnect(); });
+          mo.observe(root, { childList:true, subtree:true });
+
+          if (document.visibilityState === 'visible') rescan();
+          addEventListener('visibilitychange', () => { if (!document.hidden) rescan(); });
+          addEventListener('pageshow', (e) => { if (e.persisted) rescan(); });
+
+          setTimeout(rescan, 1500);
+          setTimeout(rescan, 4000);
         })();
       </script>
     </div>
@@ -167,31 +155,17 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
 
   {!rawCta && (
     <div class="container note">
-      <p><strong>Heads-up:</strong> No <code>cta1</code>/<code>rv_block</code> set on this row,
-      no <em>index</em> row value, and no <code>PUBLIC_DEFAULT_RV_BLOCK</code> fallback.</p>
+      <p><strong>Heads-up:</strong> No <code>index!cta1</code> (or <code>PUBLIC_DEFAULT_RV_BLOCK</code>) was found for the To-Do embeds.</p>
     </div>
   )}
 
   <style>
-    .container{
-      max-width:1200px;
-      margin-inline:auto;
-      padding-inline:12px;
-    }
+    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
     .summary-wrap{ padding-top:16px; padding-bottom:8px; }
-    .lead{
-      margin:0;
-      font-size:1.075rem;
-      line-height:1.6;
-      color:#111827;
-    }
-    .body-wrap{ padding-top:12px; }
-    .listings-wrap{ padding-top:28px; padding-bottom:16px; }
+    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
+    .listings-wrap{ padding-top:16px; padding-bottom:8px; }
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
-
-    .note{
-      color:#666; background:#fafafa; border:1px solid #eee;
-      padding:12px 14px; border-radius:8px; margin-top:16px;
-    }
+    .body-wrap{ padding-top:12px; }
+    .note{ color:#666; background:#fafafa; border:1px solid #eee; padding:12px 14px; border-radius:8px; margin-top:16px; }
   </style>
 </Site>

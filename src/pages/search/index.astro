@@ -1,11 +1,9 @@
 ---
-export const prerender = true; // ✅ ensure /search is static (no cold start)
-
+// File: src/pages/search/index.astro
 import Site from "../../layouts/Site.astro";
-// You don't actually use RealtyVis.astro directly here, so you can remove the import if unused.
-// import RealtyVis from "../../components/RealtyVis.astro";
+import RealtyVis from "../../components/RealtyVis.astro"; // ✅ Add this line
 
-const hero = "/img/hero/search_hero.webp";
+const hero = "/img/hero/search_hero.webp"; // hardcoded
 const pageTitle = "Search Listings";
 const pageSummary =
   "Find Fernie homes, condos, townhomes, and investment properties. Filter by price, beds, and more.";
@@ -20,37 +18,25 @@ const seo_description =
     <link rel="preload" as="image" href={hero} fetchpriority="high" />
   </Fragment>
 
-  <div class="container search-wrapper">
-    <div class="search-card">
-      <div id="rv-block" data-rv-block="MQP2VMLT-HDQLLMRY"></div>
-    </div>
-  </div>
 
-  <!-- Optional: simple timer to see how long RV takes to mount -->
-  <script is:inline>
-    (function(){
-      console.time("rv:ready");
-      var t = setInterval(function(){
-        var mounted = document.querySelector('[data-rv-card], .rv-card, [data-rv-root]');
-        if (mounted) { clearInterval(t); console.timeEnd("rv:ready"); }
-      }, 100);
-      setTimeout(function(){ clearInterval(t); }, 15000);
-    })();
-  </script>
+
+
+
+<div class="container cta">
+  <div data-rv-block="MQP2VMLT-HDQLLMRY"></div>
+</div>
+
+<style>
+  .cta {
+    margin-top: 90px;   /* 👈 this adds the top space */
+    margin-bottom: 24px; /* optional */
+    text-align: center;
+  }
+</style>
+
+
 
   <style>
-    .search-wrapper {
-      margin-top: 90px;
-      margin-bottom: 24px;
-    }
-    .search-card {
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 16px;
-      padding: 24px 20px;
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-    }
-
     .intro {
       margin: 24px auto 20px;
     }
@@ -64,6 +50,16 @@ const seo_description =
       font-size: 1rem;
       line-height: 1.6;
       color: #1f2937;
+    }
+
+    .search-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+      margin: 16px 0 40px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+      overflow: hidden;
     }
 
     .search-placeholder {
