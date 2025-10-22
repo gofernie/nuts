@@ -121,23 +121,45 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
 
       <script is:inline>
         (function(){
-          // Immediate mount: guarantees rendering without IntersectionObserver
           const RV_URL = {JSON.stringify(RV_SCRIPT)};
-          function scan(){ try { window.RealtyVis?.scan?.(); } catch(e){} }
-
-          if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
-            window.__rvScriptLoading = true;
-            var s = document.createElement('script');
-            s.src = RV_URL;
-            s.async = true; s.defer = true;
-            s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
-            s.onerror = function(e){ console.error("RealtyVis script failed", e); };
-            document.head.appendChild(s);
-          } else if (window.__rvScriptLoaded) {
-            scan();
-          } else {
-            setTimeout(scan, 250);
+          function scan(){
+            if (window.RealtyVis) {
+              requestAnimationFrame(()=> window.RealtyVis?.scan?.());
+            }
           }
+
+          function loadScript(){
+            if (window.__rvScriptLoaded) { scan(); return; }
+
+            if (!window.__rvScriptLoading) {
+              window.__rvScriptLoading = true;
+              const s = document.createElement('script');
+              s.src = RV_URL;
+              s.defer = true;
+              s.onload = function(){
+                window.__rvScriptLoaded = true;
+                scan();
+              };
+              s.onerror = (e)=> console.error("RealtyVis script failed", e);
+              document.head.appendChild(s);
+            } else {
+              // script is already loading, retry until ready
+              let tries = 0;
+              const interval = setInterval(()=>{
+                if (window.__rvScriptLoaded || tries++ > 20) {
+                  clearInterval(interval);
+                  scan();
+                }
+              }, 200);
+            }
+          }
+
+          loadScript();
+
+          // Re-scan on tab restore, BFCache, visibility change
+          window.addEventListener('pageshow', scan);
+          document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) scan(); });
+          window.addEventListener('focus', scan, true);
         })();
       </script>
     </div>
