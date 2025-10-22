@@ -79,14 +79,18 @@ const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").
 const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
 const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
 const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
-const cta1     = String(row?.cta1 ?? row?.CTA1 ?? "").trim(); // ⬅️ RealtyVis embed/ID
 
-// match todo: summary plain by default; long_copy often HTML
+/* ---------- rendering flags ---------- */
 const SUMMARY_IS_HTML = false;
 const BODY_IS_HTML    = true;
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
+  <!-- Optional (add in Site.astro <head> if desired):
+  <link rel="preconnect" href="https://idx.myrealpage.com" crossorigin>
+  <link rel="dns-prefetch" href="https://idx.myrealpage.com">
+  -->
+
   <!-- Hero aligned to .container (1200 max / 12px pad) -->
   <HeroBleed
     src={heroImg ? heroPath(heroImg) : ""}
@@ -97,7 +101,6 @@ const BODY_IS_HTML    = true;
   />
 
   {summary && (
-    <!-- match TODO INDEX location/spacing -->
     <div class="container summary-wrap">
       {SUMMARY_IS_HTML
         ? <div class="lead" set:html={summary}></div>
@@ -113,56 +116,19 @@ const BODY_IS_HTML    = true;
     </div>
   )}
 
-  <!-- 🏡 RealtyVis listings from this STAY row's cta1 -->
-  {cta1 && (
-    <div class="container listing-wrap" id="stay-listings">
-      <!-- Shimmer skeleton until RV paints -->
-      <div class="listing-skeleton" id="rv-skeleton-stay" aria-hidden="true">
-        <div class="sk-card"></div>
-        <div class="sk-card"></div>
-        <div class="sk-card"></div>
+  <!-- ✅ MRP widget locked inside the same 1200px container as page content -->
+  <div id="mrp-wrap" class="container">
+    <div id="mrp-shell" class="mrp-shell" aria-busy="true">
+      <!-- shimmer while MRP boots -->
+      <div id="mrp-skeleton" class="listing-skeleton" aria-hidden="true">
+        <div class="sk-card"></div><div class="sk-card"></div>
+        <div class="sk-card"></div><div class="sk-card"></div>
       </div>
 
-      {
-        /[<>]/.test(cta1)
-          ? <Fragment set:html={cta1}></Fragment>
-          : <div data-rv-block={cta1}></div>
-      }
-
-      <!-- Micro-guards: rescan RV on restore/visibility/in-view -->
-      <script is:inline>
-        (function(){
-          const root = document.querySelector('#stay-listings [data-rv-block]') || document.querySelector('#stay-listings .rv-root');
-          if (!root) return;
-
-          function rescan(){
-            try {
-              window.RealtyVis?.init?.();
-              window.RealtyVis?.scan?.();
-            } catch {}
-          }
-
-          // Try immediately if visible
-          if (document.visibilityState === 'visible') rescan();
-
-          // On BFCache restore / visibility / focus
-          addEventListener('pageshow', (e)=>{ if (e.persisted) rescan(); });
-          addEventListener('visibilitychange', ()=>{ if (!document.hidden) rescan(); });
-          addEventListener('focus', rescan);
-
-          // Observe when listings block enters viewport; if still empty, rescan
-          const io = new IntersectionObserver((entries)=>{
-            for (const en of entries) {
-              if (!en.isIntersecting) continue;
-              const hasContent = root.querySelector('.rv-root, iframe, [data-rv-mounted]');
-              if (!hasContent) rescan();
-            }
-          }, { rootMargin: '0px 0px -25% 0px' });
-          io.observe(root);
-        })();
-      </script>
+      <!-- MRP will render here -->
+      <div id="mrp-container" class="mrp-container" aria-live="polite"></div>
     </div>
-  )}
+  </div>
 
   <style>
     .container{
@@ -170,10 +136,12 @@ const BODY_IS_HTML    = true;
       margin-inline:auto;
       padding-inline:12px;
     }
-    /* EXACT match with todo index spacing under hero */
-    .summary-wrap{ padding-top:16px; padding-bottom:8px; }
 
-    /* Shared typography for summary + long copy (match todo .lead) */
+    /* spacing to match your other sections */
+    .summary-wrap{ padding-top:16px; padding-bottom:8px; }
+    .body-wrap{ padding-top:12px; }
+
+    /* shared copy style */
     .lead{
       margin:0;
       font-size:1.075rem;
@@ -181,28 +149,146 @@ const BODY_IS_HTML    = true;
       color:#111827;
     }
 
-    /* Space between summary and body */
-    .body-wrap{ padding-top:12px; }
+    /* ===== MRP container & skeleton ===== */
+    .mrp-shell{ margin-top:32px; position:relative; min-height:180px; }
+    .mrp-container{ isolation:isolate; }
 
-    /* ✨ Listing shimmer (matches home) */
-    .listing-wrap { margin-top: 32px; position: relative; min-height: 160px; }
-    .listing-skeleton { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 12px; }
-    .sk-card { height: 180px; border-radius: 12px; background: linear-gradient(90deg,#f4f4f4 25%,#ececec 37%,#f4f4f4 63%); background-size: 400% 100%; animation: shimmer 1.4s infinite; border:1px solid #eee; }
-    @keyframes shimmer { 0%{background-position: 100% 0} 100%{background-position: -100% 0} }
+    .listing-skeleton {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px,1fr));
+      gap:12px;
+    }
+    .sk-card {
+      height:180px;
+      border-radius:12px;
+      background: linear-gradient(90deg,#f4f4f4 25%,#ececec 37%,#f4f4f4 63%);
+      background-size:400% 100%;
+      animation: shimmer 1.4s infinite;
+      border:1px solid #eee;
+    }
+    @keyframes shimmer {
+      0% { background-position: 100% 0 }
+      100% { background-position: -100% 0 }
+    }
+
+    /* Hard clamp any MRP iframe to the container width */
+    #mrp-container iframe{
+      width:100% !important;
+      max-width:100% !important;
+      display:block !important;
+      margin:0 auto !important;
+      inset:auto !important;
+      left:auto !important;
+      right:auto !important;
+      border:0;
+    }
   </style>
 
   <script>
-    // Remove shimmer once RealtyVis mounts
     (function(){
-      const sk = document.getElementById('rv-skeleton-stay');
-      if (!sk) return;
-      const kill = ()=> sk.remove();
-      const obs = new MutationObserver(() => {
-        const rv = document.querySelector('#stay-listings .rv-root, iframe[src*="realtyvis"], [data-rv-mounted]');
-        if (rv) { kill(); obs.disconnect(); }
-      });
-      obs.observe(document.body, { childList:true, subtree:true });
-      setTimeout(kill, 9000);
+      // Your MRP embed script (no-frame variant)
+      const SRC = "https://idx.myrealpage.com/wps/rest/66350/l/idx2/recip/tmpl~v2,noframe~true/-/search-1425920.def/in.js";
+
+      const shell = document.getElementById("mrp-shell");
+      const container = document.getElementById("mrp-container");
+      const skeleton = document.getElementById("mrp-skeleton");
+      if (!shell || !container) return;
+
+      let loaded = false;
+
+      function clampIframe(el){
+        try{
+          el.style.width = "100%";
+          el.style.maxWidth = "100%";
+          el.style.display = "block";
+          el.style.margin = "0 auto";
+          el.style.left = "auto";
+          el.style.right = "auto";
+          el.removeAttribute("width");
+        }catch{}
+      }
+
+      function moveIntoContainer(node){
+        if (!node) return;
+        if (!container.contains(node)) {
+          try { container.appendChild(node); } catch {}
+        }
+        if (node.tagName === "IFRAME") clampIframe(node);
+      }
+
+      function watchForMRP(){
+        // Watch whole document in case MRP injects at body level
+        const docObs = new MutationObserver((muts)=>{
+          muts.forEach(m=>{
+            m.addedNodes.forEach(n=>{
+              if (n.nodeType !== 1) return;
+              const el = n;
+
+              // direct iframe
+              if (el.tagName === "IFRAME" && /myrealpage\.com/i.test(el.src || "")) {
+                moveIntoContainer(el);
+                skeleton?.remove();
+                shell.setAttribute("aria-busy","false");
+              }
+
+              // nested iframes inside wrappers
+              if (el.querySelector){
+                el.querySelectorAll('iframe').forEach((ifr)=>{
+                  if (/myrealpage\.com/i.test(ifr.src || "")) {
+                    moveIntoContainer(ifr);
+                    skeleton?.remove();
+                    shell.setAttribute("aria-busy","false");
+                  }
+                });
+              }
+            });
+          });
+        });
+        docObs.observe(document.documentElement, { childList:true, subtree:true });
+
+        // Stop watching after 20s to avoid overhead
+        setTimeout(()=> docObs.disconnect(), 20000);
+      }
+
+      function inject(){
+        if (loaded) return; loaded = true;
+        watchForMRP();
+
+        // Observe local container too (best case MRP writes right here)
+        const localObs = new MutationObserver(()=>{
+          const ifr = container.querySelector("iframe");
+          if (ifr){
+            clampIframe(ifr);
+            skeleton?.remove();
+            shell.setAttribute("aria-busy","false");
+            localObs.disconnect();
+          }
+        });
+        localObs.observe(container, { childList:true, subtree:true });
+
+        const s = document.createElement("script");
+        s.src = SRC;
+        s.async = true;
+
+        // Put script *inside* our container to encourage in-place rendering
+        container.appendChild(s);
+
+        // Safety timeout
+        setTimeout(()=>{
+          skeleton?.remove();
+          shell.setAttribute("aria-busy","false");
+        }, 9000);
+      }
+
+      // Lazy load when near viewport for better LCP
+      if ("IntersectionObserver" in window){
+        const io = new IntersectionObserver((es)=>{
+          es.forEach(e=>{ if (e.isIntersecting){ inject(); io.disconnect(); } });
+        }, { rootMargin:"400px 0px" });
+        io.observe(shell);
+      } else {
+        inject();
+      }
     })();
   </script>
 </Site>
