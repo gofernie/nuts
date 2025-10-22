@@ -1,4 +1,5 @@
 ---
+// File: src/layouts/Site.astro
 const {
   title = "Fernie Real Estate",
   seo_title = title,
@@ -76,9 +77,6 @@ const NAV_ORDER = [
   "search",
   "contact",
 ] as const;
-
-// RV script URL (allows override via env)
-const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
 ---
 
 <html lang="en">
@@ -88,13 +86,10 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
     <title>{seo_title}</title>
     {metaDescription && <meta name="description" content={metaDescription} />}
 
-    <!-- 🚀 RealtyVis performance hints (global) -->
-    <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
+    <!-- 🚀 RealtyVis performance hints -->
     <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin>
-    <link rel="dns-prefetch" href="https://api.realtyvis.com">
-    <link rel="preconnect" href="https://api.realtyvis.com" crossorigin>
-    <!-- Preload the script at low importance (does not block) -->
-    <link rel="preload" as="script" href={RV_URL} importance="low">
+    <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
+    <link rel="prefetch" href="https://cdn.realtyvis.com/js/embed.js" as="script">
 
     <!-- ✅ Optional hero responsive preload -->
     {heroPreload && (
@@ -169,55 +164,18 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
       .btn-link:hover { background: var(--color-bg-hover, #f5f5f5); border-color: var(--color-border-hover, #999); }
     </style>
 
-    <!-- 🧠 Idle-load RealtyVis once (global cache) -->
     <script is:inline>
-      (function(){
-        var RV_URL = {RV_URL: JSON.stringify(RV_URL)}.RV_URL;
-        if (window.__rvScriptLoading || window.__rvScriptLoaded) return;
-        window.__rvScriptLoading = true;
-
-        function load(){
-          var s = document.createElement("script");
-          s.src = RV_URL; s.async = true; s.defer = true;
-          s.onload = function(){ window.__rvScriptLoaded = true; try{ window.RealtyVis?.scan?.(); }catch(e){} };
-          s.onerror = function(){ window.__rvScriptLoading = false; };
-          document.head.appendChild(s);
-        }
-
-        if ("requestIdleCallback" in window) {
-          requestIdleCallback(load, { timeout: 2000 });
-        } else {
-          setTimeout(load, 1000);
-        }
-      })();
+      function toggleNav(){
+        const nav=document.querySelector("header nav");
+        const btn=document.querySelector(".hamburger");
+        if(!nav||!btn)return;
+        const isOpen=nav.classList.toggle("open");
+        btn.setAttribute("aria-expanded",String(isOpen));
+      }
+      window.toggleNav=toggleNav;
+      document.addEventListener("DOMContentLoaded",()=>{ const nav=document.querySelector("header nav"); if(nav) nav.classList.remove("open"); });
     </script>
 
-    <!-- 🏃 Prefetch /search on intent (hover / touch) -->
-    <script is:inline>
-      (function(){
-        var seen = new Set();
-        function prefetch(u){
-          if (seen.has(u)) return;
-          seen.add(u);
-          var l = document.createElement("link");
-          l.rel = "prefetch"; l.as = "document"; l.href = u;
-          document.head.appendChild(l);
-        }
-        function closestSearchLink(el){
-          return el && el.closest && el.closest('a[href^="/search"]');
-        }
-        document.addEventListener("mouseover", function(e){
-          var a = closestSearchLink(e.target);
-          if (a) prefetch(a.href);
-        }, {passive:true});
-        document.addEventListener("touchstart", function(e){
-          var a = closestSearchLink(e.target);
-          if (a) prefetch(a.href);
-        }, {passive:true});
-      })();
-    </script>
-
-    <!-- (kept) smooth anchors -->
     <script is:inline src="/js/smooth-anchors.js"></script>
   </head>
 
@@ -266,20 +224,42 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
       </div>
     </footer>
 
+    <!-- 🧭 RealtyVis loader -->
     <script is:inline>
-      function toggleNav(){
-        const nav=document.querySelector("header nav");
-        const btn=document.querySelector(".hamburger");
-        if(!nav||!btn)return;
-        const isOpen=nav.classList.toggle("open");
-        btn.setAttribute("aria-expanded",String(isOpen));
-      }
-      window.toggleNav=toggleNav;
-      document.addEventListener("DOMContentLoaded",()=>{ const nav=document.querySelector("header nav"); if(nav) nav.classList.remove("open"); });
-    </script>
+      (function rvLoader() {
+        function tryInit() {
+          if (window.RealtyVis) {
+            requestAnimationFrame(() => {
+              window.RealtyVis.init?.();
+              window.RealtyVis.scan?.();
+            });
+          }
+        }
+        function loadScriptOnce() {
+          if (window.__rvLoaded) { tryInit(); return; }
+          const s = document.createElement("script");
+          s.src = "https://cdn.realtyvis.com/js/embed.js";
+          s.defer = true;
+          s.onload = () => { window.__rvLoaded = true; tryInit(); };
+          document.head.appendChild(s);
+        }
 
-    <!-- Accessibility: ensure iframes have titles -->
-    <script is:inline>
+        document.addEventListener("astro:page-load", loadScriptOnce, { once:true });
+        addEventListener("pointerdown", loadScriptOnce, { once:true });
+        addEventListener("keydown", loadScriptOnce, { once:true });
+
+        if ("requestIdleCallback" in window) {
+          requestIdleCallback(loadScriptOnce, { timeout: 3000 });
+        } else {
+          setTimeout(loadScriptOnce, 2500);
+        }
+
+        document.addEventListener("astro:page-load", tryInit);
+        window.addEventListener("pageshow", (e) => { if (e.persisted) tryInit(); });
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) tryInit(); });
+      })();
+
+      // Accessibility: ensure iframes have titles
       (function () {
         const DEFAULTS = [
           { test: /google\.com\/maps|maps\.google/i, title: "Embedded Google Map" },
