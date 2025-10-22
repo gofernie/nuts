@@ -1,12 +1,10 @@
 ---
 // src/pages/index.astro
-
 import Site from "../layouts/Site.astro";
 import { getJson } from "../lib/fetchJson";
 import { heroPath } from "../lib/paths";
 
 const homeUrl  = import.meta.env.PUBLIC_HOME_JSON;
-const listUrl  = import.meta.env.PUBLIC_SHEET_JSON;
 
 type Row = {
   slug?: string;
@@ -16,10 +14,10 @@ type Row = {
   status?: string;
   seo_title?: string;
   seo_description?: string;
+  cta1?: string; // RealtyVis block ID (e.g., MQP2VMLT-XXXX) OR full snippet
 };
 
 let header: Row | null = null;
-let items: Row[] = [];
 let error: string | null = null;
 
 const getVal = (r:any,k:string)=>
@@ -37,49 +35,30 @@ const normalize = (r:any): Row => {
     status: getVal(r,"status"),
     seo_title: getVal(r,"seo_title"),
     seo_description: getVal(r,"seo_description"),
+    cta1: getVal(r,"cta1"),
   };
 };
 
 try {
-  // HEADER from HOME tab
   if (!homeUrl) throw new Error("Missing PUBLIC_HOME_JSON in .env for homepage content.");
   const rawHome = await getJson<any>(homeUrl);
-
   const homeRows: any[] =
     Array.isArray(rawHome) ? rawHome :
     Array.isArray(rawHome?.data) ? rawHome.data :
-    Array.isArray(rawHome?.rows) ? rawHome.rows :
-    [];
-
+    Array.isArray(rawHome?.rows) ? rawHome.rows : [];
   header = homeRows.length > 0 ? normalize(homeRows[0]) : null;
-
-  // LIST CARDS from neighbourhoods sheet
-  if (!listUrl) throw new Error("Missing PUBLIC_SHEET_JSON in .env for neighbourhood list.");
-  const rawList = await getJson<any>(listUrl);
-
-  const rows: any[] =
-    Array.isArray(rawList) ? rawList :
-    Array.isArray(rawList?.data) ? rawList.data :
-    Array.isArray(rawList?.rows) ? rawList.rows :
-    [];
-
-  const normalized = rows.map(normalize);
-
-  items = normalized.filter((r) =>
-    r.slug && r.title &&
-    r.slug.toLowerCase()!=="index" &&
-    !/^draft$/i.test(r.status ?? "") &&
-    !/^hidden$/i.test(r.status ?? "") &&
-    !/^inactive$/i.test(r.status ?? "")
-  );
 } catch (e:any) {
   error = e?.message || String(e);
 }
 
-const heroSrc = header?.hero_img ? heroPath(header.hero_img) : "";
-const heroH1       = header?.title || "Fernie Real Estate"; // ✅ H1 uses TITLE only
+const heroSrc      = header?.hero_img ? heroPath(header.hero_img) : "";
+const heroH1       = header?.title || "Fernie Real Estate";
 const pageSeoTitle = header?.seo_title || heroH1;
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
+
+// Weather coords (default: Fernie Alpine Resort)
+const WX_LAT = Number(import.meta.env.PUBLIC_WEATHER_LAT ?? "") || 49.463;
+const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
 ---
 
 <Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
@@ -90,7 +69,7 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     </Fragment>
   )}
 
-  <!-- HERO with H1 overlay -->
+  <!-- HERO -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -105,131 +84,161 @@ const pageSeoDesc  = header?.seo_description || header?.summary || "";
     )}
     <div class="hero-overlay">
       <h1>{heroH1}</h1>
+      {header?.summary && <p class="hero-lead">{header.summary}</p>}
     </div>
   </section>
 
   <div class="container">
-    <section class="grid-wrap">
+    <!-- LISTINGS from HOME!cta1 -->
+    <section class="section">
+      <h2 class="visually-hidden">Featured Listings</h2>
+
       {error ? (
         <p class="error">Error: {error}</p>
-      ) : items.length === 0 ? (
-        <p>No neighbourhoods yet. Check your <code>PUBLIC_SHEET_JSON</code> URL or add rows to your sheet.</p>
-      ) : (
-        <div class="grid">
-          {items.map((n) => {
-            const primary = n.hero_img ? heroPath(n.hero_img) : "";
-            const altBase = primary.includes("/images/")
-              ? primary.replace("/images/", "/img/")
-              : primary.replace("/img/", "/images/");
-            const filename = (primary.split("/").pop() || "").trim();
-            const finalFallback = filename ? `/img/hero/${filename}` : "";
-
-            return (
-              <a class="card" href={`/neighbourhoods/${n.slug}`}>
-                <div class="thumb">
-                  {primary ? (
-                    <img
-                      src={primary}
-                      alt={n.title}
-                      loading="lazy"
-                      decoding="async"
-                      onerror={`
-                        if (this.dataset.step!=='1'){ this.dataset.step='1'; this.src='${altBase}'; }
-                        else if (this.dataset.step!=='2' && '${finalFallback}'){ this.dataset.step='2'; this.src='${finalFallback}'; }
-                        else {
-                          const ph = document.createElement('div');
-                          ph.className = 'ph';
-                          ph.setAttribute('aria-hidden','true');
-                          ph.textContent = 'No image';
-                          this.replaceWith(ph);
-                        }
-                      `}
-                    />
-                  ) : (
-                    <div class="ph" aria-hidden="true">No image</div>
-                  )}
-                </div>
-                <div class="body">
-                  <strong>{n.title}</strong>
-                  {n.summary && <p>{(n.summary).split(/\s+/).slice(0,10).join(" ") + ((n.summary).split(/\s+/).length>10 ? "…" : "")}</p>}
-                </div>
-              </a>
-            );
-          })}
+      ) : header?.cta1 ? (
+        <div class="listing-embed">
+          {
+            // If CTA1 contains HTML, render it as-is (may include its own <script>)
+            /[<>]/.test(header.cta1)
+              ? <Fragment set:html={header.cta1}></Fragment>
+              : (
+                  // If CTA1 is just an ID (e.g., MQP2VMLT-MA9LM8VT), emit the block only.
+                  // Rely on your global RealtyVis loader in Site.astro to load & init the script.
+                  <div data-rv-block={header.cta1}></div>
+                )
+          }
         </div>
+      ) : (
+        <p>Tip: Put your RealtyVis block ID (e.g. <code>MQP2VMLT-XXXXX</code>) or full embed snippet into <code>HOME!cta1</code> to render listings here.</p>
       )}
     </section>
-    
+
+    <!-- SNOW REPORT -->
+    <section class="section">
+      <h2 class="section-title">Snow Report (Fernie Alpine Resort)</h2>
+      <div id="snow-report" class="wx-card">
+        <div class="wx-row">
+          <div class="wx-metric"><div class="wx-label">24-hr Snow</div><div class="wx-value" id="snow24">–</div></div>
+          <div class="wx-metric"><div class="wx-label">72-hr Snow</div><div class="wx-value" id="snow72">–</div></div>
+          <div class="wx-metric"><div class="wx-label">Base Depth</div><div class="wx-value" id="snowDepth">–</div></div>
+        </div>
+        <small class="wx-note">Approx. forecast • {WX_LAT.toFixed(3)}, {WX_LON.toFixed(3)}</small>
+      </div>
+    </section>
+
+    <!-- WEATHER -->
+    <section class="section">
+      <h2 class="section-title">Weather</h2>
+      <div id="weather-report" class="wx-card">
+        <div class="wx-now">
+          <div class="wx-now-temp"><span id="temp">–</span><span class="unit">°C</span></div>
+          <div class="wx-now-meta">
+            <span id="winds">Wind –</span> • <span id="precip">Precip –</span>
+          </div>
+        </div>
+        <div id="wx-daily" class="wx-daily"></div>
+        <small class="wx-note">Open-Meteo • {WX_LAT.toFixed(3)}, {WX_LON.toFixed(3)}</small>
+      </div>
+    </section>
   </div>
+
+  <script>
+    (async () => {
+      const lat = {WX_LAT};
+      const lon = {WX_LON};
+
+      const url = new URL("https://api.open-meteo.com/v1/forecast");
+      url.searchParams.set("latitude", String(lat));
+      url.searchParams.set("longitude", String(lon));
+      url.searchParams.set("current", "temperature_2m,precipitation,wind_speed_10m");
+      url.searchParams.set("daily", "snowfall_sum,snow_depth_max,precipitation_sum,temperature_2m_max,temperature_2m_min");
+      url.searchParams.set("timezone", "auto");
+
+      try {
+        const res = await fetch(url.toString(), { cache: "no-store" });
+        const data = await res.json();
+
+        const temp = Math.round(data.current?.temperature_2m ?? 0);
+        const wind = Math.round(data.current?.wind_speed_10m ?? 0);
+        const precip = data.current?.precipitation ?? 0;
+
+        document.getElementById("temp").textContent = temp;
+        document.getElementById("winds").textContent = `Wind ${wind} km/h`;
+        document.getElementById("precip").textContent = `Precip ${precip.toFixed(1)} mm`;
+
+        const daily = document.getElementById("wx-daily");
+        daily.innerHTML = (data.daily?.time || []).slice(0,5).map((d,i)=>{
+          const dt = new Date(d+"T00:00:00");
+          const label = dt.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
+          const tmax = Math.round(data.daily.temperature_2m_max[i]);
+          const tmin = Math.round(data.daily.temperature_2m_min[i]);
+          const snow = (data.daily.snowfall_sum[i] ?? 0).toFixed(1);
+          const p = (data.daily.precipitation_sum[i] ?? 0).toFixed(1);
+          return `
+            <div class="wx-day">
+              <div class="wx-day-label">${label}</div>
+              <div class="wx-day-temps">${tmax}° / ${tmin}°</div>
+              <div class="wx-day-snow">${snow} cm snow</div>
+              <div class="wx-day-precip">${p} mm precip</div>
+            </div>
+          `;
+        }).join("");
+
+        const snow24 = data.daily?.snowfall_sum?.[0] ?? 0;
+        const snow72 = (data.daily?.snowfall_sum?.[0] ?? 0)
+                     + (data.daily?.snowfall_sum?.[1] ?? 0)
+                     + (data.daily?.snowfall_sum?.[2] ?? 0);
+        const depth  = data.daily?.snow_depth_max?.[0] ?? 0;
+
+        document.getElementById("snow24").textContent  = `${snow24.toFixed(1)} cm`;
+        document.getElementById("snow72").textContent  = `${snow72.toFixed(1)} cm`;
+        document.getElementById("snowDepth").textContent = `${depth.toFixed(0)} cm`;
+      } catch (err) {
+        console.warn("Weather fetch failed", err);
+      }
+    })();
+  </script>
 
   <style>
     .container { max-width: 1200px; margin: 24px auto 0; padding: 0 1rem; }
 
     .hero-bleed {
-      position: relative;
-      width: 100%;
-      height:75vh;
-      min-height: 420px;
-      overflow: clip;
-      isolation: isolate;
-      background: #e5e7eb;
+      position: relative; width: 100%; height: 75vh; min-height: 420px;
+      overflow: clip; isolation: isolate; background: #e5e7eb;
     }
-    .hero-bleed img {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      z-index: 0;
-    }
+    .hero-bleed img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
     .hero-overlay {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      color: white;
-      padding: 0 1rem;
+      position: absolute; inset: 0; z-index: 1; display: grid; place-items: center;
+      text-align: center; color: white; padding: 0 1rem;
       background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%);
     }
-    .hero-overlay h1 {
-      font-size: 3.25rem;
-      font-weight: 800;
-      line-height: 1.1;
-      margin: 0;
-      text-shadow: 0 2px 6px rgba(0,0,0,0.5);
-      letter-spacing: -0.01em;
-    }
-    @media (min-width: 768px) { .hero-overlay h1 { font-size: 4.25rem; } }
-    @media (min-width: 1024px){ .hero-overlay h1 { font-size: 4.75rem; } }
+    .hero-overlay h1 { font-size: clamp(2.5rem, 6vw, 4.75rem); line-height: 1.1; margin: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: -0.01em; }
+    .hero-lead { max-width: 68ch; margin: .6rem auto 0; text-wrap: balance; }
 
-    .grid-wrap { margin-top: 24px; }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
-    }
-
-    .card {
-      display: flex; flex-direction: column;
-      background: #fff; border-radius: 12px; overflow: hidden;
-      border: 1px solid #eee; text-decoration: none; color: inherit;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      transform: translateY(0);
-      transition: transform 0.25s ease, box-shadow 0.25s ease;
-    }
-    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-
-    .thumb { aspect-ratio: 16/9; background: #f6f6f6; display: grid; place-items: center; }
-    .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-
-    .ph { font-size: 12px; color: #999; }
-    .body { padding: 12px; }
-    .body p { margin: .4rem 0 0 0; color: #555; font-size: .95rem; line-height: 1.35; }
+    .section { margin: 28px 0 40px; }
+    .section-title { margin: 0 0 12px; font-size: 1.25rem; letter-spacing: .01em; }
     .error { color: #b00; }
+
+    .wx-card { border: 1px solid #eee; border-radius: 12px; padding: 16px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .wx-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 10px; }
+    .wx-metric { background:#f9fafb; border:1px solid #f1f1f1; border-radius:10px; padding:12px; text-align:center; }
+    .wx-label { font-size:.8rem; color:#666; }
+    .wx-value { font-size:1.25rem; font-weight:700; margin-top:4px; }
+
+    .wx-now { display:flex; align-items:baseline; gap:16px; margin-bottom:12px; }
+    .wx-now-temp { font-size:2rem; font-weight:800; }
+    .wx-now-temp .unit { font-size:1rem; opacity:.8; margin-left:2px; }
+    .wx-now-meta { color:#555; }
+
+    .wx-daily { display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:10px; margin-top:8px; }
+    .wx-day { border:1px solid #f1f1f1; border-radius:10px; padding:10px; background:#fafafa; }
+    .wx-day-label { font-weight:700; margin-bottom:4px; }
+    .wx-day-temps, .wx-day-snow, .wx-day-precip { font-size:.9rem; color:#444; }
+
+    .wx-note { display:block; margin-top:8px; color:#777; font-size:.75rem; }
+    .visually-hidden {
+      position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+      clip:rect(0,0,0,0);white-space:nowrap;border:0;
+    }
   </style>
 </Site>
