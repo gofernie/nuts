@@ -1,0 +1,33 @@
+---
+// File: src/pages/listings/index.astro
+export const prerender = false;
+import Site from "../../layouts/Site.astro";
+---
+
+<Site title="Listing Details">
+  <div class="container">
+    <div id="mrp-details-shell" class="mrp-shell">
+      <div id="mrp-details-container"></div>
+    </div>
+  </div>
+
+  <style>
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 12px; }
+    #mrp-details-container iframe {
+      width: 100% !important;
+      max-width: 100% !important;
+      display: block;
+      margin: 0 auto;
+      border: 0;
+    }
+  </style>
+
+  <script>
+    (function(){
+      const s = document.createElement("script");
+      s.src = "https://idx.myrealpage.com/wps/rest/66350/l/idx2/recip/tmpl~v2,noframe~true/-/search-1425920.def/in.js";
+      s.async = true;
+      document.getElementById("mrp-details-container").appendChild(s);
+    })();
+  </script>
+</Site>

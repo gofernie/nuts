@@ -14,7 +14,7 @@ const slugify = (v:string) =>
     .replace(/[^a-z0-9]+/g,"-")
     .replace(/^-+|-+$/g,"");
 
-/* ---------- static paths (no external helpers) ---------- */
+/* ---------- static paths ---------- */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_STAY_JSON;
   if (!url) return [];
@@ -32,7 +32,6 @@ export async function getStaticPaths() {
   const items = rows.map((r:any) => {
     const status  = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
     const rawSlug = String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase();
-
     const hidden = status === "hidden" || status === "inactive" || rawSlug === "index";
     if (hidden) return null;
 
@@ -46,7 +45,7 @@ export async function getStaticPaths() {
   return items;
 }
 
-/* ---------- page data (also inline, no helpers) ---------- */
+/* ---------- page data ---------- */
 const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
 const url = import.meta.env.PUBLIC_STAY_JSON;
 if (!url) throw new Error("Missing PUBLIC_STAY_JSON in .env (restart dev).");
@@ -80,18 +79,11 @@ const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").tri
 const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
 const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
 
-/* ---------- rendering flags ---------- */
 const SUMMARY_IS_HTML = false;
-const BODY_IS_HTML    = true;
+const BODY_IS_HTML = true;
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
-  <!-- Optional (add in Site.astro <head> if desired):
-  <link rel="preconnect" href="https://idx.myrealpage.com" crossorigin>
-  <link rel="dns-prefetch" href="https://idx.myrealpage.com">
-  -->
-
-  <!-- Hero aligned to .container (1200 max / 12px pad) -->
   <HeroBleed
     src={heroImg ? heroPath(heroImg) : ""}
     title={title}
@@ -116,17 +108,24 @@ const BODY_IS_HTML    = true;
     </div>
   )}
 
-  <!-- ✅ MRP widget locked inside the same 1200px container as page content -->
-  <div id="mrp-wrap" class="container">
-    <div id="mrp-shell" class="mrp-shell" aria-busy="true">
-      <!-- shimmer while MRP boots -->
-      <div id="mrp-skeleton" class="listing-skeleton" aria-hidden="true">
+  <!-- 🧱 RealtyNinja embed inside the container (replaces MRP) -->
+  <div id="rn-wrap" class="container">
+    <div id="rn-shell" class="rn-shell" aria-busy="true">
+      <!-- shimmer while RealtyNinja loads -->
+      <div id="rn-skeleton" class="listing-skeleton" aria-hidden="true">
         <div class="sk-card"></div><div class="sk-card"></div>
         <div class="sk-card"></div><div class="sk-card"></div>
       </div>
 
-      <!-- MRP will render here -->
-      <div id="mrp-container" class="mrp-container" aria-live="polite"></div>
+      <!-- START REALTYNINJA EMBED CODE -->
+      <div
+        class="rn-embed"
+        data-name="chriscrump8"
+        data-path="555"
+        style="min-height:95vh;"
+      ></div>
+      <script src="https://s.realtyninja.com/static/js/prod/embed.min.js" type="module" defer></script>
+      <!-- END REALTYNINJA EMBED CODE -->
     </div>
   </div>
 
@@ -136,12 +135,8 @@ const BODY_IS_HTML    = true;
       margin-inline:auto;
       padding-inline:12px;
     }
-
-    /* spacing to match your other sections */
     .summary-wrap{ padding-top:16px; padding-bottom:8px; }
     .body-wrap{ padding-top:12px; }
-
-    /* shared copy style */
     .lead{
       margin:0;
       font-size:1.075rem;
@@ -149,10 +144,7 @@ const BODY_IS_HTML    = true;
       color:#111827;
     }
 
-    /* ===== MRP container & skeleton ===== */
-    .mrp-shell{ margin-top:32px; position:relative; min-height:180px; }
-    .mrp-container{ isolation:isolate; }
-
+    .rn-shell{ margin-top:32px; position:relative; min-height:180px; }
     .listing-skeleton {
       display:grid;
       grid-template-columns: repeat(auto-fit, minmax(280px,1fr));
@@ -161,9 +153,9 @@ const BODY_IS_HTML    = true;
     .sk-card {
       height:180px;
       border-radius:12px;
-      background: linear-gradient(90deg,#f4f4f4 25%,#ececec 37%,#f4f4f4 63%);
+      background:linear-gradient(90deg,#f4f4f4 25%,#ececec 37%,#f4f4f4 63%);
       background-size:400% 100%;
-      animation: shimmer 1.4s infinite;
+      animation:shimmer 1.4s infinite;
       border:1px solid #eee;
     }
     @keyframes shimmer {
@@ -171,124 +163,37 @@ const BODY_IS_HTML    = true;
       100% { background-position: -100% 0 }
     }
 
-    /* Hard clamp any MRP iframe to the container width */
-    #mrp-container iframe{
-      width:100% !important;
-      max-width:100% !important;
-      display:block !important;
-      margin:0 auto !important;
-      inset:auto !important;
-      left:auto !important;
-      right:auto !important;
-      border:0;
+    /* 🧭 keep any RN iframe locked to container */
+    #rn-wrap iframe {
+      width: 100% !important;
+      max-width: 100% !important;
+      display: block !important;
+      margin: 0 auto !important;
+      border: 0;
     }
   </style>
 
   <script>
     (function(){
-      // Your MRP embed script (no-frame variant)
-      const SRC = "https://idx.myrealpage.com/wps/rest/66350/l/idx2/recip/tmpl~v2,noframe~true/-/search-1425920.def/in.js";
+      const shell = document.getElementById("rn-shell");
+      const skeleton = document.getElementById("rn-skeleton");
 
-      const shell = document.getElementById("mrp-shell");
-      const container = document.getElementById("mrp-container");
-      const skeleton = document.getElementById("mrp-skeleton");
-      if (!shell || !container) return;
-
-      let loaded = false;
-
-      function clampIframe(el){
-        try{
-          el.style.width = "100%";
-          el.style.maxWidth = "100%";
-          el.style.display = "block";
-          el.style.margin = "0 auto";
-          el.style.left = "auto";
-          el.style.right = "auto";
-          el.removeAttribute("width");
-        }catch{}
-      }
-
-      function moveIntoContainer(node){
-        if (!node) return;
-        if (!container.contains(node)) {
-          try { container.appendChild(node); } catch {}
-        }
-        if (node.tagName === "IFRAME") clampIframe(node);
-      }
-
-      function watchForMRP(){
-        // Watch whole document in case MRP injects at body level
-        const docObs = new MutationObserver((muts)=>{
-          muts.forEach(m=>{
-            m.addedNodes.forEach(n=>{
-              if (n.nodeType !== 1) return;
-              const el = n;
-
-              // direct iframe
-              if (el.tagName === "IFRAME" && /myrealpage\.com/i.test(el.src || "")) {
-                moveIntoContainer(el);
-                skeleton?.remove();
-                shell.setAttribute("aria-busy","false");
-              }
-
-              // nested iframes inside wrappers
-              if (el.querySelector){
-                el.querySelectorAll('iframe').forEach((ifr)=>{
-                  if (/myrealpage\.com/i.test(ifr.src || "")) {
-                    moveIntoContainer(ifr);
-                    skeleton?.remove();
-                    shell.setAttribute("aria-busy","false");
-                  }
-                });
-              }
-            });
-          });
-        });
-        docObs.observe(document.documentElement, { childList:true, subtree:true });
-
-        // Stop watching after 20s to avoid overhead
-        setTimeout(()=> docObs.disconnect(), 20000);
-      }
-
-      function inject(){
-        if (loaded) return; loaded = true;
-        watchForMRP();
-
-        // Observe local container too (best case MRP writes right here)
-        const localObs = new MutationObserver(()=>{
-          const ifr = container.querySelector("iframe");
-          if (ifr){
-            clampIframe(ifr);
-            skeleton?.remove();
-            shell.setAttribute("aria-busy","false");
-            localObs.disconnect();
-          }
-        });
-        localObs.observe(container, { childList:true, subtree:true });
-
-        const s = document.createElement("script");
-        s.src = SRC;
-        s.async = true;
-
-        // Put script *inside* our container to encourage in-place rendering
-        container.appendChild(s);
-
-        // Safety timeout
-        setTimeout(()=>{
+      // RN injects an iframe; when it appears, remove shimmer and ensure sizing
+      const obs = new MutationObserver(()=>{
+        const iframe = shell.querySelector("iframe");
+        if (iframe) {
+          iframe.style.width = "100%";
+          iframe.style.maxWidth = "100%";
+          iframe.style.display = "block";
+          iframe.style.margin = "0 auto";
           skeleton?.remove();
-          shell.setAttribute("aria-busy","false");
-        }, 9000);
-      }
+          obs.disconnect();
+        }
+      });
 
-      // Lazy load when near viewport for better LCP
-      if ("IntersectionObserver" in window){
-        const io = new IntersectionObserver((es)=>{
-          es.forEach(e=>{ if (e.isIntersecting){ inject(); io.disconnect(); } });
-        }, { rootMargin:"400px 0px" });
-        io.observe(shell);
-      } else {
-        inject();
-      }
+      obs.observe(shell, { childList: true, subtree: true });
+      // safety: if nothing renders, clear the skeleton after 12s
+      setTimeout(()=> skeleton?.remove(), 12000);
     })();
   </script>
 </Site>
