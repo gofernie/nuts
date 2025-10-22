@@ -93,12 +93,12 @@ const rawCta =
 
 const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
 
-// ✅ hero preload for Site.astro (safe/minimal)
+// Hero preload hint for Site.astro (optional)
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
-  <!-- Render hero in the special slot so it paints first -->
+  <!-- Hero first for faster LCP -->
   <HeroBleed
     slot="hero"
     src={heroImg ? heroPath(heroImg) : ""}
@@ -128,18 +128,18 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       <h2 class="h2">Current Listings</h2>
 
       {isRvId ? (
-        <div data-rv-block={rawCta}></div> {/* no id needed; avoid duplicate IDs */}
+        <div data-rv-block={rawCta}></div>
       ) : (
         <div class="rv-html" set:html={rawCta}></div>
       )}
 
-      <!-- Tiny re-scan hook for BFCache/visibility/focus restore -->
+      <!-- Re-scan on return to tab / BFCache -->
       <script is:inline>
         (function(){
-          function rescan(){ requestAnimationFrame(()=>window.RealtyVis?.scan?.()); }
-          addEventListener('pageshow', rescan);
-          document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) rescan(); });
-          addEventListener('focus', rescan, true);
+          function rescan(){ requestAnimationFrame(function(){ window.RealtyVis && window.RealtyVis.scan && window.RealtyVis.scan(); }); }
+          window.addEventListener('pageshow', rescan);
+          document.addEventListener('visibilitychange', function(){ if(!document.hidden) rescan(); });
+          window.addEventListener('focus', rescan, true);
         })();
       </script>
     </div>
