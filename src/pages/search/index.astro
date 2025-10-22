@@ -1,7 +1,9 @@
 ---
-// File: src/pages/search/index.astro
+export const prerender = true; // ✅ ensure /search is static (no cold start)
+
 import Site from "../../layouts/Site.astro";
-import RealtyVis from "../../components/RealtyVis.astro"; // ✅ Add this line
+// You don't actually use RealtyVis.astro directly here, so you can remove the import if unused.
+// import RealtyVis from "../../components/RealtyVis.astro";
 
 const hero = "/img/hero/search_hero.webp";
 const pageTitle = "Search Listings";
@@ -20,16 +22,27 @@ const seo_description =
 
   <div class="container search-wrapper">
     <div class="search-card">
-      <div data-rv-block="MQP2VMLT-HDQLLMRY"></div>
+      <div id="rv-block" data-rv-block="MQP2VMLT-HDQLLMRY"></div>
     </div>
   </div>
 
+  <!-- Optional: simple timer to see how long RV takes to mount -->
+  <script is:inline>
+    (function(){
+      console.time("rv:ready");
+      var t = setInterval(function(){
+        var mounted = document.querySelector('[data-rv-card], .rv-card, [data-rv-root]');
+        if (mounted) { clearInterval(t); console.timeEnd("rv:ready"); }
+      }, 100);
+      setTimeout(function(){ clearInterval(t); }, 15000);
+    })();
+  </script>
+
   <style>
     .search-wrapper {
-      margin-top: 90px; /* 👈 adds the top spacing */
+      margin-top: 90px;
       margin-bottom: 24px;
     }
-
     .search-card {
       background: #fff;
       border: 1px solid #e5e7eb;

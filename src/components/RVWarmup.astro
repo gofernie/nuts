@@ -1,0 +1,74 @@
+---
+/**
+ * RVWarmup.astro
+ * - Preconnects to RV domains (DNS/TLS warm)
+ * - Preloads the RV script (low priority)
+ * - Idle-loads the script once globally (cached before user clicks)
+ * - Prefetches /search on hover/touch intent
+ *
+ * Usage: include <RVWarmup /> in your Site layout (see step 2)
+ */
+const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
+---
+
+<!-- Head hints -->
+<Fragment slot="head">
+  <!-- Preconnect/DNS for script + API -->
+  <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
+  <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://api.realtyvis.com">
+  <link rel="preconnect" href="https://api.realtyvis.com" crossorigin>
+
+  <!-- Preload script (low importance so it doesn't fight critical assets) -->
+  <link rel="preload" as="script" href={RV_URL} importance="low">
+</Fragment>
+
+<!-- Idle-load the RV script once per session (cached before user clicks) -->
+<script is:inline>
+  (function(){
+    var RV_URL = {RV_URL: JSON.stringify(RV_URL)}.RV_URL;
+    if (window.__rvScriptLoading || window.__rvScriptLoaded) return;
+    window.__rvScriptLoading = true;
+
+    function load() {
+      var s = document.createElement('script');
+      s.src = RV_URL; s.async = true; s.defer = true;
+      s.onload = function(){ window.__rvScriptLoaded = true; try{ window.RealtyVis?.scan?.(); }catch(e){} };
+      s.onerror = function(){ window.__rvScriptLoading = false; };
+      document.head.appendChild(s);
+    }
+
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(load, { timeout: 2000 });
+    } else {
+      setTimeout(load, 1000);
+    }
+  })();
+</script>
+
+<!-- Prefetch /search on hover/touch intent -->
+<script is:inline>
+  (function(){
+    var seen = new Set();
+    function prefetch(u){
+      if (seen.has(u)) return;
+      seen.add(u);
+      var l = document.createElement('link');
+      l.rel = 'prefetch';
+      l.href = u;
+      l.as = 'document';
+      document.head.appendChild(l);
+    }
+    function closestSearchLink(el){
+      return el && el.closest && el.closest('a[href^="/search"]');
+    }
+    document.addEventListener('mouseover', function(e){
+      var a = closestSearchLink(e.target);
+      if (a) prefetch(a.href);
+    }, {passive:true});
+    document.addEventListener('touchstart', function(e){
+      var a = closestSearchLink(e.target);
+      if (a) prefetch(a.href);
+    }, {passive:true});
+  })();
+</script>

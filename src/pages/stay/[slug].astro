@@ -79,6 +79,7 @@ const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").
 const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
 const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
 const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
+const cta1     = String(row?.cta1 ?? row?.CTA1 ?? "").trim(); // ⬅️ RealtyVis embed/ID
 
 // match todo: summary plain by default; long_copy often HTML
 const SUMMARY_IS_HTML = false;
@@ -112,6 +113,57 @@ const BODY_IS_HTML    = true;
     </div>
   )}
 
+  <!-- 🏡 RealtyVis listings from this STAY row's cta1 -->
+  {cta1 && (
+    <div class="container listing-wrap" id="stay-listings">
+      <!-- Shimmer skeleton until RV paints -->
+      <div class="listing-skeleton" id="rv-skeleton-stay" aria-hidden="true">
+        <div class="sk-card"></div>
+        <div class="sk-card"></div>
+        <div class="sk-card"></div>
+      </div>
+
+      {
+        /[<>]/.test(cta1)
+          ? <Fragment set:html={cta1}></Fragment>
+          : <div data-rv-block={cta1}></div>
+      }
+
+      <!-- Micro-guards: rescan RV on restore/visibility/in-view -->
+      <script is:inline>
+        (function(){
+          const root = document.querySelector('#stay-listings [data-rv-block]') || document.querySelector('#stay-listings .rv-root');
+          if (!root) return;
+
+          function rescan(){
+            try {
+              window.RealtyVis?.init?.();
+              window.RealtyVis?.scan?.();
+            } catch {}
+          }
+
+          // Try immediately if visible
+          if (document.visibilityState === 'visible') rescan();
+
+          // On BFCache restore / visibility / focus
+          addEventListener('pageshow', (e)=>{ if (e.persisted) rescan(); });
+          addEventListener('visibilitychange', ()=>{ if (!document.hidden) rescan(); });
+          addEventListener('focus', rescan);
+
+          // Observe when listings block enters viewport; if still empty, rescan
+          const io = new IntersectionObserver((entries)=>{
+            for (const en of entries) {
+              if (!en.isIntersecting) continue;
+              const hasContent = root.querySelector('.rv-root, iframe, [data-rv-mounted]');
+              if (!hasContent) rescan();
+            }
+          }, { rootMargin: '0px 0px -25% 0px' });
+          io.observe(root);
+        })();
+      </script>
+    </div>
+  )}
+
   <style>
     .container{
       max-width:1200px;
@@ -131,5 +183,26 @@ const BODY_IS_HTML    = true;
 
     /* Space between summary and body */
     .body-wrap{ padding-top:12px; }
+
+    /* ✨ Listing shimmer (matches home) */
+    .listing-wrap { margin-top: 32px; position: relative; min-height: 160px; }
+    .listing-skeleton { display: grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap: 12px; }
+    .sk-card { height: 180px; border-radius: 12px; background: linear-gradient(90deg,#f4f4f4 25%,#ececec 37%,#f4f4f4 63%); background-size: 400% 100%; animation: shimmer 1.4s infinite; border:1px solid #eee; }
+    @keyframes shimmer { 0%{background-position: 100% 0} 100%{background-position: -100% 0} }
   </style>
+
+  <script>
+    // Remove shimmer once RealtyVis mounts
+    (function(){
+      const sk = document.getElementById('rv-skeleton-stay');
+      if (!sk) return;
+      const kill = ()=> sk.remove();
+      const obs = new MutationObserver(() => {
+        const rv = document.querySelector('#stay-listings .rv-root, iframe[src*="realtyvis"], [data-rv-mounted]');
+        if (rv) { kill(); obs.disconnect(); }
+      });
+      obs.observe(document.body, { childList:true, subtree:true });
+      setTimeout(kill, 9000);
+    })();
+  </script>
 </Site>
