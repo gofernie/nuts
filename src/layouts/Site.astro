@@ -86,8 +86,9 @@ const NAV_ORDER = [
     <title>{seo_title}</title>
     {metaDescription && <meta name="description" content={metaDescription} />}
 
-    <!-- 🚀 Preconnect to RealtyVis CDN -->
+    <!-- 🚀 Preconnect & DNS-prefetch to RealtyVis CDN -->
     <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
 
     <!-- ✅ Optional hero responsive preload -->
     {heroPreload && (
@@ -158,8 +159,16 @@ const NAV_ORDER = [
       }
       footer.site-footer { width: 100%; background: rgba(255,255,255,0.9); backdrop-filter: blur(6px); border-top: 1px solid #e5e7eb; padding: 1rem 0; margin-top: 3rem; text-align: center; font-size: .875rem; color: #4b5563; }
       .listing-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; justify-content: flex-start; }
-      .btn-link { display: inline-flex; align-items: center; justify-content: center; padding: 0.5rem 1rem; border: 1px solid var(--color-border, #ccc); background: var(--color-bg, #fff); border-radius: 6px; font-size: 0.95rem; text-decoration: none; color: var(--color-text, #333); transition: background 0.2s, border-color 0.2s; }
-      .btn-link:hover { background: var(--color-bg-hover, #f5f5f5); border-color: var(--color-border-hover, #999); }
+      .btn-link { display: inline-flex; align-items: center; justify-content: center; padding: 0.5rem 1rem; border: 1px solid var(--color-border, #ccc); background: var(--color-bg, #fff); border-radius: 6px; font-size: 0.95rem; text-decoration: none; color: #333; transition: background 0.2s, border-color 0.2s; }
+      .btn-link:hover { background: var(--color-bg-hover, #f5f5f5); border-color: #999; }
+      /* ♿ Skip link visibility */
+      .skip-link{
+        position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;
+      }
+      .skip-link:focus{
+        position:fixed; left:12px; top:12px; width:auto; height:auto; padding:.5rem .75rem;
+        background:#111; color:#fff; border-radius:8px; z-index:10000;
+      }
     </style>
 
     <script is:inline>
@@ -238,6 +247,7 @@ const NAV_ORDER = [
           const s = document.createElement("script");
           s.src = "https://cdn.realtyvis.com/js/embed.js";
           s.defer = true;
+          s.crossOrigin = "anonymous";
           s.onload = () => { window.__rvLoaded = true; tryInit(); };
           document.head.appendChild(s);
         }
