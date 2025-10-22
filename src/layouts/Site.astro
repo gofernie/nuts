@@ -91,6 +91,10 @@ const NAV_ORDER = [
     <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
     <link rel="prefetch" href="https://cdn.realtyvis.com/js/embed.js" as="script">
 
+    <!-- (Optional) RV app/API host seen on network waterfalls -->
+    <link rel="preconnect" href="https://app.realtyvis.com" crossorigin>
+    <link rel="dns-prefetch" href="https://app.realtyvis.com">
+
     <!-- ✅ Optional hero responsive preload -->
     {heroPreload && (
       <link
@@ -224,26 +228,42 @@ const NAV_ORDER = [
       </div>
     </footer>
 
-    <!-- 🧭 RealtyVis loader -->
+    <!-- 🧭 RealtyVis loader (load once, retry on failure, re-scan on SPA swaps) -->
     <script is:inline>
       (function rvLoader() {
+        let rvAttempts = 0;
+
         function tryInit() {
-          if (window.RealtyVis) {
-            requestAnimationFrame(() => {
-              window.RealtyVis.init?.();
-              window.RealtyVis.scan?.();
-            });
-          }
+          if (!window.RealtyVis) return;
+          requestAnimationFrame(() => {
+            // Some builds expose init OR scan — call both safely.
+            try { window.RealtyVis.init?.(); } catch (_) {}
+            try { window.RealtyVis.scan?.(); } catch (_) {}
+          });
         }
+
+        function scriptAlreadyQueued() {
+          return !!document.querySelector('script[data-rv="embed"], script[src*="cdn.realtyvis.com/js/embed.js"]');
+        }
+
         function loadScriptOnce() {
-          if (window.__rvLoaded) { tryInit(); return; }
+          if (window.__rvLoaded || window.RealtyVis) { window.__rvLoaded = true; tryInit(); return; }
+          if (scriptAlreadyQueued()) return;
+
           const s = document.createElement("script");
           s.src = "https://cdn.realtyvis.com/js/embed.js";
-          s.defer = true;
-          s.onload = () => { window.__rvLoaded = true; tryInit(); };
+          s.async = true;                 // clearer than defer for dynamic scripts
+          s.crossOrigin = "anonymous";
+          s.dataset.rv = "embed";
+          s.onload = () => { window.__rvLoaded = true; rvAttempts = 0; tryInit(); };
+          s.onerror = () => {
+            // Light backoff retry (2 attempts)
+            if (rvAttempts++ < 2) setTimeout(loadScriptOnce, 1500 * rvAttempts);
+          };
           document.head.appendChild(s);
         }
 
+        // First paint-friendly: lazy kickers (user interaction, idle)
         document.addEventListener("astro:page-load", loadScriptOnce, { once:true });
         addEventListener("pointerdown", loadScriptOnce, { once:true });
         addEventListener("keydown", loadScriptOnce, { once:true });
@@ -254,12 +274,14 @@ const NAV_ORDER = [
           setTimeout(loadScriptOnce, 2500);
         }
 
+        // Re-initialize on Astro swaps, BFCache, and visibility changes
         document.addEventListener("astro:page-load", tryInit);
+        document.addEventListener("astro:after-swap", tryInit);
         window.addEventListener("pageshow", (e) => { if (e.persisted) tryInit(); });
         document.addEventListener("visibilitychange", () => { if (!document.hidden) tryInit(); });
       })();
 
-      // Accessibility: ensure iframes have titles
+      // ♿ Accessibility: ensure iframes have titles
       (function () {
         const DEFAULTS = [
           { test: /google\.com\/maps|maps\.google/i, title: "Embedded Google Map" },

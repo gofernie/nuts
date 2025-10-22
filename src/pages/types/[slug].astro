@@ -83,12 +83,35 @@ const SUMMARY_IS_HTML = false;
 const BODY_IS_HTML    = true;
 
 /* ---------- listings / CTA ---------- */
+/** In Sheets, store EITHER:
+ *  - just the block id:   MQP2VMLT-14Y2W8DC
+ *  - or the container:    <div data-rv-block="MQP2VMLT-14Y2W8DC"></div>
+ *  NEVER the <script src=".../embed.js"> tag. We strip it if present.
+ */
 const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
-const isRvId    = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
-const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
+// detect a pure block id
+const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
+
+// sanitize any pasted HTML: drop ALL <script> tags, keep only container markup
+function stripScripts(html:string) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+}
+
+// if it's not a plain id, try to extract/keep only a container with data-rv-block
+function keepOnlyRvContainer(html:string) {
+  const clean = stripScripts(html);
+  // If the user pasted full embed snippet, this keeps just the container.
+  const m = clean.match(/<div[^>]*\sdata-rv-block=["']?([A-Z0-9-]{17})["']?[^>]*><\/div>/i);
+  if (m?.[0]) return m[0];
+  return clean; // already just a container or simple HTML
+}
+
+const containerHtml = isRvId
+  ? `<div data-rv-block="${rawCta}"></div>`
+  : keepOnlyRvContainer(rawCta);
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
@@ -109,57 +132,29 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     </div>
   )}
 
-  {rawCta && (
+  {(rawCta) && (
     <div class="container listings-wrap">
       <h2 class="h2">Current Listings</h2>
 
-      {isRvId ? (
-        <div id="rv-block" data-rv-block={rawCta}></div>
-      ) : (
-        <div class="rv-html" set:html={rawCta}></div>
-      )}
+      {/* 🚫 No per-page script loader. We ONLY render the container.
+          The global loader in Site.astro loads/embed.js once and scans on nav. */}
+      <div class="rv-slot" set:html={containerHtml}></div>
 
+      {/* Optional: re-scan ONLY if RV is already present (no loading here) */}
       <script is:inline>
         (function(){
-          const RV_URL = {JSON.stringify(RV_SCRIPT)};
-          function scan(){
+          function rescan(){
             if (window.RealtyVis) {
-              requestAnimationFrame(()=> window.RealtyVis?.scan?.());
+              requestAnimationFrame(function(){
+                try { window.RealtyVis.init?.(); } catch(_) {}
+                try { window.RealtyVis.scan?.(); } catch(_) {}
+              });
             }
           }
-
-          function loadScript(){
-            if (window.__rvScriptLoaded) { scan(); return; }
-
-            if (!window.__rvScriptLoading) {
-              window.__rvScriptLoading = true;
-              const s = document.createElement('script');
-              s.src = RV_URL;
-              s.defer = true;
-              s.onload = function(){
-                window.__rvScriptLoaded = true;
-                scan();
-              };
-              s.onerror = (e)=> console.error("RealtyVis script failed", e);
-              document.head.appendChild(s);
-            } else {
-              // script is already loading, retry until ready
-              let tries = 0;
-              const interval = setInterval(()=>{
-                if (window.__rvScriptLoaded || tries++ > 20) {
-                  clearInterval(interval);
-                  scan();
-                }
-              }, 200);
-            }
-          }
-
-          loadScript();
-
-          // Re-scan on tab restore, BFCache, visibility change
-          window.addEventListener('pageshow', scan);
-          document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) scan(); });
-          window.addEventListener('focus', scan, true);
+          document.addEventListener("astro:page-load", rescan);
+          document.addEventListener("astro:after-swap", rescan);
+          window.addEventListener("pageshow", function(e){ if (e.persisted) rescan(); });
+          document.addEventListener("visibilitychange", function(){ if(!document.hidden) rescan(); });
         })();
       </script>
     </div>
@@ -190,6 +185,23 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
 
     .listings-wrap{ padding-top:16px; padding-bottom:8px; }
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
+
+    .rv-slot { min-height: 200px; }
+    /* Optional: simple shimmer while RV populates */
+    .rv-slot:empty::before{
+      content:"";
+      display:block;
+      height: 180px;
+      border-radius: 10px;
+      background:
+        linear-gradient(90deg, #eee 25%, #f6f6f6 37%, #eee 63%);
+      background-size: 400% 100%;
+      animation: shimmer 1.2s infinite linear;
+    }
+    @keyframes shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: 0 0; }
+    }
 
     .body-wrap{ padding-top:12px; }
 
