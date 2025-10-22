@@ -92,10 +92,15 @@ const rawCta =
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
 const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
+
+// ✅ hero preload for Site.astro (safe/minimal)
+const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
+  <!-- Render hero in the special slot so it paints first -->
   <HeroBleed
+    slot="hero"
     src={heroImg ? heroPath(heroImg) : ""}
     title={title}
     containerMax={1200}
@@ -123,19 +128,18 @@ const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
       <h2 class="h2">Current Listings</h2>
 
       {isRvId ? (
-        <div id="rv-block" data-rv-block={rawCta}></div>
+        <div data-rv-block={rawCta}></div> {/* no id needed; avoid duplicate IDs */}
       ) : (
         <div class="rv-html" set:html={rawCta}></div>
       )}
 
-      <!-- 🚫 Removed per-page script loader; Site.astro loads + inits globally -->
-      <!-- ✅ Add a tiny re-scan hook so BFCache/visibility restore is instant -->
+      <!-- Tiny re-scan hook for BFCache/visibility/focus restore -->
       <script is:inline>
         (function(){
           function rescan(){ requestAnimationFrame(()=>window.RealtyVis?.scan?.()); }
-          // when returning from bfcache or tab becomes visible again
-          window.addEventListener('pageshow', rescan);
+          addEventListener('pageshow', rescan);
           document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) rescan(); });
+          addEventListener('focus', rescan, true);
         })();
       </script>
     </div>
