@@ -16,7 +16,7 @@ const slugify = (v:string) =>
     .replace(/[^a-z0-9]+/g,"-")
     .replace(/^-+|-+$/g,"");
 
-/* ---------- static paths ---------- */
+/* ---------- static paths: return props to avoid refetch mismatch ---------- */
 export async function getStaticPaths() {
   const url =
     import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON ||
@@ -31,7 +31,9 @@ export async function getStaticPaths() {
     rows = Array.isArray(raw) ? raw
       : Array.isArray(raw?.data) ? raw.data
       : Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch {}
+  } catch {
+    return [];
+  }
 
   const items = rows.map((r:any) => {
     const status  = String(r?.status ?? "").trim().toLowerCase();
@@ -42,38 +44,23 @@ export async function getStaticPaths() {
     const nhType = String(r?.neighbourhood_type ?? "").trim();
     const typ    = String(r?.type ?? "").trim();
     const cat    = String(r?.category ?? "").trim();
-    const slug = rawSlug || slugify(title || nhType || typ || cat);
-    return slug ? { params: { slug } } : null;
-  }).filter(Boolean);
+
+    const slug = (rawSlug || slugify(title || nhType || typ || cat)).toLowerCase();
+    return slug ? { params: { slug }, props: { row: r } } : null;
+  }).filter(Boolean) as any[];
 
   return items;
 }
 
-/* ---------- page data ---------- */
-const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
-const url =
-  import.meta.env.PUBLIC_NEIGHBOURHOUR_TYPE_JSON ||
-  import.meta.env.PUBLIC_TYPES_JSON ||
-  import.meta.env.PUBLIC_SHEET_JSON || "";
-
-let row:any = null;
-if (url) {
-  try {
-    const raw = await getJson<any>(url);
-    const rows:any[] = Array.isArray(raw) ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows : [];
-    row = rows.find((r:any) => {
-      const rawSlug = String(r?.slug ?? "").trim().toLowerCase();
-      const title   = String(r?.title ?? "").trim();
-      const nhType  = String(r?.neighbourhood_type ?? "").trim();
-      const typ     = String(r?.type ?? "").trim();
-      const cat     = String(r?.category ?? "").trim();
-      return (rawSlug || slugify(title || nhType || typ || cat)).toLowerCase() === slugParam;
-    });
-  } catch (e) { console.error(e); }
-}
-if (!row) throw new Error(`Neighbourhood Type slug not found: ${slugParam}`);
+/* ---------- page data: use the row from props; never throw ---------- */
+type Row = {
+  title?: string; summary?: string; long_copy?: string; hero_img?: string;
+  seo_title?: string; seo_description?: string; spare_2?: string;
+  cta1?: string; rv_block?: string; slug?: string; status?: string;
+  neighbourhood_type?: string; type?: string; category?: string;
+};
+const { row: rowIn } = Astro.props as { row?: Row };
+const row = rowIn ?? ({} as Row);   // fail-soft if somehow missing
 
 /* ---------- content ---------- */
 const title    = String(row?.title ?? "Neighbourhood Type").trim();
@@ -125,29 +112,26 @@ const hasValidBlock = ID_RE.test(rvBlockId);
     </div>
   )}
 
-  {rawCta && (
-    <div class="container listings-wrap">
-      <h2 class="h2">Current {title} Listings</h2>
+  <div class="container listings-wrap">
+    <h2 class="h2">Current {title} Listings</h2>
 
-      {hasValidBlock ? (
-        // 👇 host wrapper for styling + warm script targeting
-        <div class="rv-host">
-          <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
-        </div>
-      ) : (
-        <div class="rv-fallback">
-          <p><strong>Heads-up:</strong> Listings are unavailable for this page right now.</p>
-        </div>
-      )}
+    {hasValidBlock ? (
+      <div class="rv-host">
+        <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
+      </div>
+    ) : (
+      <div class="rv-fallback">
+        <p><strong>Heads-up:</strong> Listings are unavailable for this page right now.</p>
+      </div>
+    )}
 
-      {/* ✅ Hover-to-warm: only attach when we have a valid block */}
-      {hasValidBlock && (
-        <script is:inline>
+    {/* Hover-to-warm connections for RV */}
+    {hasValidBlock && (
+      <script is:inline>
 {`(function(){
   let warmed=false;
   function warm(){
     if(warmed) return; warmed=true;
-    // Establish TLS + fill cache with tiny requests
     new Image().src="https://app.realtyvis.com/favicon.ico";
     new Image().src="https://cdn.realtyvis.com/favicon.ico";
     try{
@@ -161,10 +145,9 @@ const hasValidBlock = ID_RE.test(rvBlockId);
     host.addEventListener(ev,warm,{once:true,passive:true});
   });
 })();`}
-        </script>
-      )}
-    </div>
-  )}
+      </script>
+    )}
+  </div>
 
   {body && (
     <div class="container body-wrap">
@@ -181,7 +164,7 @@ const hasValidBlock = ID_RE.test(rvBlockId);
     .body-wrap{ padding-top:12px; }
     .rv-fallback{ padding:12px 16px; background:#fff3cd; border:1px solid #ffe69c; border-radius:10px; color:#924; }
 
-    /* ————— Kill shimmer/skeletons coming from RV ————— */
+    /* Kill shimmer/skeletons coming from RV */
     .rv-host [class*="skeleton"],
     .rv-host [class*="Skeleton"],
     .rv-host [class*="loading"],
@@ -196,7 +179,6 @@ const hasValidBlock = ID_RE.test(rvBlockId);
       opacity: 0 !important;
       pointer-events: none !important;
     }
-
     .rv-host * { animation-duration: 0s !important; transition: none !important; }
   </style>
 </Site>
