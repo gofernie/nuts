@@ -9,7 +9,8 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/netlify": "^6.5.13",
+    "astro": "^5.14.0",
+    "@astrojs/netlify": "^6.6.0",
     "@astrojs/sitemap": "^3.6.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -18,7 +19,6 @@
     "@astrojs/compiler": "^2.10.3",
     "@astrojs/react": "^4.4.0",
     "@vitejs/plugin-basic-ssl": "^2.1.0",
-    "astro": "^5.14.0",
     "cross-env": "^10.1.0",
     "netlify-cli": "^23.9.1"
   }
