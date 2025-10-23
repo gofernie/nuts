@@ -5,7 +5,6 @@ export const prerender = true;
 import Site from "../../layouts/Site.astro";
 import RVEmbed from "../../components/RVEmbed.astro";
 
-// SEO only (no visible heading/summary on the page)
 const seo_title = "Search Fernie Real Estate Listings";
 const seo_description =
   "Live Fernie MLS® search: homes, condos, townhomes, investment properties.";
@@ -15,25 +14,37 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
 ---
 
 <Site title="Search" seo_title={seo_title} seo_description={seo_description}>
-  <div class="search-shell">
-    {hasValidBlock ? (
-      <div class="rv-host">
-        <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
-      </div>
-    ) : (
-      <div class="rv-fallback">
-        <p>Search embed unavailable right now.</p>
-        <p><a href="/neighbourhoods">Browse by neighbourhood</a></p>
-      </div>
-    )}
+  <div class="container">
+    <div class="search-card">
+      {hasValidBlock ? (
+        <div class="rv-host">
+          <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
+        </div>
+      ) : (
+        <div class="rv-fallback">
+          <p>Search embed unavailable right now.</p>
+          <p><a href="/neighbourhoods">Browse by neighbourhood</a></p>
+        </div>
+      )}
+    </div>
   </div>
 
   <style>
-    /* Page container (no visible headings) */
-    .search-shell {
+    /* Outer container */
+    .container {
       max-width: 1200px;
-      margin: 90px auto 32px;   /* below fixed header + spacing */
-      padding: 0 12px;
+      margin: 90px auto 40px;
+      padding-inline: 12px;
+    }
+
+    /* White card wrapper */
+    .search-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+      overflow: hidden;
     }
 
     .rv-fallback {
@@ -45,7 +56,7 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
       color: #5c3c00;
     }
 
-    /* Center the RealtyVis widget */
+    /* Center RealtyVis widget */
     .rv-host .rv-root,
     .rv-host .rv-container,
     .rv-host .rv-shell {
@@ -55,7 +66,7 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
       display: block;
     }
 
-    /* Remove shimmer/loading placeholders for a clean load */
+    /* Remove shimmer/loading placeholders */
     .rv-host [class*="skeleton"],
     .rv-host [class*="Skeleton"],
     .rv-host [class*="loading"],
