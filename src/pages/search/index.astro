@@ -3,9 +3,9 @@
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import RVEmbed from "../../components/RVEmbed.astro"; // use the same embed component you use elsewhere
+import RVEmbed from "../../components/RVEmbed.astro";
 
-const hero = "/img/hero/search_hero.webp"; // hardcoded
+const hero = "/img/hero/search_hero.webp";
 const pageTitle = "Search Listings";
 const pageSummary =
   "Find Fernie homes, condos, townhomes, and investment properties. Filter by price, beds, and more.";
@@ -14,7 +14,6 @@ const seo_title = "Search Fernie Real Estate Listings";
 const seo_description =
   "Live Fernie MLS® search: homes, condos, townhomes, investment properties. Filter and explore neighborhoods with up-to-date listings.";
 
-// Your RealtyVis block ID (keep or replace with env/default if you prefer)
 const rvBlockId = "MQP2VMLT-HDQLLMRY";
 const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
 ---
@@ -43,7 +42,7 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
       </div>
     )}
 
-    {/* Hover-to-warm connections for RV */}
+    {/* Warm connections to RV on intent AND when visible */}
     {hasValidBlock && (
       <script is:inline>
 {`(function(){
@@ -62,6 +61,12 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
   ["pointerover","touchstart","focusin"].forEach(ev=>{
     host.addEventListener(ev,warm,{once:true,passive:true});
   });
+  try{
+    const io=new IntersectionObserver((ents)=>{
+      if(ents.some(e=>e.isIntersecting)){ warm(); io.disconnect(); }
+    },{rootMargin:"200px"});
+    io.observe(host);
+  }catch(_){}
 })();`}
       </script>
     )}
@@ -69,30 +74,18 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
 
   <style>
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
-    .intro { margin: 90px auto 20px; } /* header offset + spacing */
+
+    .intro { margin: 90px auto 20px; }
     .intro h1 {
-      font-size: 2.25rem;
-      font-weight: 700;
-      margin: 0 0 8px;
-      color: #111827;
+      font-size: 2.25rem; font-weight: 700; margin: 0 0 8px; color: #111827;
     }
-    .intro p {
-      font-size: 1rem;
-      line-height: 1.6;
-      color: #1f2937;
-      margin: 0;
-    }
+    .intro p { font-size: 1rem; line-height: 1.6; color: #1f2937; margin: 0; }
 
     .search-card {
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 16px;
-      padding: 16px;
-      margin: 16px 0 40px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-      overflow: hidden;
+      background: #fff; border: 1px solid #e5e7eb; border-radius: 16px;
+      padding: 16px; margin: 16px 0 40px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.06); overflow: hidden;
     }
-
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 12px; }
 
     .rv-fallback{
@@ -100,21 +93,84 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
       border:1px solid #ffe69c; border-radius:10px; color:#5c3c00;
     }
 
-    /* Kill shimmer/skeletons coming from RV */
+    /* ===================== RV LAYOUT FIXES (scoped) ===================== */
+    .rv-host{ --rv-max:1200px; --rv-pad:12px; }
+    .rv-host .rv-root,
+    .rv-host .rv-container,
+    .rv-host .rv-shell{
+      max-width:var(--rv-max) !important;
+      margin-inline:auto !important;
+      padding-inline:var(--rv-pad) !important;
+    }
+
+    /* Kill split/dual gallery variants */
+    .rv-host [class*="gallery-split"],
+    .rv-host [class*="media-split"],
+    .rv-host [class*="split"]{
+      display:none !important;
+    }
+
+    /* Force single full-width media area */
+    .rv-host [class*="gallery"],
+    .rv-host [class*="carousel"],
+    .rv-host [class*="stage"],
+    .rv-host [class*="media"]{
+      width:100% !important; max-width:100% !important;
+    }
+    .rv-host [class*="gallery-main"],
+    .rv-host [class*="carousel-track"],
+    .rv-host [class*="slide"]{ width:100% !important; }
+    .rv-host img{
+      width:100% !important; height:auto !important;
+      object-fit:cover !important; display:block !important;
+    }
+    .rv-host [class*="gallery-main"] img,
+    .rv-host [class*="slide"] img{ aspect-ratio:16/9; }
+
+    /* Arrows and overflow */
+    .rv-host [class*="arrow"],
+    .rv-host [class*="nav-arrow"]{ z-index:5 !important; }
+    .rv-host [class*="gallery-main"],
+    .rv-host [class*="carousel"]{ overflow:visible !important; }
+
+    /* Action buttons row */
+    .rv-host [class*="actions"],
+    .rv-host [class*="cta"],
+    .rv-host [class*="btn-row"]{
+      display:flex !important; flex-wrap:wrap !important;
+      gap:10px !important; justify-content:flex-start !important;
+      padding:10px 0 !important;
+    }
+    .rv-host [class*="actions"] a,
+    .rv-host [class*="actions"] button{ min-height:40px !important; }
+
+    /* Price/address polish */
+    .rv-host [class*="price"]{ font-weight:800 !important; }
+    .rv-host [class*="address"]{ margin-top:4px !important; }
+
+    /* Kill any RV shimmer/skeletons */
     .rv-host [class*="skeleton"],
     .rv-host [class*="Skeleton"],
     .rv-host [class*="loading"],
     .rv-host [data-skeleton],
     .rv-host .rv-skeleton,
     .rv-host .loading-skeleton,
-    .rv-host .rv-loading {
-      animation: none !important;
-      background: none !important;
-      background-image: none !important;
-      box-shadow: none !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
+    .rv-host .rv-loading{
+      animation:none !important; background:none !important;
+      background-image:none !important; box-shadow:none !important;
+      opacity:0 !important; pointer-events:none !important;
     }
-    .rv-host * { animation-duration: 0s !important; transition: none !important; }
+    .rv-host *{ animation-duration:0s !important; transition:none !important; }
+
+    /* Responsive */
+    @media (max-width:900px){
+      .rv-host .rv-root,
+      .rv-host .rv-container,
+      .rv-host .rv-shell{ padding-inline:10px !important; }
+      .rv-host [class*="actions"],
+      .rv-host [class*="btn-row"]{ gap:8px !important; }
+      .rv-host [class*="gallery-main"] img,
+      .rv-host [class*="slide"] img{ aspect-ratio:4/3; }
+    }
   </style>
 </Site>
