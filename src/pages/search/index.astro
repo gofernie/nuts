@@ -5,7 +5,7 @@ export const prerender = true;
 import Site from "../../layouts/Site.astro";
 import RVEmbed from "../../components/RVEmbed.astro";
 
-const hero = "/img/hero/search_hero.webp"; // hardcoded
+const hero = "/img/hero/search_hero.webp";
 const pageTitle = "Search Listings";
 const pageSummary =
   "Find Fernie homes, condos, townhomes, and investment properties. Filter by price, beds, and more.";
@@ -92,7 +92,7 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
       color: #5c3c00;
     }
 
-    /* keep it centered */
+    /* Center the RealtyVis container */
     .rv-host .rv-root,
     .rv-host .rv-container,
     .rv-host .rv-shell {
@@ -102,7 +102,7 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
       display: block;
     }
 
-    /* kill shimmer */
+    /* Remove shimmer / skeleton states */
     .rv-host [class*="skeleton"],
     .rv-host [class*="Skeleton"],
     .rv-host [class*="loading"],
