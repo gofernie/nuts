@@ -1,5 +1,5 @@
 ---
-// File: src/pages/xtraarea/[slug].astro
+// File: src/pages/xtraarea/_slug_.astro
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
@@ -8,9 +8,11 @@ import RVEmbed from "../../components/RVEmbed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-/* ---------- helpers (must be BEFORE getStaticPaths) ---------- */
-const val = (r:any,k:string)=>
-  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+/* ---------- helpers (MUST be above getStaticPaths) ---------- */
+const field = (r:any,k:string)=>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+    ?.toString?.()
+    ?.trim?.() || "";
 
 const slugify = (s:string)=> (s ?? "")
   .toLowerCase().trim()
@@ -39,12 +41,12 @@ export async function getStaticPaths() {
   }
 
   const items = rows.map((r:any) => {
-    const status  = val(r,"status").toLowerCase();
-    const rawSlug = val(r,"slug").toLowerCase();
+    const status  = field(r,"status").toLowerCase();
+    const rawSlug = field(r,"slug").toLowerCase();
     const hidden  = status === "hidden" || status === "inactive" || rawSlug === "index";
     if (hidden) return null;
 
-    const title = val(r,"title");
+    const title = field(r,"title");
     const slug  = (rawSlug || slugify(title)).toLowerCase();
     return slug ? { params: { slug }, props: { row: r } } : null;
   }).filter(Boolean) as any[];
@@ -58,17 +60,17 @@ const { row: rowIn } = Astro.props as { row?: Row };
 const row = rowIn ?? ({} as Row);
 
 /* ---------- derived props ---------- */
-const title   = val(row,"title") || "Extra Area";
-const summary = val(row,"summary") || val(row,"seo_description") || "";
-const heroImg = val(row,"hero_img") || "/img/hero/fallback-1600x800.jpg";
+const title   = field(row,"title") || "Extra Area";
+const summary = field(row,"summary") || field(row,"seo_description") || "";
+const heroImg = field(row,"hero_img") || "/img/hero/fallback-1600x800.jpg";
 const hero    = heroPath(heroImg);
 
-const pageSeoTitle = val(row,"seo_title") || title;
-const pageSeoDesc  = val(row,"seo_description") || summary;
+const pageSeoTitle = field(row,"seo_title") || title;
+const pageSeoDesc  = field(row,"seo_description") || summary;
 
 /* ---------- RealtyVis embed (ID or pasted container) ---------- */
 const rawCta =
-  (val(row,"cta1") || val(row,"rv_block")) ||
+  (field(row,"cta1") || field(row,"rv_block")) ||
   (import.meta.env.PUBLIC_DEFAULT_RV_BLOCK || "");
 
 const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
