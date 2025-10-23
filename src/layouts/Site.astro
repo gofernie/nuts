@@ -92,6 +92,14 @@ const NAV_ORDER = [
     <link rel="dns-prefetch" href="https://api.realtyvis.com">
     <link rel="preconnect" href="https://api.realtyvis.com" crossorigin>
 
+    <!-- ✅ NEW: Warm up RealtyVis app origin (handshake + TCP/TLS) -->
+    <link rel="dns-prefetch" href="https://app.realtyvis.com">
+    <link rel="preconnect"  href="https://app.realtyvis.com" crossorigin>
+
+    <!-- ✅ NEW: Light prefetch of RV core assets (safe passive hints) -->
+    <link rel="prefetch" href="https://app.realtyvis.com/js/site.min.js" as="script" crossorigin>
+    <link rel="prefetch" href="https://app.realtyvis.com/css/site.min.css" as="style" crossorigin>
+
     <!-- ✅ preload hero (when provided) -->
     {heroPreload && (
       <link

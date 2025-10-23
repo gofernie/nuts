@@ -52,7 +52,7 @@ export async function getStaticPaths() {
 /* ---------- page data ---------- */
 const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
 const url =
-  import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON ||
+  import.meta.env.PUBLIC_NEIGHBOURHOUR_TYPE_JSON ||
   import.meta.env.PUBLIC_TYPES_JSON ||
   import.meta.env.PUBLIC_SHEET_JSON || "";
 
@@ -130,7 +130,7 @@ const hasValidBlock = ID_RE.test(rvBlockId);
       <h2 class="h2">Current {title} Listings</h2>
 
       {hasValidBlock ? (
-        // 👇 wrap with a host to disable any RV skeleton/shimmer via CSS
+        // 👇 host wrapper for styling + warm script targeting
         <div class="rv-host">
           <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
         </div>
@@ -138,6 +138,30 @@ const hasValidBlock = ID_RE.test(rvBlockId);
         <div class="rv-fallback">
           <p><strong>Heads-up:</strong> Listings are unavailable for this page right now.</p>
         </div>
+      )}
+
+      {/* ✅ Hover-to-warm: only attach when we have a valid block */}
+      {hasValidBlock && (
+        <script is:inline>
+{`(function(){
+  let warmed=false;
+  function warm(){
+    if(warmed) return; warmed=true;
+    // Establish TLS + fill cache with tiny requests
+    new Image().src="https://app.realtyvis.com/favicon.ico";
+    new Image().src="https://cdn.realtyvis.com/favicon.ico";
+    try{
+      fetch("https://app.realtyvis.com/css/site.min.css",{mode:"no-cors"}).catch(()=>{});
+      fetch("https://app.realtyvis.com/js/site.min.js",{mode:"no-cors"}).catch(()=>{});
+    }catch(e){}
+  }
+  const host=document.querySelector(".rv-host")||document.querySelector(".listings-wrap");
+  if(!host) return;
+  ["pointerover","touchstart","focusin"].forEach(ev=>{
+    host.addEventListener(ev,warm,{once:true,passive:true});
+  });
+})();`}
+        </script>
       )}
     </div>
   )}
@@ -169,14 +193,10 @@ const hasValidBlock = ID_RE.test(rvBlockId);
       background: none !important;
       background-image: none !important;
       box-shadow: none !important;
-      opacity: 0 !important;           /* hide any leftover placeholders */
+      opacity: 0 !important;
       pointer-events: none !important;
     }
 
-    /* In case shimmer is applied via keyframes on cards */
-    .rv-host * {
-      animation-duration: 0s !important;
-      transition: none !important;
-    }
+    .rv-host * { animation-duration: 0s !important; transition: none !important; }
   </style>
 </Site>
