@@ -8,7 +8,7 @@ import RVEmbed from "../../components/RVEmbed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-/* ---------- helpers (define BEFORE getStaticPaths) ---------- */
+/* ---------- helpers: MUST be declared BEFORE getStaticPaths ---------- */
 const getField = (r:any,k:string)=>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
