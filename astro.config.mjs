@@ -1,16 +1,14 @@
 // astro.config.mjs
 import { defineConfig } from 'astro/config';
 import netlify from '@astrojs/netlify';
-import sitemap from '@astrojs/sitemap';                // 👈 add this
+import sitemap from '@astrojs/sitemap';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const isDev = process.argv.includes('dev');         // true only for `astro dev`
+const isDev = process.argv.includes('dev');
 const isCI  = !!process.env.CI || !!process.env.NETLIFY;
 
-// Only use HTTPS locally (not in CI)
 const useHttps = isDev && !isCI;
-
 let httpsConfig = undefined;
 if (useHttps) {
   const keyPath  = path.resolve('certs/localhost-key.pem');
@@ -26,33 +24,30 @@ if (useHttps) {
 }
 
 export default defineConfig({
-  // 👇 required for sitemap to build absolute URLs
   site: 'https://fernie.homes',
 
-  // You have SSR routes
+  // Keep SSR for routes that need it
   output: 'server',
 
-  // ✅ Do NOT load adapter in dev (prevents Netlify dev middleware)
-  // ✅ Load adapter for production builds / CI
+  // Use Netlify adapter only in CI/prod
   adapter: isDev ? undefined : netlify({ devMiddleware: false }),
 
-  // Add sitemap integration
+  // ✅ NEW: prerender just the homepage so it’s CDN-cached and avoids cold starts
+  prerender: {
+    routes: ['/', '/index'],   // ensure the root gets built as static HTML
+    crawl: true,               // still statically discover other safe pages
+  },
+
   integrations: [
-    sitemap({
-      // optional tuning:
-      changefreq: 'weekly',
-      // filter: (page) => !page.pathname.startsWith('/admin'), // example
-    }),
+    sitemap({ changefreq: 'weekly' }),
   ],
 
-  // Local dev server
   server: {
     host: true,
     port: 4321,
     https: httpsConfig,
   },
 
-  // Vite dev server HTTPS
   vite: {
     server: { https: httpsConfig },
   },

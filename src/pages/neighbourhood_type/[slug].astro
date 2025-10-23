@@ -130,7 +130,10 @@ const hasValidBlock = ID_RE.test(rvBlockId);
       <h2 class="h2">Current {title} Listings</h2>
 
       {hasValidBlock ? (
-        <RVEmbed block={rvBlockId} minHeight="1000px" />
+        // 👇 wrap with a host to disable any RV skeleton/shimmer via CSS
+        <div class="rv-host">
+          <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
+        </div>
       ) : (
         <div class="rv-fallback">
           <p><strong>Heads-up:</strong> Listings are unavailable for this page right now.</p>
@@ -153,5 +156,27 @@ const hasValidBlock = ID_RE.test(rvBlockId);
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
     .body-wrap{ padding-top:12px; }
     .rv-fallback{ padding:12px 16px; background:#fff3cd; border:1px solid #ffe69c; border-radius:10px; color:#924; }
+
+    /* ————— Kill shimmer/skeletons coming from RV ————— */
+    .rv-host [class*="skeleton"],
+    .rv-host [class*="Skeleton"],
+    .rv-host [class*="loading"],
+    .rv-host [data-skeleton],
+    .rv-host .rv-skeleton,
+    .rv-host .loading-skeleton,
+    .rv-host .rv-loading {
+      animation: none !important;
+      background: none !important;
+      background-image: none !important;
+      box-shadow: none !important;
+      opacity: 0 !important;           /* hide any leftover placeholders */
+      pointer-events: none !important;
+    }
+
+    /* In case shimmer is applied via keyframes on cards */
+    .rv-host * {
+      animation-duration: 0s !important;
+      transition: none !important;
+    }
   </style>
 </Site>

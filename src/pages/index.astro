@@ -1,8 +1,11 @@
 ---
 // src/pages/index.astro
+
 import Site from "../layouts/Site.astro";
 import { getJson } from "../lib/fetchJson";
 import { heroPath } from "../lib/paths";
+export const prerender = true;
+
 
 const homeUrl = import.meta.env.PUBLIC_HOME_JSON;
 const listUrl = import.meta.env.PUBLIC_SHEET_JSON;
