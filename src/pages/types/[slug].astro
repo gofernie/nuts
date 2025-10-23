@@ -82,31 +82,28 @@ const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?
 const SUMMARY_IS_HTML = false;
 const BODY_IS_HTML    = true;
 
-/* ---------- listings / CTA ---------- */
-/** In Sheets, store EITHER:
- *  - just the block id:   MQP2VMLT-14Y2W8DC
- *  - or the container:    <div data-rv-block="MQP2VMLT-14Y2W8DC"></div>
- *  NEVER the <script src=".../embed.js"> tag. We strip it if present.
+/* ---------- listings (RealtyVis) ---------- */
+/** In Sheets, for `cta1` / `rv_block`, store EITHER:
+ *  - just the block id:   XXXXXXXX-XXXXXXXX
+ *  - or the container:    <div data-rv-block="XXXXXXXX-XXXXXXXX"></div>
+ *  NEVER the <script src=".../embed.js"> tag (we strip it if present).
  */
 const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
-// detect a pure block id
 const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
 
-// sanitize any pasted HTML: drop ALL <script> tags, keep only container markup
 function stripScripts(html:string) {
   return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
 }
 
-// if it's not a plain id, try to extract/keep only a container with data-rv-block
 function keepOnlyRvContainer(html:string) {
   const clean = stripScripts(html);
-  // If the user pasted full embed snippet, this keeps just the container.
-  const m = clean.match(/<div[^>]*\sdata-rv-block=["']?([A-Z0-9-]{17})["']?[^>]*><\/div>/i);
-  if (m?.[0]) return m[0];
-  return clean; // already just a container or simple HTML
+  const m = clean.match(
+    /<div[^>]*\sdata-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?[^>]*>\s*<\/div>/i
+  );
+  return m?.[0] ?? clean;
 }
 
 const containerHtml = isRvId
@@ -136,11 +133,10 @@ const containerHtml = isRvId
     <div class="container listings-wrap">
       <h2 class="h2">Current Listings</h2>
 
-      {/* 🚫 No per-page script loader. We ONLY render the container.
-          The global loader in Site.astro loads/embed.js once and scans on nav. */}
+      <!-- 🚫 No per-page script loader. Global RV loader in Site.astro does the work. -->
       <div class="rv-slot" set:html={containerHtml}></div>
 
-      {/* Optional: re-scan ONLY if RV is already present (no loading here) */}
+      <!-- Re-scan on SPA nav / bfcache return if RV is already present -->
       <script is:inline>
         (function(){
           function rescan(){
@@ -153,8 +149,8 @@ const containerHtml = isRvId
           }
           document.addEventListener("astro:page-load", rescan);
           document.addEventListener("astro:after-swap", rescan);
-          window.addEventListener("pageshow", function(e){ if (e.persisted) rescan(); });
-          document.addEventListener("visibilitychange", function(){ if(!document.hidden) rescan(); });
+          window.addEventListener("pageshow", (e)=>{ if (e.persisted) rescan(); });
+          document.addEventListener("visibilitychange", ()=>{ if (!document.hidden) rescan(); });
         })();
       </script>
     </div>
@@ -170,7 +166,8 @@ const containerHtml = isRvId
 
   {!rawCta && (
     <div class="container note">
-      <p><strong>Heads-up:</strong> No <code>cta1</code>/<code>rv_block</code> set, and no <code>PUBLIC_DEFAULT_RV_BLOCK</code>.</p>
+      <p><strong>Heads-up:</strong> No <code>cta1</code>/<code>rv_block</code> set, and no
+        <code> PUBLIC_DEFAULT_RV_BLOCK</code>. Add one to show listings.</p>
     </div>
   )}
 
@@ -180,30 +177,35 @@ const containerHtml = isRvId
       margin-inline:auto;
       padding-inline:12px;
     }
+
     .summary-wrap{ padding-top:16px; padding-bottom:8px; }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
+    .body-wrap{ padding-top:12px; }
+
+    .lead{
+      margin:0;
+      font-size:1.075rem;
+      line-height:1.6;
+      color:#111827;
+    }
 
     .listings-wrap{ padding-top:16px; padding-bottom:8px; }
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
 
     .rv-slot { min-height: 200px; }
-    /* Optional: simple shimmer while RV populates */
     .rv-slot:empty::before{
       content:"";
       display:block;
-      height: 180px;
-      border-radius: 10px;
-      background:
-        linear-gradient(90deg, #eee 25%, #f6f6f6 37%, #eee 63%);
-      background-size: 400% 100%;
-      animation: shimmer 1.2s infinite linear;
+      height:180px;
+      border-radius:10px;
+      background:linear-gradient(90deg,#eee 25%,#f6f6f6 37%,#eee 63%);
+      background-size:400% 100%;
+      animation:shimmer 1.2s infinite linear;
+      border:1px solid #eee;
     }
     @keyframes shimmer {
       0% { background-position: 100% 0; }
       100% { background-position: 0 0; }
     }
-
-    .body-wrap{ padding-top:12px; }
 
     .note{
       color:#666; background:#fafafa; border:1px solid #eee;
