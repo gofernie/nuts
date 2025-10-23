@@ -74,7 +74,6 @@ const NAV_ORDER = [
   "xtra",
   "todo",
   "stay",
-  "search",
   "contact",
 ] as const;
 ---
@@ -192,7 +191,6 @@ const NAV_ORDER = [
                   case "xtra": return <a href="/xtraarea" data-astro-prefetch="hover">Other Areas</a>;
                   case "todo": return <a href="/to_do" data-astro-prefetch="hover">To Do</a>;
                   case "stay": return <a href="/stay" data-astro-prefetch="hover">Stay</a>;
-                  case "search": return <a href="/search" data-astro-prefetch="hover">Search</a>;
                   case "contact": return <a href="/contact" data-astro-prefetch>Contact</a>;
                 }
               })
@@ -219,7 +217,5 @@ const NAV_ORDER = [
         </div>
       </div>
     </footer>
-
-    <!-- NOTE: removed all conditional RV loaders here on purpose -->
   </body>
 </html>
