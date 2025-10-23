@@ -1,5 +1,5 @@
 ---
-// File: src/pages/xtraarea/_slug_.astro
+// File: src/pages/xtraarea/[slug].astro
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
@@ -8,19 +8,7 @@ import RVEmbed from "../../components/RVEmbed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-/* ---------- helpers (MUST be above getStaticPaths) ---------- */
-const field = (r:any,k:string)=>
-  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
-    ?.toString?.()
-    ?.trim?.() || "";
-
-const slugify = (s:string)=> (s ?? "")
-  .toLowerCase().trim()
-  .replace(/&/g,"-and-")
-  .replace(/[^a-z0-9]+/g,"-")
-  .replace(/^-+|-+$/g,"");
-
-/* ---------- static paths: fetch once, pass row via props ---------- */
+/* ---------- getStaticPaths: no external helpers ---------- */
 export async function getStaticPaths() {
   const SOURCE_URL =
     import.meta.env.PUBLIC_XTRAAREA_JSON ||
@@ -28,6 +16,17 @@ export async function getStaticPaths() {
     "";
 
   if (!SOURCE_URL) return [];
+
+  // helpers scoped ONLY to this function (prevents “is not defined”)
+  const pick = (r:any,k:string) =>
+    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+      .toString().trim();
+
+  const sluggify = (s:string)=> (s ?? "")
+    .toLowerCase().trim()
+    .replace(/&/g,"-and-")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"");
 
   let rows:any[] = [];
   try {
@@ -41,20 +40,25 @@ export async function getStaticPaths() {
   }
 
   const items = rows.map((r:any) => {
-    const status  = field(r,"status").toLowerCase();
-    const rawSlug = field(r,"slug").toLowerCase();
+    const status  = pick(r,"status").toLowerCase();
+    const rawSlug = pick(r,"slug").toLowerCase();
     const hidden  = status === "hidden" || status === "inactive" || rawSlug === "index";
     if (hidden) return null;
 
-    const title = field(r,"title");
-    const slug  = (rawSlug || slugify(title)).toLowerCase();
+    const title = pick(r,"title");
+    const slug  = (rawSlug || sluggify(title)).toLowerCase();
     return slug ? { params: { slug }, props: { row: r } } : null;
   }).filter(Boolean) as any[];
 
   return items;
 }
 
-/* ---------- page data (from props; no refetch/throw) ---------- */
+/* ---------- page data (render path) ---------- */
+// a tiny helper for render-time only (separate from getStaticPaths scope)
+const field = (r:any,k:string)=>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+    .toString().trim();
+
 type Row = Record<string, any>;
 const { row: rowIn } = Astro.props as { row?: Row };
 const row = rowIn ?? ({} as Row);
