@@ -3,19 +3,18 @@
 export const prerender = false;
 
 import Site from "../../layouts/Site.astro";
+import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
-import HeroBleed from "../../components/HeroBleed.astro";
 
-/* --------- params & source --------- */
-const slugParam = (Astro.params.slug || "").toString().trim();
-
+/* ---------- params & source ---------- */
+const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
 const SOURCE_URL =
   import.meta.env.PUBLIC_XTRAAREA_JSON ||
   import.meta.env.PUBLIC_SHEET_JSON ||
   "";
 
-/* --------- helpers --------- */
+/* ---------- helpers ---------- */
 const get = (r:any,k:string)=>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
@@ -25,7 +24,7 @@ const slugify = (s:string)=> (s ?? "")
   .replace(/[^a-z0-9]+/g,"-")
   .replace(/^-+|-+$/g,"");
 
-/* --------- fetch row --------- */
+/* ---------- fetch row ---------- */
 let row:any = null;
 let fetchError:string|null = null;
 
@@ -34,14 +33,14 @@ if (!SOURCE_URL) {
 } else {
   try {
     const raw = await getJson<any>(SOURCE_URL);
-    const rows:any[] =
-      Array.isArray(raw) ? raw :
-      Array.isArray(raw?.data) ? raw.data :
-      Array.isArray(raw?.rows) ? raw.rows : [];
+    const rows:any[] = Array.isArray(raw)
+      ? raw : Array.isArray(raw?.data)
+      ? raw.data : Array.isArray(raw?.rows)
+      ? raw.rows : [];
 
     row = rows.find(r=>{
       const s = get(r,"slug") || (get(r,"title") ? slugify(get(r,"title")) : "");
-      return s === slugParam;
+      return s.toLowerCase() === slugParam;
     }) || null;
 
     if (!row) fetchError = `No matching row for slug "${slugParam}".`;
@@ -50,7 +49,7 @@ if (!SOURCE_URL) {
   }
 }
 
-/* --------- derived props --------- */
+/* ---------- derived props ---------- */
 const title   = (row && get(row,"title")) || "Extra Area";
 const summary = (row && (get(row,"summary") || get(row,"seo_description"))) || "";
 const heroImg = (row && get(row,"hero_img")) || "/img/hero/fallback-1600x800.jpg";
@@ -59,18 +58,30 @@ const hero    = heroPath(heroImg);
 const pageSeoTitle = (row && get(row,"seo_title")) || title;
 const pageSeoDesc  = (row && get(row,"seo_description")) || summary;
 
-/* --------- CTA handling --------- */
+/* ---------- RealtyVis embed ---------- */
 const rawCta = (row && (get(row,"cta1") || get(row,"rv_block"))) ||
                import.meta.env.PUBLIC_DEFAULT_RV_BLOCK || "";
 const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
-const isHtml = !!rawCta && !isRvId;
 
-/* --------- RealtyVis script URL --------- */
+function stripScripts(html:string) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+}
+function extractRvContainer(html:string) {
+  const clean = stripScripts(html);
+  const m = clean.match(
+    /<div[^>]*\sdata-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?[^>]*>\s*<\/div>/i
+  );
+  return m?.[0] || "";
+}
+
+const containerHtml = isRvId
+  ? `<div data-rv-block="${rawCta}"></div>`
+  : extractRvContainer(rawCta);
+
 const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
 ---
 
 <Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-  <!-- Hero -->
   <HeroBleed
     src={hero}
     title={title}
@@ -79,7 +90,6 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     containerPad={12}
   />
 
-  <!-- Summary block (matches TODO/STAY slug) -->
   {summary && (
     <div class="container summary-wrap">
       <div class="lead" set:html={summary}></div>
@@ -92,34 +102,56 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     )}
 
     {!fetchError && rawCta && (
-      <section id="listings" class="rv-wrap">
+      <section class="rv-wrap">
         <h2 class="h2">Current Listings</h2>
+        <div id="rv-root" class="rv-slot" set:html={containerHtml}></div>
 
-        {isRvId ? (
-          <>
-            <div data-rv-block={rawCta}></div>
-            <script is:inline>
-              (function(){
-                function scan(){ try{ window.RealtyVis?.scan?.(); }catch(e){} }
-                if (!window.__rvScriptLoading && !window.__rvScriptLoaded) {
-                  window.__rvScriptLoading = true;
-                  var s = document.createElement('script');
-                  s.src = "{RV_SCRIPT}";
-                  s.async = true; s.defer = true;
-                  s.onload = function(){ window.__rvScriptLoaded = true; scan(); };
-                  s.onerror = function(e){ console.error("RealtyVis script failed", e); };
-                  document.head.appendChild(s);
-                } else if (window.__rvScriptLoaded) {
-                  scan();
-                } else {
-                  setTimeout(scan, 250);
-                }
-              })();
-            </script>
-          </>
-        ) : (
-          <div class="rv-html" set:html={rawCta}></div>
-        )}
+        <script is:inline>
+          (function(){
+            const RV_URL = {JSON.stringify(RV_SCRIPT)};
+            const root = document.getElementById('rv-root');
+
+            // --- loader ---
+            if (!window.RealtyVis && !window.__rvScriptLoaded && !window.__rvScriptLoading) {
+              window.__rvScriptLoading = true;
+              var s = document.createElement('script');
+              s.src = RV_URL;
+              s.async = true;
+              s.onload = function(){ window.__rvScriptLoaded = true; rescan(); };
+              s.onerror = function(e){ console.error('RealtyVis failed to load', e); window.__rvScriptLoading = false; };
+              document.head.appendChild(s);
+            }
+
+            // --- helpers ---
+            function rescan(){ try{ window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); }catch(_){ } }
+            function mounted(){ return !!root.querySelector('[data-rv-card], .rv-card, [data-rv-mounted]'); }
+            function count(){ return root.querySelectorAll('[data-rv-card], .rv-card').length; }
+            function maybeEmpty(){
+              if (!mounted()) return;
+              if (count() === 0 && !document.getElementById('rv-empty')) {
+                root.insertAdjacentHTML('afterend', `
+                  <div id="rv-empty" class="rv-empty">
+                    <div class="rv-empty__card">
+                      <div class="rv-empty__title">No active listings right now</div>
+                      <p class="rv-empty__text">Try again soon or adjust your search filters.</p>
+                      <a class="btn-secondary" href="/search">Browse all listings</a>
+                    </div>
+                  </div>`);
+              }
+            }
+
+            // --- observer + hooks ---
+            const mo = new MutationObserver(()=> mounted() && setTimeout(maybeEmpty,200));
+            mo.observe(root, { childList:true, subtree:true });
+
+            document.addEventListener('astro:page-load', ()=>{ rescan(); setTimeout(maybeEmpty,200); });
+            document.addEventListener('astro:after-swap', ()=>{ rescan(); setTimeout(maybeEmpty,200); });
+            window.addEventListener('pageshow', e=>{ if (e.persisted) { rescan(); setTimeout(maybeEmpty,200); }});
+            document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ rescan(); setTimeout(maybeEmpty,200); }});
+
+            setTimeout(rescan, 1200);
+          })();
+        </script>
       </section>
     )}
 
@@ -134,20 +166,40 @@ const RV_SCRIPT = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com
     :root { --container-max: 1200px; --container-pad: 12px; }
     .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
 
-    /* MATCHES TODO/STAY SLUG */
     .summary-wrap{ padding-top:16px; padding-bottom:8px; }
-    .lead{
-      margin:0;
-      font-size:1.075rem;
-      line-height:1.6;
-      color:#111827;
-    }
+    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
 
     .body{ padding-block: 20px; }
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
 
     .note{ color:#666; background:#fafafa; border:1px solid #eee; padding:12px 14px; border-radius:8px; }
     .error{ border:1px solid #d33; background:#fff5f5; color:#600; padding:12px 14px; border-radius:8px; }
+
+    /* shimmer */
+    .rv-slot { min-height: 200px; }
+    .rv-slot:empty::before{
+      content:"";
+      display:block;
+      height:180px;
+      border-radius:10px;
+      background:linear-gradient(90deg,#eee 25%,#f6f6f6 37%,#eee 63%);
+      background-size:400% 100%;
+      animation:shimmer 1.2s infinite linear;
+      border:1px solid #eee;
+    }
+    @keyframes shimmer { 0%{background-position:100% 0} 100%{background-position:0 0} }
+
+    /* empty-state card */
+    .rv-empty { margin-top: 12px; }
+    .rv-empty__card { border: 1px solid #e5e7eb; background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+    .rv-empty__title { font-weight: 700; margin-bottom: 6px; font-size: 1.05rem; color: #111827; }
+    .rv-empty__text { margin: 0 0 12px; color: #374151; line-height: 1.5; }
+    .btn-secondary {
+      display:inline-flex; align-items:center; justify-content:center;
+      padding:.65rem 1rem; border-radius:10px; border:1px solid #e5e7eb; background:#fff;
+      color:#111827; font-weight:600; text-decoration:none;
+    }
+    .btn-secondary:hover{ background:#f9fafb; }
 
     .rv-html :where(iframe, div){ width:100% !important; }
   </style>

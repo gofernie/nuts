@@ -7,8 +7,12 @@ import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
+/* ---------- utils ---------- */
 const slugify = (v:string) =>
-  (v ?? "").toLowerCase().trim().replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+  (v ?? "").toLowerCase().trim()
+    .replace(/&/g,"-and-")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"");
 
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_TODO_JSON;
@@ -16,7 +20,9 @@ export async function getStaticPaths() {
   let rows:any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
+    rows = Array.isArray(raw) ? raw
+      : Array.isArray(raw?.data) ? raw.data
+      : Array.isArray(raw?.rows) ? raw.rows : [];
   } catch { return []; }
 
   const items = rows.map((r:any) => {
@@ -26,13 +32,13 @@ export async function getStaticPaths() {
     if (hidden) return null;
     const title  = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
     const slug   = rawSlug || slugify(title);
-    if (!slug) return null;
-    return { params: { slug } };
+    return slug ? { params: { slug } } : null;
   }).filter(Boolean) as { params: { slug: string } }[];
 
   return items;
 }
 
+/* ---------- page data ---------- */
 const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
 const url = import.meta.env.PUBLIC_TODO_JSON;
 if (!url) throw new Error("Missing PUBLIC_TODO_JSON in .env (restart dev).");
@@ -43,21 +49,27 @@ let indexRow:any = null;
 
 try {
   const raw = await getJson<any>(url);
-  rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : Array.isArray(raw?.rows) ? raw.rows : [];
+  rows = Array.isArray(raw) ? raw
+    : Array.isArray(raw?.data) ? raw.data
+    : Array.isArray(raw?.rows) ? raw.rows : [];
+
   row = rows.find((r:any) => {
     const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase();
     const title   = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    const computed = (rawSlug || slugify(title)).toLowerCase();
-    return computed === slugParam;
+    return (rawSlug || slugify(title)).toLowerCase() === slugParam;
   });
+
   // Use INDEX row's CTA1 for the embed after body
-  indexRow = rows.find((r:any) => String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "index").trim().toLowerCase() === "index") || null;
+  indexRow = rows.find((r:any) =>
+    String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "index").trim().toLowerCase() === "index"
+  ) || null;
 } catch (e) {
   console.error("[to_do slug] JSON fetch failed:", e);
 }
 
 if (!row) throw new Error(`To Do slug not found: ${slugParam}`);
 
+/* ---------- fields ---------- */
 const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Things To Do in Fernie").trim();
 const summary  = String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
 const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
@@ -68,27 +80,46 @@ const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?
 const SUMMARY_IS_HTML = false;
 const BODY_IS_HTML    = true;
 
-// Embed from INDEX row's cta1 (or fallback env)
+/* ---------- embed from INDEX row's cta1 (or env fallback) ---------- */
 const rawCta =
   String(indexRow?.cta1 ?? indexRow?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
 const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
+
+/* sanitize & extract container-only */
+function stripScripts(html:string) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+}
+function extractRvContainer(html:string) {
+  const clean = stripScripts(html);
+  const m = clean.match(
+    /<div[^>]*\sdata-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?[^>]*>\s*<\/div>/i
+  );
+  return m?.[0] || "";
+}
+const containerHtml = isRvId
+  ? `<div data-rv-block="${rawCta}"></div>`
+  : extractRvContainer(rawCta);
+
 const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
+
+/* hero preload hook */
+const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
-  <!-- Force-load RealtyVis -->
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
+  <!-- 🔌 Optional safety: load RV once here if layout isn't doing conditional load -->
   <Fragment slot="head">
     <script is:inline>
       (function(){
-        if (window.__rvScriptLoaded || window.__rvScriptLoading) return;
+        if (window.RealtyVis || window.__rvScriptLoaded || window.__rvScriptLoading) return;
         window.__rvScriptLoading = true;
-        const s = document.createElement('script');
+        var s = document.createElement('script');
         s.src = {JSON.stringify(RV_URL)};
-        s.defer = true; s.async = true;
-        s.onload = function(){ window.__rvScriptLoaded = true; try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(e){} };
-        s.onerror = e => { console.error("RealtyVis script failed to load", e); window.__rvScriptLoading = false; };
+        s.async = true;
+        s.onload = function(){ window.__rvScriptLoaded = true; try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(_){} };
+        s.onerror = function(e){ console.error("RealtyVis script failed to load", e); window.__rvScriptLoading = false; };
         document.head.appendChild(s);
       })();
     </script>
@@ -119,34 +150,39 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
     <div class="container listings-wrap">
       <h2 class="h2">Current Fernie Listings</h2>
 
-      {isRvId ? (
-        <div id="rv-root" data-rv-block={rawCta}></div>
-      ) : (
-        <div id="rv-root" class="rv-html" set:html={rawCta}></div>
-      )}
+      <div id="rv-root" class="rv-slot" set:html={containerHtml}></div>
 
       <script is:inline>
         (function(){
           const root = document.getElementById('rv-root');
-          function mounted(r = document){
-            return !!(
-              r.querySelector('[data-rv-card]') ||
-              r.querySelector('.rv-card') ||
-              r.querySelector('.rv-root') ||
-              r.querySelector('iframe[src*="realtyvis"]') ||
-              r.querySelector('[data-rv-mounted]')
-            );
-          }
-          function rescan(){ try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(e){} }
+          const rescan = ()=> { try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(_){} };
+          const mounted = ()=> !!root.querySelector('[data-rv-card], .rv-card, [data-rv-mounted]');
+          const count = ()=> root.querySelectorAll('[data-rv-card], .rv-card').length;
 
-          const mo = new MutationObserver(() => { if (mounted(root)) mo.disconnect(); });
+          function maybeEmpty(){
+            if (!mounted()) return;
+            if (count() === 0 && !document.getElementById('rv-empty')) {
+              root.insertAdjacentHTML('afterend',
+                `<div id="rv-empty" class="rv-empty">
+                   <div class="rv-empty__card">
+                     <div class="rv-empty__title">No active listings right now</div>
+                     <p class="rv-empty__text">Try a broader search or check back soon.</p>
+                     <a class="btn-secondary" href="/search">Browse all listings</a>
+                   </div>
+                 </div>`);
+            }
+          }
+
+          const mo = new MutationObserver(()=> mounted() && setTimeout(maybeEmpty, 200));
           mo.observe(root, { childList:true, subtree:true });
 
-          if (document.visibilityState === 'visible') rescan();
-          addEventListener('visibilitychange', () => { if (!document.hidden) rescan(); });
-          addEventListener('pageshow', (e) => { if (e.persisted) rescan(); });
+          document.addEventListener('astro:page-load', ()=>{ rescan(); setTimeout(maybeEmpty,200); });
+          document.addEventListener('astro:after-swap', ()=>{ rescan(); setTimeout(maybeEmpty,200); });
+          window.addEventListener('pageshow', e=>{ if (e.persisted) { rescan(); setTimeout(maybeEmpty,200); }});
+          document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ rescan(); setTimeout(maybeEmpty,200); }});
 
-          setTimeout(rescan, 1500);
+          // Safety retries (covers late script loads)
+          setTimeout(rescan, 1200);
           setTimeout(rescan, 4000);
         })();
       </script>
@@ -161,11 +197,35 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
 
   <style>
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
-    .summary-wrap{ padding-top:16px; padding-bottom:8px; }
+    .summary-wrap{ padding-top:16px; }
+    .body-wrap{ padding-top:12px; }
     .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
+
     .listings-wrap{ padding-top:16px; padding-bottom:8px; }
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
-    .body-wrap{ padding-top:12px; }
+
+    /* shimmer while RV mounts */
+    .rv-slot { min-height: 200px; }
+    .rv-slot:empty::before{
+      content:""; display:block; height:180px; border-radius:10px;
+      background:linear-gradient(90deg,#eee 25%,#f6f6f6 37%,#eee 63%);
+      background-size:400% 100%; animation:shimmer 1.2s infinite linear;
+      border:1px solid #eee;
+    }
+    @keyframes shimmer { 0%{background-position:100% 0} 100%{background-position:0 0} }
+
+    /* empty-state card */
+    .rv-empty { margin-top: 12px; }
+    .rv-empty__card { border:1px solid #e5e7eb; background:#fff; border-radius:14px; padding:16px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+    .rv-empty__title { font-weight:700; margin-bottom:6px; font-size:1.05rem; color:#111827; }
+    .rv-empty__text { margin:0 0 12px; color:#374151; line-height:1.5; }
+    .btn-secondary {
+      display:inline-flex; align-items:center; justify-content:center;
+      padding:.65rem 1rem; border-radius:10px; border:1px solid #e5e7eb; background:#fff;
+      color:#111827; font-weight:600; text-decoration:none;
+    }
+    .btn-secondary:hover{ background:#f9fafb; }
+
     .note{ color:#666; background:#fafafa; border:1px solid #eee; padding:12px 14px; border-radius:8px; margin-top:16px; }
   </style>
 </Site>

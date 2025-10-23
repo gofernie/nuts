@@ -7,7 +7,7 @@ import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-/* ---------- tiny util kept local ---------- */
+/* ---------- tiny util ---------- */
 const slugify = (v:string) =>
   (v ?? "").toLowerCase().trim()
     .replace(/&/g,"-and-")
@@ -22,24 +22,21 @@ export async function getStaticPaths() {
   let rows:any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw
+    rows = Array.isArray(raw)
+      ? raw
       : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch {
-    return [];
-  }
+      : Array.isArray(raw?.rows) ? raw.rows
+      : [];
+  } catch { return []; }
 
   const items = rows.map((r:any) => {
     const status  = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
     const rawSlug = String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase();
-    const hidden = status === "hidden" || status === "inactive" || rawSlug === "index";
+    const hidden  = status === "hidden" || status === "inactive" || rawSlug === "index";
     if (hidden) return null;
-
     const title  = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
     const slug   = rawSlug || slugify(title);
-    if (!slug) return null;
-
-    return { params: { slug } };
+    return slug ? { params: { slug } } : null;
   }).filter(Boolean) as { params: { slug: string } }[];
 
   return items;
@@ -53,23 +50,21 @@ if (!url) throw new Error("Missing PUBLIC_STAY_JSON in .env (restart dev).");
 let row:any = null;
 try {
   const raw = await getJson<any>(url);
-  const rows:any[] = Array.isArray(raw) ? raw
+  const rows:any[] = Array.isArray(raw)
+    ? raw
     : Array.isArray(raw?.data) ? raw.data
-    : Array.isArray(raw?.rows) ? raw.rows : [];
-
+    : Array.isArray(raw?.rows) ? raw.rows
+    : [];
   row = rows.find((r:any) => {
     const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase();
     const title   = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    const computed = (rawSlug || slugify(title)).toLowerCase();
-    return computed === slugParam;
+    return (rawSlug || slugify(title)) === slugParam;
   });
 } catch (e) {
   console.error("[stay slug] JSON fetch failed:", e);
 }
 
-if (!row) {
-  throw new Error(`Stay slug not found: ${slugParam}`);
-}
+if (!row) throw new Error(`Stay slug not found: ${slugParam}`);
 
 /* ---------- fields ---------- */
 const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Where to Stay in Fernie").trim();
@@ -80,10 +75,13 @@ const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
 const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
 
 const SUMMARY_IS_HTML = false;
-const BODY_IS_HTML = true;
+const BODY_IS_HTML    = true;
+
+/* ---------- hero preload ---------- */
+const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
   <HeroBleed
     src={heroImg ? heroPath(heroImg) : ""}
     title={title}
@@ -108,16 +106,15 @@ const BODY_IS_HTML = true;
     </div>
   )}
 
-  <!-- 🧱 RealtyNinja embed inside the container (replaces MRP) -->
+  <!-- 🧭 RealtyNinja embed -->
   <div id="rn-wrap" class="container">
     <div id="rn-shell" class="rn-shell" aria-busy="true">
-      <!-- shimmer while RealtyNinja loads -->
+      <!-- skeleton shimmer -->
       <div id="rn-skeleton" class="listing-skeleton" aria-hidden="true">
         <div class="sk-card"></div><div class="sk-card"></div>
         <div class="sk-card"></div><div class="sk-card"></div>
       </div>
 
-      <!-- START REALTYNINJA EMBED CODE -->
       <div
         class="rn-embed"
         data-name="chriscrump8"
@@ -125,25 +122,16 @@ const BODY_IS_HTML = true;
         style="min-height:95vh;"
       ></div>
       <script src="https://s.realtyninja.com/static/js/prod/embed.min.js" type="module" defer></script>
-      <!-- END REALTYNINJA EMBED CODE -->
     </div>
   </div>
 
   <style>
-    .container{
-      max-width:1200px;
-      margin-inline:auto;
-      padding-inline:12px;
-    }
+    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
     .summary-wrap{ padding-top:16px; padding-bottom:8px; }
     .body-wrap{ padding-top:12px; }
-    .lead{
-      margin:0;
-      font-size:1.075rem;
-      line-height:1.6;
-      color:#111827;
-    }
+    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
 
+    /* skeleton */
     .rn-shell{ margin-top:32px; position:relative; min-height:180px; }
     .listing-skeleton {
       display:grid;
@@ -155,7 +143,7 @@ const BODY_IS_HTML = true;
       border-radius:12px;
       background:linear-gradient(90deg,#f4f4f4 25%,#ececec 37%,#f4f4f4 63%);
       background-size:400% 100%;
-      animation:shimmer 1.4s infinite;
+      animation:shimmer 1.4s infinite linear;
       border:1px solid #eee;
     }
     @keyframes shimmer {
@@ -163,7 +151,7 @@ const BODY_IS_HTML = true;
       100% { background-position: -100% 0 }
     }
 
-    /* 🧭 keep any RN iframe locked to container */
+    /* lock iframe to container */
     #rn-wrap iframe {
       width: 100% !important;
       max-width: 100% !important;
@@ -178,7 +166,6 @@ const BODY_IS_HTML = true;
       const shell = document.getElementById("rn-shell");
       const skeleton = document.getElementById("rn-skeleton");
 
-      // RN injects an iframe; when it appears, remove shimmer and ensure sizing
       const obs = new MutationObserver(()=>{
         const iframe = shell.querySelector("iframe");
         if (iframe) {
@@ -192,7 +179,7 @@ const BODY_IS_HTML = true;
       });
 
       obs.observe(shell, { childList: true, subtree: true });
-      // safety: if nothing renders, clear the skeleton after 12s
+      // fallback cleanup after 12s
       setTimeout(()=> skeleton?.remove(), 12000);
     })();
   </script>

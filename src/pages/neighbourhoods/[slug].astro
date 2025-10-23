@@ -5,15 +5,12 @@ export const prerender = true;
 import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import ListingButtons from "../../components/ListingButtons.astro";
-
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-/* ---------- tiny util ---------- */
+/* ---------- utils ---------- */
 const slugify = (v:string) =>
-  (v ?? "")
-    .toLowerCase()
-    .trim()
+  (v ?? "").toLowerCase().trim()
     .replace(/&/g,"-and-")
     .replace(/[^a-z0-9]+/g,"-")
     .replace(/^-+|-+$/g,"");
@@ -26,27 +23,20 @@ export async function getStaticPaths() {
   let rows:any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw)
-      ? raw
+    rows = Array.isArray(raw) ? raw
       : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows
-      : [];
-  } catch {
-    return [];
-  }
+      : Array.isArray(raw?.rows) ? raw.rows : [];
+  } catch { return []; }
 
   const items = rows.map((r:any) => {
-    const status  = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
-    const rawSlug = String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase();
-    const hidden = status === "hidden" || status === "inactive" || rawSlug === "index";
-    if (hidden) return null;
+    const status = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
+    const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase();
+    if (status === "hidden" || status === "inactive" || rawSlug === "index") return null;
 
-    const title  = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    const slug   = rawSlug || slugify(title);
-    if (!slug) return null;
-
-    return { params: { slug } };
-  }).filter(Boolean) as { params: { slug: string } }[];
+    const title = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
+    const slug  = rawSlug || slugify(title);
+    return slug ? { params: { slug } } : null;
+  }).filter(Boolean);
 
   return items;
 }
@@ -67,64 +57,45 @@ try {
   row = rows.find((r:any) => {
     const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase();
     const title   = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    const computed = (rawSlug || slugify(title)).toLowerCase();
-    return computed === slugParam;
+    return (rawSlug || slugify(title)) === slugParam;
   });
-} catch (e) {
-  console.error("[neighbourhoods slug] JSON fetch failed:", e);
-}
+} catch (e) { console.error("[neighbourhoods slug] JSON fetch failed:", e); }
 
-if (!row) {
-  throw new Error(`Neighbourhood slug not found: ${slugParam}`);
-}
+if (!row) throw new Error(`Neighbourhood slug not found: ${slugParam}`);
 
 /* ---------- fields ---------- */
-const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Fernie Neighbourhood").trim();
-const summary  = String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
-const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
-const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
-const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
-const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
+const title    = String(row?.title ?? "Fernie Neighbourhood").trim();
+const summary  = String(row?.summary ?? "").trim();
+const body     = String(row?.long_copy ?? "").trim();
+const heroImg  = String(row?.hero_img ?? "").trim();
+const seoTitle = String(row?.seo_title ?? title).trim();
+const seoDesc  = String(row?.seo_description ?? summary ?? "").trim();
+const buttonsCell = String(row?.spare_2 ?? "").trim();
 
-const SUMMARY_IS_HTML = true;  // trusted sheet content
-const BODY_IS_HTML    = true;  // trusted sheet content
+const SUMMARY_IS_HTML = true;
+const BODY_IS_HTML    = true;
 
-/* ---------- buttons under summary ---------- */
-const buttonsCell = String(row?.spare_2 ?? row?.Spare_2 ?? row?.SPARE_2 ?? "").trim();
-
-/* ---------- RealtyVis container (cta1 / rv_block) ---------- */
+/* ---------- RealtyVis ---------- */
 const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
 const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
-
-// Defensive: strip any scripts if someone pasted full embed
-function stripScripts(html:string) {
-  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
-}
-// If full snippet pasted, keep only the block <div data-rv-block="XXXXXXXX-XXXXXXXX"></div>
-function extractRvContainer(html:string) {
+function stripScripts(html:string){ return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,""); }
+function extractRvContainer(html:string){
   const clean = stripScripts(html);
-  const m = clean.match(
-    /<div[^>]*\sdata-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?[^>]*>\s*<\/div>/i
-  );
+  const m = clean.match(/<div[^>]*\sdata-rv-block=["']?([A-Z0-9-]{17})["']?[^>]*><\/div>/i);
   return m?.[0] || "";
 }
-
-const containerHtml = isRvId
-  ? `<div data-rv-block="${rawCta}"></div>`
-  : extractRvContainer(rawCta);
-
-/* ---------- hero preload hint to layout ---------- */
-const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
-
-/* ---------- allow env override for script URL (rare) ---------- */
+const containerHtml = isRvId ? `<div data-rv-block="${rawCta}"></div>` : extractRvContainer(rawCta);
 const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
+
+/* ---------- hero preload ---------- */
+const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
-  <!-- 🔌 Safety: if layout didn’t include the RV script, load it once here. -->
+  <!-- 🪝 Load RealtyVis script once if not already loaded -->
   <Fragment slot="head">
     <script is:inline>
       (function(){
@@ -136,12 +107,8 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
         s.onload = function(){
           window.__rvScriptLoaded = true;
           try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(e){}
-          document.dispatchEvent(new CustomEvent("rv:ready"));
         };
-        s.onerror = function(e){
-          console.error("RealtyVis script failed to load", e);
-          window.__rvScriptLoading = false;
-        };
+        s.onerror = function(e){ console.error("RealtyVis failed to load", e); window.__rvScriptLoading = false; };
         document.head.appendChild(s);
       })();
     </script>
@@ -159,9 +126,7 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
 
   {summary && (
     <div class="container summary-wrap">
-      {SUMMARY_IS_HTML
-        ? <div class="lead" set:html={summary}></div>
-        : <p class="lead">{summary}</p>}
+      {SUMMARY_IS_HTML ? <div class="lead" set:html={summary}></div> : <p class="lead">{summary}</p>}
     </div>
   )}
 
@@ -179,12 +144,11 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
         ? <div id="rv-root" data-rv-block={rawCta}></div>
         : <div id="rv-root" class="rv-html" set:html={containerHtml}></div>}
 
-      <!-- 🧭 Robust mount/empty-state logic -->
       <script is:inline>
         (function(){
-          const root   = document.getElementById('rv-root');
+          const root = document.getElementById('rv-root');
           const emptyId = 'rv-empty';
-          const emptyHtml = `
+          const emptyCard = `
             <div id="${emptyId}" class="rv-empty" hidden>
               <div class="rv-empty__card">
                 <div class="rv-empty__title">No active listings right now</div>
@@ -195,58 +159,37 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
                 </div>
               </div>
             </div>`;
-          root.insertAdjacentHTML('afterend', emptyHtml);
-
-          const empty  = document.getElementById(emptyId);
+          root.insertAdjacentHTML('afterend', emptyCard);
+          const empty = document.getElementById(emptyId);
           const saveBtn = document.getElementById('rv-save-search');
 
-          function mounted(r = root){
-            return !!(
-              r?.querySelector?.('[data-rv-card]') ||
-              r?.querySelector?.('.rv-card') ||
-              r?.querySelector?.('.rv-root') ||
-              r?.querySelector?.('iframe[src*="realtyvis"]') ||
-              r?.querySelector?.('[data-rv-mounted]')
-            );
-          }
-          function count(r = root){
-            try { return r?.querySelectorAll?.('[data-rv-card], .rv-card').length || 0; } catch { return 0; }
-          }
-          function rescan(){
-            try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(_){}
-          }
+          const mounted = ()=> !!root.querySelector('[data-rv-card], .rv-card, [data-rv-mounted]');
+          const count = ()=> root.querySelectorAll('[data-rv-card], .rv-card').length;
+          const rescan = ()=> { try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(_){} };
+
           function enableSave(){
-            if (saveBtn && window.RealtyVis && typeof window.RealtyVis.openSaveSearch === 'function') {
-              saveBtn.removeAttribute('disabled');
-              saveBtn.addEventListener('click', () => {
-                try { window.RealtyVis.openSaveSearch(); } catch(_){}
-              }, { once:true });
+            if (saveBtn && window.RealtyVis?.openSaveSearch) {
+              saveBtn.disabled = false;
+              saveBtn.addEventListener('click', ()=> window.RealtyVis.openSaveSearch(), { once:true });
             }
           }
           function maybeShowEmpty(){
-            if (!mounted(root)) return;       // not mounted yet
-            if (count(root) === 0) {
+            if (!mounted()) return;
+            if (count() === 0) {
               empty.hidden = false;
               enableSave();
             }
           }
 
-          const mo = new MutationObserver(() => {
-            if (mounted(root)) setTimeout(maybeShowEmpty, 200);
-          });
+          const mo = new MutationObserver(()=> mounted() && setTimeout(maybeShowEmpty, 200));
           mo.observe(root, { childList:true, subtree:true });
 
-          // Hooks to catch SPA nav, BFCache returns, and when layout loads script
-          document.addEventListener("astro:page-load", () => { rescan(); setTimeout(maybeShowEmpty, 200); });
-          document.addEventListener("astro:after-swap", () => { rescan(); setTimeout(maybeShowEmpty, 200); });
-          window.addEventListener("pageshow", (e)=>{ if (e.persisted) { rescan(); setTimeout(maybeShowEmpty, 200); } });
-          document.addEventListener("visibilitychange", ()=>{ if (!document.hidden) { rescan(); setTimeout(maybeShowEmpty, 200); } });
-          document.addEventListener("rv:ready", ()=> { rescan(); setTimeout(maybeShowEmpty, 200); });
+          ['astro:page-load','astro:after-swap'].forEach(ev=> document.addEventListener(ev,()=>{ rescan(); setTimeout(maybeShowEmpty,200); }));
+          window.addEventListener('pageshow', e=>{ if (e.persisted) { rescan(); setTimeout(maybeShowEmpty,200); }});
+          document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) { rescan(); setTimeout(maybeShowEmpty,200); }});
 
-          // Safety retries
-          setTimeout(()=> { rescan(); maybeShowEmpty(); }, 2000);
-          setTimeout(maybeShowEmpty, 6000);
-          setTimeout(maybeShowEmpty, 10000);
+          // shimmer fallback
+          setTimeout(rescan, 2000);
         })();
       </script>
     </div>
@@ -254,9 +197,7 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
 
   {body && (
     <div class="container body-wrap">
-      {BODY_IS_HTML
-        ? <div class="lead" set:html={body}></div>
-        : <p class="lead">{body}</p>}
+      {BODY_IS_HTML ? <div class="lead" set:html={body}></div> : <p class="lead">{body}</p>}
     </div>
   )}
 
@@ -268,7 +209,6 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
 
   <style>
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
-
     .summary-wrap{ padding-top:16px; padding-bottom:8px; }
     .body-wrap{ padding-top:12px; }
     .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
@@ -276,7 +216,6 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
     .listings-wrap{ padding-top:16px; padding-bottom:8px; }
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
 
-    /* Empty-state card */
     .rv-empty { margin-top: 12px; }
     .rv-empty__card {
       border: 1px solid #e5e7eb; background: #fff;
@@ -296,6 +235,19 @@ const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js
     .btn-primary[disabled] { opacity: .6; cursor: not-allowed; }
     .btn-secondary { background: #fff; color: #111827; border-color: #e5e7eb; }
     .btn-secondary:hover { background: #f9fafb; }
+
+    /* ✨ shimmer placeholder for slow loads */
+    #rv-root:empty::before {
+      content:""; display:block; height: 180px;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #eee 25%, #f6f6f6 37%, #eee 63%);
+      background-size: 400% 100%;
+      animation: shimmer 1.2s infinite linear;
+    }
+    @keyframes shimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: 0 0; }
+    }
 
     .note{
       color:#666; background:#fafafa; border:1px solid #eee;
