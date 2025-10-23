@@ -1,19 +1,12 @@
 ---
 // File: src/pages/xtraarea/[slug].astro
-export const prerender = false;
+export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import RVEmbed from "../../components/RVEmbed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
-
-/* ---------- params & source ---------- */
-const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
-const SOURCE_URL =
-  import.meta.env.PUBLIC_XTRAAREA_JSON ||
-  import.meta.env.PUBLIC_SHEET_JSON ||
-  "";
 
 /* ---------- helpers ---------- */
 const get = (r:any,k:string)=>
@@ -25,43 +18,57 @@ const slugify = (s:string)=> (s ?? "")
   .replace(/[^a-z0-9]+/g,"-")
   .replace(/^-+|-+$/g,"");
 
-/* ---------- fetch row ---------- */
-let row:any = null;
-let fetchError:string|null = null;
+/* ---------- static paths: fetch once, pass row via props ---------- */
+export async function getStaticPaths() {
+  const SOURCE_URL =
+    import.meta.env.PUBLIC_XTRAAREA_JSON ||
+    import.meta.env.PUBLIC_SHEET_JSON ||
+    "";
 
-if (!SOURCE_URL) {
-  fetchError = "Missing PUBLIC_XTRAAREA_JSON / PUBLIC_SHEET_JSON in .env";
-} else {
+  if (!SOURCE_URL) return [];
+
+  let rows:any[] = [];
   try {
     const raw = await getJson<any>(SOURCE_URL);
-    const rows:any[] = Array.isArray(raw)
+    rows = Array.isArray(raw)
       ? raw : Array.isArray(raw?.data)
       ? raw.data : Array.isArray(raw?.rows)
       ? raw.rows : [];
-
-    row = rows.find(r=>{
-      const s = get(r,"slug") || (get(r,"title") ? slugify(get(r,"title")) : "");
-      return s.toLowerCase() === slugParam;
-    }) || null;
-
-    if (!row) fetchError = `No matching row for slug "${slugParam}".`;
-  } catch(e:any){
-    fetchError = `Failed to load sheet: ${e?.message || e}`;
+  } catch {
+    return [];
   }
+
+  const items = rows.map((r:any) => {
+    const status  = get(r,"status").toLowerCase();
+    const rawSlug = get(r,"slug").toLowerCase();
+    const hidden  = status === "hidden" || status === "inactive" || rawSlug === "index";
+    if (hidden) return null;
+
+    const title = get(r,"title");
+    const slug  = (rawSlug || slugify(title)).toLowerCase();
+    return slug ? { params: { slug }, props: { row: r } } : null;
+  }).filter(Boolean) as any[];
+
+  return items;
 }
 
+/* ---------- page data (from props; no refetch/throw) ---------- */
+type Row = Record<string, any>;
+const { row: rowIn } = Astro.props as { row?: Row };
+const row = rowIn ?? ({} as Row);
+
 /* ---------- derived props ---------- */
-const title   = (row && get(row,"title")) || "Extra Area";
-const summary = (row && (get(row,"summary") || get(row,"seo_description"))) || "";
-const heroImg = (row && get(row,"hero_img")) || "/img/hero/fallback-1600x800.jpg";
+const title   = get(row,"title") || "Extra Area";
+const summary = get(row,"summary") || get(row,"seo_description") || "";
+const heroImg = get(row,"hero_img") || "/img/hero/fallback-1600x800.jpg";
 const hero    = heroPath(heroImg);
 
-const pageSeoTitle = (row && get(row,"seo_title")) || title;
-const pageSeoDesc  = (row && get(row,"seo_description")) || summary;
+const pageSeoTitle = get(row,"seo_title") || title;
+const pageSeoDesc  = get(row,"seo_description") || summary;
 
 /* ---------- RealtyVis embed (ID or pasted container) ---------- */
 const rawCta =
-  (row && (get(row,"cta1") || get(row,"rv_block"))) ||
+  (get(row,"cta1") || get(row,"rv_block")) ||
   (import.meta.env.PUBLIC_DEFAULT_RV_BLOCK || "");
 
 const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
@@ -91,28 +98,47 @@ const hasValidBlock = ID_RE.test(rvBlockId);
   )}
 
   <main class="container body">
-    {fetchError && (
-      <section class="error"><p>{fetchError}</p></section>
-    )}
-
-    {!fetchError && rawCta && (
+    {(rawCta) && (
       <section class="rv-wrap">
         <h2 class="h2">Current Listings</h2>
 
         {hasValidBlock ? (
-<RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
-
-
+          <div class="rv-host">
+            <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
+          </div>
         ) : (
           <div class="rv-fallback">
             <p>Listings are unavailable right now.</p>
             <p><a href="/search">Browse all listings</a></p>
           </div>
         )}
+
+        {/* ✅ Hover-to-warm connections for RealtyVis */}
+        {hasValidBlock && (
+          <script is:inline>
+{`(function(){
+  let warmed=false;
+  function warm(){
+    if(warmed) return; warmed=true;
+    new Image().src="https://app.realtyvis.com/favicon.ico";
+    new Image().src="https://cdn.realtyvis.com/favicon.ico";
+    try{
+      fetch("https://app.realtyvis.com/css/site.min.css",{mode:"no-cors"}).catch(()=>{});
+      fetch("https://app.realtyvis.com/js/site.min.js",{mode:"no-cors"}).catch(()=>{});
+    }catch(e){}
+  }
+  const host=document.querySelector(".rv-host")||document.querySelector(".rv-wrap");
+  if(!host) return;
+  ["pointerover","touchstart","focusin"].forEach(ev=>{
+    host.addEventListener(ev,warm,{once:true,passive:true});
+  });
+})();`}
+          </script>
+        )}
       </section>
     )}
 
-    {!fetchError && !rawCta && (
+    {!rawCta && (
       <section class="note">
         <p><strong>Heads-up:</strong> No <code>cta1</code>/<code>rv_block</code> set, and no <code>PUBLIC_DEFAULT_RV_BLOCK</code>.</p>
       </section>
@@ -137,7 +163,24 @@ const hasValidBlock = ID_RE.test(rvBlockId);
       border:1px solid #ffe69c; border-radius:10px; color:#5c3c00;
     }
 
-    /* RVEmbed ships its own skeleton; no extra shimmer needed here. */
+    /* Kill shimmer/skeletons coming from RV */
+    .rv-host [class*="skeleton"],
+    .rv-host [class*="Skeleton"],
+    .rv-host [class*="loading"],
+    .rv-host [data-skeleton],
+    .rv-host .rv-skeleton,
+    .rv-host .loading-skeleton,
+    .rv-host .rv-loading {
+      animation: none !important;
+      background: none !important;
+      background-image: none !important;
+      box-shadow: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    .rv-host * { animation-duration: 0s !important; transition: none !important; }
+
+    /* RVEmbed safety */
     .rv-html :where(iframe, div){ width:100% !important; }
   </style>
 </Site>

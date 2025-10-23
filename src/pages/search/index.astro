@@ -1,7 +1,9 @@
 ---
 // File: src/pages/search/index.astro
+export const prerender = true;
+
 import Site from "../../layouts/Site.astro";
-import RealtyVis from "../../components/RealtyVis.astro"; // ✅ Add this line
+import RVEmbed from "../../components/RVEmbed.astro"; // use the same embed component you use elsewhere
 
 const hero = "/img/hero/search_hero.webp"; // hardcoded
 const pageTitle = "Search Listings";
@@ -11,6 +13,10 @@ const pageSummary =
 const seo_title = "Search Fernie Real Estate Listings";
 const seo_description =
   "Live Fernie MLS® search: homes, condos, townhomes, investment properties. Filter and explore neighborhoods with up-to-date listings.";
+
+// Your RealtyVis block ID (keep or replace with env/default if you prefer)
+const rvBlockId = "MQP2VMLT-HDQLLMRY";
+const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
 ---
 
 <Site title={pageTitle} seo_title={seo_title} seo_description={seo_description}>
@@ -18,28 +24,52 @@ const seo_description =
     <link rel="preload" as="image" href={hero} fetchpriority="high" />
   </Fragment>
 
+  <div class="container intro">
+    <h1>{pageTitle}</h1>
+    <p>{pageSummary}</p>
+  </div>
 
+  <div class="container search-card">
+    <h2 class="h2">Live MLS® Search</h2>
 
+    {hasValidBlock ? (
+      <div class="rv-host">
+        <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
+      </div>
+    ) : (
+      <div class="rv-fallback">
+        <p>Search embed unavailable right now.</p>
+        <p><a href="/neighbourhoods">Browse by neighbourhood</a></p>
+      </div>
+    )}
 
-
-<div class="container cta">
-  <div data-rv-block="MQP2VMLT-HDQLLMRY"></div>
-</div>
-
-<style>
-  .cta {
-    margin-top: 90px;   /* 👈 this adds the top space */
-    margin-bottom: 24px; /* optional */
-    text-align: center;
+    {/* Hover-to-warm connections for RV */}
+    {hasValidBlock && (
+      <script is:inline>
+{`(function(){
+  let warmed=false;
+  function warm(){
+    if(warmed) return; warmed=true;
+    new Image().src="https://app.realtyvis.com/favicon.ico";
+    new Image().src="https://cdn.realtyvis.com/favicon.ico";
+    try{
+      fetch("https://app.realtyvis.com/css/site.min.css",{mode:"no-cors"}).catch(()=>{});
+      fetch("https://app.realtyvis.com/js/site.min.js",{mode:"no-cors"}).catch(()=>{});
+    }catch(e){}
   }
-</style>
-
-
+  const host=document.querySelector(".rv-host")||document.querySelector(".search-card");
+  if(!host) return;
+  ["pointerover","touchstart","focusin"].forEach(ev=>{
+    host.addEventListener(ev,warm,{once:true,passive:true});
+  });
+})();`}
+      </script>
+    )}
+  </div>
 
   <style>
-    .intro {
-      margin: 24px auto 20px;
-    }
+    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
+    .intro { margin: 90px auto 20px; } /* header offset + spacing */
     .intro h1 {
       font-size: 2.25rem;
       font-weight: 700;
@@ -50,6 +80,7 @@ const seo_description =
       font-size: 1rem;
       line-height: 1.6;
       color: #1f2937;
+      margin: 0;
     }
 
     .search-card {
@@ -62,20 +93,28 @@ const seo_description =
       overflow: hidden;
     }
 
-    .search-placeholder {
-      display: grid;
-      place-items: center;
-      height: 280px;
-      border: 1px dashed #d1d5db;
-      border-radius: 12px;
-      color: #6b7280;
-      background-image: repeating-linear-gradient(
-        -45deg,
-        #fafafa,
-        #fafafa 10px,
-        #f5f5f5 10px,
-        #f5f5f5 20px
-      );
+    .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 12px; }
+
+    .rv-fallback{
+      margin-top: 12px; padding:12px 16px; background:#fff3cd;
+      border:1px solid #ffe69c; border-radius:10px; color:#5c3c00;
     }
+
+    /* Kill shimmer/skeletons coming from RV */
+    .rv-host [class*="skeleton"],
+    .rv-host [class*="Skeleton"],
+    .rv-host [class*="loading"],
+    .rv-host [data-skeleton],
+    .rv-host .rv-skeleton,
+    .rv-host .loading-skeleton,
+    .rv-host .rv-loading {
+      animation: none !important;
+      background: none !important;
+      background-image: none !important;
+      box-shadow: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    .rv-host * { animation-duration: 0s !important; transition: none !important; }
   </style>
 </Site>

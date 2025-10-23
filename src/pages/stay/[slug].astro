@@ -14,7 +14,7 @@ const slugify = (v:string) =>
     .replace(/[^a-z0-9]+/g,"-")
     .replace(/^-+|-+$/g,"");
 
-/* ---------- static paths ---------- */
+/* ---------- static paths: return props to avoid refetch mismatch ---------- */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_STAY_JSON;
   if (!url) return [];
@@ -34,37 +34,26 @@ export async function getStaticPaths() {
     const rawSlug = String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase();
     const hidden  = status === "hidden" || status === "inactive" || rawSlug === "index";
     if (hidden) return null;
+
     const title  = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    const slug   = rawSlug || slugify(title);
-    return slug ? { params: { slug } } : null;
-  }).filter(Boolean) as { params: { slug: string } }[];
+    const slug   = (rawSlug || slugify(title)).toLowerCase();
+    return slug ? { params: { slug }, props: { row: r } } : null;
+  }).filter(Boolean) as any[];
 
   return items;
 }
 
-/* ---------- page data ---------- */
-const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
-const url = import.meta.env.PUBLIC_STAY_JSON;
-if (!url) throw new Error("Missing PUBLIC_STAY_JSON in .env (restart dev).");
-
-let row:any = null;
-try {
-  const raw = await getJson<any>(url);
-  const rows:any[] = Array.isArray(raw)
-    ? raw
-    : Array.isArray(raw?.data) ? raw.data
-    : Array.isArray(raw?.rows) ? raw.rows
-    : [];
-  row = rows.find((r:any) => {
-    const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase();
-    const title   = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    return (rawSlug || slugify(title)) === slugParam;
-  });
-} catch (e) {
-  console.error("[stay slug] JSON fetch failed:", e);
-}
-
-if (!row) throw new Error(`Stay slug not found: ${slugParam}`);
+/* ---------- page data: use props; do not throw ---------- */
+type Row = {
+  title?: string; Title?: string; TITLE?: string;
+  summary?: string; Summary?: string; SUMMARY?: string;
+  long_copy?: string; longcopy?: string; LongCopy?: string;
+  hero_img?: string; heroImg?: string; HeroImg?: string;
+  seo_title?: string; seoTitle?: string;
+  seo_description?: string; seoDescription?: string;
+};
+const { row: rowIn } = Astro.props as { row?: Row };
+const row = rowIn ?? ({} as Row);
 
 /* ---------- fields ---------- */
 const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Where to Stay in Fernie").trim();
@@ -106,7 +95,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     </div>
   )}
 
-  <!-- 🧭 RealtyNinja embed (no extra loaders, just their script) -->
+  <!-- 🧭 RealtyNinja embed (kept simple; warm on intent) -->
   <div id="rn-wrap" class="container">
     <div id="rn-shell" class="rn-shell" aria-busy="true">
       <!-- skeleton shimmer -->
@@ -125,6 +114,27 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       <script src="https://s.realtyninja.com/static/js/prod/embed.min.js" type="module" defer></script>
     </div>
   </div>
+
+  <!-- ✅ Hover-to-warm for RealtyNinja (TLS + tiny asset fetch) -->
+  <script is:inline>
+    (function(){
+      let warmed=false;
+      function warm(){
+        if(warmed) return; warmed=true;
+        new Image().src="https://s.realtyninja.com/favicon.ico";
+        try{
+          fetch("https://s.realtyninja.com/static/js/prod/embed.min.js",{mode:"no-cors"}).catch(()=>{});
+          // if they split CSS, this is harmless; otherwise no-op
+          fetch("https://s.realtyninja.com/static/css/prod/embed.min.css",{mode:"no-cors"}).catch(()=>{});
+        }catch(e){}
+      }
+      const host = document.getElementById("rn-wrap") || document.querySelector(".rn-shell");
+      if(!host) return;
+      ["pointerover","touchstart","focusin"].forEach(ev=>{
+        host.addEventListener(ev,warm,{once:true,passive:true});
+      });
+    })();
+  </script>
 
   <style>
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }

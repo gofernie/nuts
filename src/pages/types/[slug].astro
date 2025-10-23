@@ -15,7 +15,7 @@ const slugify = (v:string) =>
     .replace(/[^a-z0-9]+/g,"-")
     .replace(/^-+|-+$/g,"");
 
-/* ---------- static paths ---------- */
+/* ---------- static paths: return props to avoid refetch mismatch ---------- */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_TYPES_JSON;
   if (!url) return [];
@@ -35,33 +35,25 @@ export async function getStaticPaths() {
     if (hidden) return null;
 
     const title  = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    const slug   = rawSlug || slugify(title);
-    return slug ? { params: { slug } } : null;
-  }).filter(Boolean) as { params: { slug: string } }[];
+    const slug   = (rawSlug || slugify(title)).toLowerCase();
+    return slug ? { params: { slug }, props: { row: r } } : null;
+  }).filter(Boolean) as any[];
 
   return items;
 }
 
-/* ---------- page data ---------- */
-const slugParam = (Astro.params.slug || "").toString().trim().toLowerCase();
-const url = import.meta.env.PUBLIC_TYPES_JSON;
-if (!url) throw new Error("Missing PUBLIC_TYPES_JSON in .env (restart dev).");
-
-let row:any = null;
-try {
-  const raw = await getJson<any>(url);
-  const rows:any[] = Array.isArray(raw) ? raw
-    : Array.isArray(raw?.data) ? raw.data
-    : Array.isArray(raw?.rows) ? raw.rows : [];
-
-  row = rows.find((r:any) => {
-    const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase();
-    const title   = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    return (rawSlug || slugify(title)) === slugParam;
-  });
-} catch (e) { console.error("[types slug] JSON fetch failed:", e); }
-
-if (!row) throw new Error(`Type slug not found: ${slugParam}`);
+/* ---------- page data: use props; do not refetch/throw ---------- */
+type Row = {
+  title?: string; Title?: string; TITLE?: string;
+  summary?: string; Summary?: string; SUMMARY?: string;
+  long_copy?: string; longcopy?: string; LongCopy?: string;
+  hero_img?: string; heroImg?: string; HeroImg?: string;
+  seo_title?: string; seoTitle?: string;
+  seo_description?: string; seoDescription?: string;
+  cta1?: string; rv_block?: string; slug?: string; status?: string;
+};
+const { row: rowIn } = Astro.props as { row?: Row };
+const row = rowIn ?? ({} as Row);
 
 /* ---------- fields ---------- */
 const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Property Type").trim();
@@ -121,16 +113,37 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       <h2 class="h2">Current Listings</h2>
 
       {hasValidBlock ? (
-        <!-- ✅ Lazy, one-time RealtyVis render -->
-<RVEmbed block={rvBlockId} className="container" minHeight="1000px" showSkeleton={false} />
-
-
+        <div class="rv-host">
+          <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
+        </div>
       ) : (
-        <!-- Fallback if no usable block id -->
         <div class="rv-fallback">
           <p>Listings are unavailable right now.</p>
           <p><a href="/search">Browse all listings</a></p>
         </div>
+      )}
+
+      {/* ✅ Hover-to-warm connections for RealtyVis */}
+      {hasValidBlock && (
+        <script is:inline>
+{`(function(){
+  let warmed=false;
+  function warm(){
+    if(warmed) return; warmed=true;
+    new Image().src="https://app.realtyvis.com/favicon.ico";
+    new Image().src="https://cdn.realtyvis.com/favicon.ico";
+    try{
+      fetch("https://app.realtyvis.com/css/site.min.css",{mode:"no-cors"}).catch(()=>{});
+      fetch("https://app.realtyvis.com/js/site.min.js",{mode:"no-cors"}).catch(()=>{});
+    }catch(e){}
+  }
+  const host=document.querySelector(".rv-host")||document.querySelector(".listings-wrap");
+  if(!host) return;
+  ["pointerover","touchstart","focusin"].forEach(ev=>{
+    host.addEventListener(ev,warm,{once:true,passive:true});
+  });
+})();`}
+        </script>
       )}
     </div>
   )}
@@ -168,5 +181,22 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       color:#666; background:#fafafa; border:1px solid #eee;
       padding:12px 14px; border-radius:8px; margin-top:16px;
     }
+
+    /* Kill shimmer/skeletons coming from RV */
+    .rv-host [class*="skeleton"],
+    .rv-host [class*="Skeleton"],
+    .rv-host [class*="loading"],
+    .rv-host [data-skeleton],
+    .rv-host .rv-skeleton,
+    .rv-host .loading-skeleton,
+    .rv-host .rv-loading {
+      animation: none !important;
+      background: none !important;
+      background-image: none !important;
+      box-shadow: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    .rv-host * { animation-duration: 0s !important; transition: none !important; }
   </style>
 </Site>

@@ -1,11 +1,9 @@
 ---
 // src/pages/index.astro
-
 import Site from "../layouts/Site.astro";
 import { getJson } from "../lib/fetchJson";
 import { heroPath } from "../lib/paths";
 export const prerender = true;
-
 
 const homeUrl = import.meta.env.PUBLIC_HOME_JSON;
 const listUrl = import.meta.env.PUBLIC_SHEET_JSON;
@@ -80,7 +78,7 @@ try {
 
 /* ---- Random neighbourhoods (always include Ski Hill) ---- */
 const MAX_NEIGH_CARDS = 6;
-const MUST_SLUGS = new Set(["skihill","ski-hill","fernie-ski-hill","ski-hill-condos"]); // tweak if needed
+const MUST_SLUGS = new Set(["skihill","ski-hill","fernie-ski-hill","ski-hill-condos"]);
 
 function chooseNeighbourCards(list: Row[], max = MAX_NEIGH_CARDS): Row[] {
   if (!list.length) return [];
@@ -88,7 +86,6 @@ function chooseNeighbourCards(list: Row[], max = MAX_NEIGH_CARDS): Row[] {
   const must = list.find(r => MUST_SLUGS.has(lower(r.slug||"")) || /ski.*hill/.test(lower(r.slug||"")));
   const rest = list.filter(r => r !== must);
 
-  // shuffle rest
   const a = [...rest];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -122,7 +119,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     </Fragment>
   )}
 
-  <!-- HERO (summary moved BELOW hero per request) -->
+  <!-- HERO -->
   <section class="hero-bleed">
     {heroSrc && (
       <img
@@ -140,7 +137,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     </div>
   </section>
 
-  <!-- Summary under hero -->
+  <!-- Summary under hero (now full container width) -->
   {header?.summary && (
     <div class="container">
       <section class="section">
@@ -170,7 +167,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       </a>
     </section>
 
-    <!-- NEW LISTINGS (with shimmer) -->
+    <!-- NEW LISTINGS (no shimmer; hover-to-warm + skeleton-kill CSS) -->
     <section class="section">
       <div class="section-head">
         <h2>New Listings</h2>
@@ -181,18 +178,34 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
         <p class="error">Error: {error}</p>
       ) : header?.cta1 ? (
         <div class="listing-wrap">
-          <!-- Shimmer skeleton until RV paints -->
-          <div class="listing-skeleton" id="rv-skeleton" aria-hidden="true">
-            <div class="sk-card"></div>
-            <div class="sk-card"></div>
-            <div class="sk-card"></div>
+          <div class="rv-host">
+            {
+              /[<>]/.test(header.cta1)
+                ? <Fragment set:html={header.cta1}></Fragment>
+                : <div data-rv-block={header.cta1}></div>
+            }
           </div>
 
-          {
-            /[<>]/.test(header.cta1)
-              ? <Fragment set:html={header.cta1}></Fragment>
-              : <div data-rv-block={header.cta1}></div>
-          }
+          <!-- Hover-to-warm connections for RealtyVis -->
+          <script is:inline>
+{`(function(){
+  let warmed=false;
+  function warm(){
+    if(warmed) return; warmed=true;
+    new Image().src="https://app.realtyvis.com/favicon.ico";
+    new Image().src="https://cdn.realtyvis.com/favicon.ico";
+    try{
+      fetch("https://app.realtyvis.com/css/site.min.css",{mode:"no-cors"}).catch(()=>{});
+      fetch("https://app.realtyvis.com/js/site.min.js",{mode:"no-cors"}).catch(()=>{});
+    }catch(e){}
+  }
+  const host=document.querySelector(".rv-host")||document.querySelector(".listing-wrap");
+  if(!host) return;
+  ["pointerover","touchstart","focusin"].forEach(ev=>{
+    host.addEventListener(ev,warm,{once:true,passive:true});
+  });
+})();`}
+          </script>
         </div>
       ) : (
         <p class="muted">
@@ -228,7 +241,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       </div>
     </section>
 
-    <!-- NEIGHBOURHOODS TEASER (random + always ski hill) -->
+    <!-- NEIGHBOURHOODS TEASER -->
     {items.length > 0 && (
       <section class="section">
         <div class="section-head">
@@ -282,20 +295,6 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
   </div>
 
   <script>
-    // Remove RV shimmer once RealtyVis injects content
-    (function(){
-      const sk = document.getElementById('rv-skeleton');
-      if (!sk) return;
-      const kill = () => sk.remove();
-      const obs = new MutationObserver(() => {
-        const rv =
-          document.querySelector('[data-rv-block] .rv-root, .rv-root, iframe[src*="realtyvis"], [data-rv-mounted]');
-        if (rv) { kill(); obs.disconnect(); }
-      });
-      obs.observe(document.body, { childList: true, subtree: true });
-      setTimeout(kill, 9000); // safety timeout
-    })();
-
     // Weather + Snow (Open-Meteo)
     function renderWeather() {
       const lat = {WX_LAT};
@@ -368,8 +367,8 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     }
     .hero-overlay h1 { font-size: clamp(2.5rem, 6vw, 4.75rem); line-height: 1.1; margin: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: -0.01em; }
 
-    /* Summary under hero */
-    .lead-under-hero { font-size: clamp(1rem, 2.4vw, 1.15rem); line-height: 1.6; color: #1f2937; max-width: 75ch; }
+    /* Summary under hero — now full container width (no max-width clamp) */
+    .lead-under-hero { font-size: clamp(1rem, 2.4vw, 1.15rem); line-height: 1.6; color: #1f2937; }
 
     .section { margin: 28px 0 40px; }
     .section-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:12px; }
@@ -384,11 +383,23 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .tile-ico { font-size: 1.3rem; }
     .tile-title { font-weight: 700; margin: 6px 0 4px; }
 
-    /* LISTINGS + SHIMMER */
+    /* LISTINGS — no local shimmer; also kill any third-party shimmer via CSS */
     .listing-wrap { position: relative; min-height: 160px; }
-    .listing-skeleton { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
-    .sk-card { height: 180px; border-radius: 12px; background: linear-gradient(90deg,#f4f4f4 25%,#ececec 37%,#f4f4f4 63%); background-size: 400% 100%; animation: shimmer 1.4s infinite; border:1px solid #eee; }
-    @keyframes shimmer { 0%{background-position: 100% 0} 100%{background-position: -100% 0} }
+    .rv-host [class*="skeleton"],
+    .rv-host [class*="Skeleton"],
+    .rv-host [class*="loading"],
+    .rv-host [data-skeleton],
+    .rv-host .rv-skeleton,
+    .rv-host .loading-skeleton,
+    .rv-host .rv-loading {
+      animation: none !important;
+      background: none !important;
+      background-image: none !important;
+      box-shadow: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    .rv-host * { animation-duration: 0s !important; transition: none !important; }
 
     /* FEATURE */
     .feature { background: #fff; border:1px solid #eee; border-radius: 14px; }
@@ -400,10 +411,10 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .cta:hover { opacity: .9; }
     @media (max-width: 900px) { .feature-inner { grid-template-columns: 1fr; } }
 
-    /* NEIGHBOURHOODS GRID — cloned lift from your other static cards */
+    /* NEIGHBOURHOODS GRID */
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
     .card { display:flex; flex-direction:column; background:#fff; border:1px solid #eee; border-radius:12px; overflow:hidden; text-decoration:none; color:inherit; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transform: translateY(0); transition: transform .25s ease, box-shadow .25s ease; }
-    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); } /* ← “softer drop” clone */
+    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
     .thumb { aspect-ratio: 16/9; background:#f6f6f6; display:grid; place-items:center; }
     .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
     .ph { font-size:12px; color:#999; }
@@ -429,5 +440,6 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .wx-note { display:block; margin-top:8px; color:#777; font-size:.75rem; }
 
     .muted { color:#6b7280; }
+    .error { color:#b91c1c; }
   </style>
 </Site>
