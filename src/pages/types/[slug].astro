@@ -122,7 +122,9 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 
       {hasValidBlock ? (
         <!-- ✅ Lazy, one-time RealtyVis render -->
-        <RVEmbed block={rvBlockId} minHeight="1000px" />
+<RVEmbed block={rvBlockId} className="container" minHeight="1000px" showSkeleton={false} />
+
+
       ) : (
         <!-- Fallback if no usable block id -->
         <div class="rv-fallback">

@@ -123,7 +123,8 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       <h2 class="h2">Current Listings</h2>
 
       {hasValidBlock ? (
-        <RVEmbed block={rvBlockId} minHeight="1000px" />
+      <RVEmbed block={rvBlockId} className="container" minHeight="1000px" showSkeleton={false} />
+
       ) : (
         <div class="rv-fallback">
           <p>Listings are unavailable right now.</p>
