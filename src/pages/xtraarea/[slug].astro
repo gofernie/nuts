@@ -8,8 +8,8 @@ import RVEmbed from "../../components/RVEmbed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-/* ---------- helpers ---------- */
-const get = (r:any,k:string)=>
+/* ---------- helpers (define BEFORE getStaticPaths) ---------- */
+const getField = (r:any,k:string)=>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
 const slugify = (s:string)=> (s ?? "")
@@ -39,12 +39,12 @@ export async function getStaticPaths() {
   }
 
   const items = rows.map((r:any) => {
-    const status  = get(r,"status").toLowerCase();
-    const rawSlug = get(r,"slug").toLowerCase();
+    const status  = getField(r,"status").toLowerCase();
+    const rawSlug = getField(r,"slug").toLowerCase();
     const hidden  = status === "hidden" || status === "inactive" || rawSlug === "index";
     if (hidden) return null;
 
-    const title = get(r,"title");
+    const title = getField(r,"title");
     const slug  = (rawSlug || slugify(title)).toLowerCase();
     return slug ? { params: { slug }, props: { row: r } } : null;
   }).filter(Boolean) as any[];
@@ -58,17 +58,17 @@ const { row: rowIn } = Astro.props as { row?: Row };
 const row = rowIn ?? ({} as Row);
 
 /* ---------- derived props ---------- */
-const title   = get(row,"title") || "Extra Area";
-const summary = get(row,"summary") || get(row,"seo_description") || "";
-const heroImg = get(row,"hero_img") || "/img/hero/fallback-1600x800.jpg";
+const title   = getField(row,"title") || "Extra Area";
+const summary = getField(row,"summary") || getField(row,"seo_description") || "";
+const heroImg = getField(row,"hero_img") || "/img/hero/fallback-1600x800.jpg";
 const hero    = heroPath(heroImg);
 
-const pageSeoTitle = get(row,"seo_title") || title;
-const pageSeoDesc  = get(row,"seo_description") || summary;
+const pageSeoTitle = getField(row,"seo_title") || title;
+const pageSeoDesc  = getField(row,"seo_description") || summary;
 
 /* ---------- RealtyVis embed (ID or pasted container) ---------- */
 const rawCta =
-  (get(row,"cta1") || get(row,"rv_block")) ||
+  (getField(row,"cta1") || getField(row,"rv_block")) ||
   (import.meta.env.PUBLIC_DEFAULT_RV_BLOCK || "");
 
 const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
@@ -113,7 +113,7 @@ const hasValidBlock = ID_RE.test(rvBlockId);
           </div>
         )}
 
-        {/* ✅ Hover-to-warm connections for RealtyVis */}
+        {/* Hover-to-warm connections for RealtyVis */}
         {hasValidBlock && (
           <script is:inline>
 {`(function(){
@@ -156,8 +156,6 @@ const hasValidBlock = ID_RE.test(rvBlockId);
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
 
     .note{ color:#666; background:#fafafa; border:1px solid #eee; padding:12px 14px; border-radius:8px; }
-    .error{ border:1px solid #d33; background:#fff5f5; color:#600; padding:12px 14px; border-radius:8px; }
-
     .rv-fallback{
       margin-top: 12px; padding:12px 16px; background:#fff3cd;
       border:1px solid #ffe69c; border-radius:10px; color:#5c3c00;
