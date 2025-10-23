@@ -8,6 +8,7 @@ import path from 'node:path';
 const isDev = process.argv.includes('dev');
 const isCI  = !!process.env.CI || !!process.env.NETLIFY;
 
+// Optional HTTPS for local dev
 const useHttps = isDev && !isCI;
 let httpsConfig = undefined;
 if (useHttps) {
@@ -26,18 +27,13 @@ if (useHttps) {
 export default defineConfig({
   site: 'https://fernie.homes',
 
-  // Keep SSR for routes that need it
-  output: 'server',
+  // ✅ switched from SSR to fully static
+  output: 'static',
 
-  // Use Netlify adapter only in CI/prod
-  adapter: isDev ? undefined : netlify({ devMiddleware: false }),
+  // Netlify adapter is optional, but fine to keep for static hosting
+  adapter: netlify(),
 
-  // ✅ NEW: prerender just the homepage so it’s CDN-cached and avoids cold starts
-  prerender: {
-    routes: ['/', '/index'],   // ensure the root gets built as static HTML
-    crawl: true,               // still statically discover other safe pages
-  },
-
+  // No need for prerender routes — the entire site is prerendered automatically
   integrations: [
     sitemap({ changefreq: 'weekly' }),
   ],
