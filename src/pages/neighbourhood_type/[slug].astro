@@ -90,8 +90,7 @@ const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
-const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
-
+const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
 function stripScripts(html:string) {
   return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
 }
@@ -100,7 +99,8 @@ function extractRvId(html:string) {
   const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
   return m?.[1] || "";
 }
-const rvBlockId = isRvId ? rawCta : extractRvId(rawCta);
+const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
+const hasValidBlock = ID_RE.test(rvBlockId);
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
@@ -129,18 +129,13 @@ const rvBlockId = isRvId ? rawCta : extractRvId(rawCta);
     <div class="container listings-wrap">
       <h2 class="h2">Current {title} Listings</h2>
 
-      {rvBlockId
-        ? (
-            // ✅ Lazy, one-time, tab-restore-friendly loader
-            <RVEmbed block={rvBlockId} className="container" minHeight="1000px" />
-          )
-        : (
-            // Fallback: if no block id could be parsed, show a gentle notice
-            <div class="rv-fallback">
-              <p>Listings are unavailable right now.</p>
-            </div>
-          )
-      }
+      {hasValidBlock ? (
+        <RVEmbed block={rvBlockId} minHeight="1000px" />
+      ) : (
+        <div class="rv-fallback">
+          <p><strong>Heads-up:</strong> Listings are unavailable for this page right now.</p>
+        </div>
+      )}
     </div>
   )}
 

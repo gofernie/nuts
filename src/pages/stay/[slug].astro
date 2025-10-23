@@ -106,7 +106,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     </div>
   )}
 
-  <!-- 🧭 RealtyNinja embed -->
+  <!-- 🧭 RealtyNinja embed (no extra loaders, just their script) -->
   <div id="rn-wrap" class="container">
     <div id="rn-shell" class="rn-shell" aria-busy="true">
       <!-- skeleton shimmer -->
@@ -121,6 +121,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
         data-path="555"
         style="min-height:95vh;"
       ></div>
+      <!-- RN's official loader -->
       <script src="https://s.realtyninja.com/static/js/prod/embed.min.js" type="module" defer></script>
     </div>
   </div>
@@ -161,26 +162,45 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     }
   </style>
 
-  <script>
+  <script is:inline>
     (function(){
-      const shell = document.getElementById("rn-shell");
-      const skeleton = document.getElementById("rn-skeleton");
+      var shell = document.getElementById("rn-shell");
+      var skeleton = document.getElementById("rn-skeleton");
+      if (!shell) return;
 
-      const obs = new MutationObserver(()=>{
-        const iframe = shell.querySelector("iframe");
-        if (iframe) {
-          iframe.style.width = "100%";
-          iframe.style.maxWidth = "100%";
-          iframe.style.display = "block";
-          iframe.style.margin = "0 auto";
-          skeleton?.remove();
-          obs.disconnect();
+      function clearSkeleton(){
+        try { skeleton && skeleton.parentNode && skeleton.parentNode.removeChild(skeleton); } catch(_) {}
+        try { shell.removeAttribute("aria-busy"); } catch(_) {}
+      }
+
+      // Remove shimmer once RN injects its iframe
+      try {
+        var mo = new MutationObserver(function(){
+          var iframe = shell.querySelector("iframe");
+          if (iframe) {
+            try {
+              iframe.style.width = "100%";
+              iframe.style.maxWidth = "100%";
+              iframe.style.display = "block";
+              iframe.style.margin = "0 auto";
+            } catch(_) {}
+            clearSkeleton();
+            mo.disconnect();
+          }
+        });
+        mo.observe(shell, { childList: true, subtree: true });
+      } catch(_) {}
+
+      // BFCache restore: RN may not re-fire, so just clear if it already mounted
+      window.addEventListener("pageshow", function(e){
+        if (!shell) return;
+        if (e && e.persisted) {
+          if (shell.querySelector("iframe")) clearSkeleton();
         }
       });
 
-      obs.observe(shell, { childList: true, subtree: true });
-      // fallback cleanup after 12s
-      setTimeout(()=> skeleton?.remove(), 12000);
+      // hard-stop after 12s (prevents endless shimmer if RN blocked)
+      setTimeout(clearSkeleton, 12000);
     })();
   </script>
 </Site>

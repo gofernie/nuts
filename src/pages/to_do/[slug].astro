@@ -86,9 +86,7 @@ const rawCta =
   String(indexRow?.cta1 ?? indexRow?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
-const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
-
-/* sanitize & extract block id */
+const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
 function stripScripts(html:string) {
   return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
 }
@@ -97,7 +95,8 @@ function extractRvId(html:string) {
   const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
   return m?.[1] || "";
 }
-const rvBlockId = isRvId ? rawCta : extractRvId(rawCta);
+const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
+const hasValidBlock = ID_RE.test(rvBlockId);
 
 /* hero preload hook */
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
@@ -129,19 +128,14 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     <div class="container listings-wrap">
       <h2 class="h2">Current Fernie Listings</h2>
 
-      {rvBlockId
-        ? (
-            <!-- ✅ Lazy, one-time RealtyVis render (IO/idle/interaction) -->
-            <RVEmbed block={rvBlockId} className="container" minHeight="1000px" />
-          )
-        : (
-            <!-- Fallback if INDEX row's cta1 didn't contain a usable block id -->
-            <div class="rv-fallback">
-              <p>Listings are unavailable right now.</p>
-              <p><a href="/search">Browse all listings</a></p>
-            </div>
-          )
-      }
+      {hasValidBlock ? (
+        <RVEmbed block={rvBlockId} minHeight="1000px" />
+      ) : (
+        <div class="rv-fallback">
+          <p>Listings are unavailable right now.</p>
+          <p><a href="/search">Browse all listings</a></p>
+        </div>
+      )}
     </div>
   )}
 
@@ -165,6 +159,9 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       border:1px solid #ffe69c; border-radius:10px; color:#5c3c00;
     }
 
-    .note{ color:#666; background:#fafafa; border:1px solid #eee; padding:12px 14px; border-radius:8px; margin-top:16px; }
+    .note{
+      color:#666; background:#fafafa; border:1px solid #eee;
+      padding:12px 14px; border-radius:8px; margin-top:16px;
+    }
   </style>
 </Site>

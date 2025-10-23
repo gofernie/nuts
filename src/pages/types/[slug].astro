@@ -84,17 +84,15 @@ const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
-const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
-
-function stripScripts(html:string) {
-  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
-}
+const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
+function stripScripts(html:string) { return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ""); }
 function extractRvId(html:string) {
   const clean = stripScripts(html);
   const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
   return m?.[1] || "";
 }
-const rvBlockId = isRvId ? rawCta : extractRvId(rawCta);
+const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
+const hasValidBlock = ID_RE.test(rvBlockId);
 
 /* ---------- hero preload hint ---------- */
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
@@ -122,19 +120,16 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     <div class="container listings-wrap">
       <h2 class="h2">Current Listings</h2>
 
-      {rvBlockId
-        ? (
-            <!-- ✅ Lazy, one-time RealtyVis render -->
-            <RVEmbed block={rvBlockId} className="container" minHeight="1000px" />
-          )
-        : (
-            <!-- Fallback if no usable block id -->
-            <div class="rv-fallback">
-              <p>Listings are unavailable right now.</p>
-              <p><a href="/search">Browse all listings</a></p>
-            </div>
-          )
-      }
+      {hasValidBlock ? (
+        <!-- ✅ Lazy, one-time RealtyVis render -->
+        <RVEmbed block={rvBlockId} minHeight="1000px" />
+      ) : (
+        <!-- Fallback if no usable block id -->
+        <div class="rv-fallback">
+          <p>Listings are unavailable right now.</p>
+          <p><a href="/search">Browse all listings</a></p>
+        </div>
+      )}
     </div>
   )}
 

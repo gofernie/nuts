@@ -86,12 +86,13 @@ const NAV_ORDER = [
     <title>{seo_title}</title>
     {metaDescription && <meta name="description" content={metaDescription} />}
 
-    <!-- 🚀 RealtyVis performance hints (kept global if desired, or move to page slot) -->
+    <!-- 🚀 perf hints -->
     <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin>
     <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
-    <link rel="prefetch" href="https://cdn.realtyvis.com/js/embed.js" as="script">
+    <link rel="dns-prefetch" href="https://api.realtyvis.com">
+    <link rel="preconnect" href="https://api.realtyvis.com" crossorigin>
 
-    <!-- ✅ Optional hero responsive preload -->
+    <!-- ✅ preload hero (when provided) -->
     {heroPreload && (
       <link
         rel="preload"
@@ -114,7 +115,7 @@ const NAV_ORDER = [
       }
     </style>
 
-    <!-- ✨ global styles (your existing) -->
+    <!-- ✨ global styles -->
     <style is:global>
       :root {
         --header-h: 52px;
@@ -160,6 +161,10 @@ const NAV_ORDER = [
     </script>
 
     <script is:inline src="/js/smooth-anchors.js"></script>
+
+    <!-- 🧭 RealtyVis — load globally so embeds never hang -->
+    <link rel="preload" href="https://cdn.realtyvis.com/js/embed.js" as="script">
+    <script src="https://cdn.realtyvis.com/js/embed.js" async></script>
   </head>
 
   <body class={bodyClass}>
@@ -207,6 +212,6 @@ const NAV_ORDER = [
       </div>
     </footer>
 
-    
+    <!-- NOTE: removed all conditional RV loaders here on purpose -->
   </body>
 </html>

@@ -64,14 +64,15 @@ const rawCta =
   (row && (get(row,"cta1") || get(row,"rv_block"))) ||
   (import.meta.env.PUBLIC_DEFAULT_RV_BLOCK || "");
 
-const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
+const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
 function stripScripts(html:string) { return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ""); }
 function extractRvId(html:string) {
   const clean = stripScripts(html);
   const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
   return m?.[1] || "";
 }
-const rvBlockId = isRvId ? rawCta : extractRvId(rawCta);
+const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
+const hasValidBlock = ID_RE.test(rvBlockId);
 ---
 
 <Site showHeader={true} title={title} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
@@ -98,19 +99,14 @@ const rvBlockId = isRvId ? rawCta : extractRvId(rawCta);
       <section class="rv-wrap">
         <h2 class="h2">Current Listings</h2>
 
-        {rvBlockId
-          ? (
-              <!-- ✅ Lazy, one-time RealtyVis render (IO/idle/interaction) -->
-              <RVEmbed block={rvBlockId} className="container" minHeight="1000px" />
-            )
-          : (
-              <!-- Fallback if we could not parse a usable block id -->
-              <div class="rv-fallback">
-                <p>Listings are unavailable right now.</p>
-                <p><a href="/search">Browse all listings</a></p>
-              </div>
-            )
-        }
+        {hasValidBlock ? (
+          <RVEmbed block={rvBlockId} minHeight="1000px" />
+        ) : (
+          <div class="rv-fallback">
+            <p>Listings are unavailable right now.</p>
+            <p><a href="/search">Browse all listings</a></p>
+          </div>
+        )}
       </section>
     )}
 
@@ -139,8 +135,7 @@ const rvBlockId = isRvId ? rawCta : extractRvId(rawCta);
       border:1px solid #ffe69c; border-radius:10px; color:#5c3c00;
     }
 
-    /* If your older CSS targeted .rv-slot shimmer, RVEmbed ships its own skeleton,
-       so no extra shimmer needed here. Keep any global styles if desired. */
+    /* RVEmbed ships its own skeleton; no extra shimmer needed here. */
     .rv-html :where(iframe, div){ width:100% !important; }
   </style>
 </Site>
