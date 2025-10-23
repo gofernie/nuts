@@ -3,7 +3,7 @@
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import RVEmbed from "../../components/RVEmbed.astro"; // use the same embed component you use elsewhere
+import RVEmbed from "../../components/RVEmbed.astro";
 
 const hero = "/img/hero/search_hero.webp"; // hardcoded
 const pageTitle = "Search Listings";
@@ -14,7 +14,6 @@ const seo_title = "Search Fernie Real Estate Listings";
 const seo_description =
   "Live Fernie MLS® search: homes, condos, townhomes, investment properties. Filter and explore neighborhoods with up-to-date listings.";
 
-// Your RealtyVis block ID (keep or replace with env/default if you prefer)
 const rvBlockId = "MQP2VMLT-HDQLLMRY";
 const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
 ---
@@ -42,29 +41,6 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
         <p><a href="/neighbourhoods">Browse by neighbourhood</a></p>
       </div>
     )}
-
-    {/* Hover-to-warm connections for RV */}
-    {hasValidBlock && (
-      <script is:inline>
-{`(function(){
-  let warmed=false;
-  function warm(){
-    if(warmed) return; warmed=true;
-    new Image().src="https://app.realtyvis.com/favicon.ico";
-    new Image().src="https://cdn.realtyvis.com/favicon.ico";
-    try{
-      fetch("https://app.realtyvis.com/css/site.min.css",{mode:"no-cors"}).catch(()=>{});
-      fetch("https://app.realtyvis.com/js/site.min.js",{mode:"no-cors"}).catch(()=>{});
-    }catch(e){}
-  }
-  const host=document.querySelector(".rv-host")||document.querySelector(".search-card");
-  if(!host) return;
-  ["pointerover","touchstart","focusin"].forEach(ev=>{
-    host.addEventListener(ev,warm,{once:true,passive:true});
-  });
-})();`}
-      </script>
-    )}
   </div>
 
   <style>
@@ -75,14 +51,16 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
     }
 
     .intro {
-      margin: 90px auto 20px; /* header offset + spacing */
+      margin: 90px auto 20px;
     }
+
     .intro h1 {
       font-size: 2.25rem;
       font-weight: 700;
       margin: 0 0 8px;
       color: #111827;
     }
+
     .intro p {
       font-size: 1rem;
       line-height: 1.6;
@@ -114,7 +92,7 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
       color: #5c3c00;
     }
 
-    /* 🧭 Center the RealtyVis search block */
+    /* keep it centered */
     .rv-host .rv-root,
     .rv-host .rv-container,
     .rv-host .rv-shell {
@@ -124,7 +102,7 @@ const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
       display: block;
     }
 
-    /* Kill shimmer/skeletons coming from RV */
+    /* kill shimmer */
     .rv-host [class*="skeleton"],
     .rv-host [class*="Skeleton"],
     .rv-host [class*="loading"],
