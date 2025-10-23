@@ -4,6 +4,7 @@ export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
+import RVEmbed from "../../components/RVEmbed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
@@ -88,44 +89,18 @@ const isRvId = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rawCta);
 function stripScripts(html:string) {
   return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
 }
-function extractRvContainer(html:string) {
+function extractRvId(html:string) {
   const clean = stripScripts(html);
-  const m = clean.match(
-    /<div[^>]*\sdata-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?[^>]*>\s*<\/div>/i
-  );
-  return m?.[0] || "";
+  const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
+  return m?.[1] || "";
 }
-
-const containerHtml = isRvId
-  ? `<div data-rv-block="${rawCta}"></div>`
-  : extractRvContainer(rawCta);
-
-const RV_URL = import.meta.env.PUBLIC_RV_SCRIPT || "https://cdn.realtyvis.com/js/embed.js";
+const rvBlockId = isRvId ? rawCta : extractRvId(rawCta);
 
 /* ---------- hero preload hint ---------- */
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
-  <!-- 🔌 Optional safety: if the layout isn’t loading RV conditionally, load it here once -->
-  <Fragment slot="head">
-    <script is:inline>
-      (function(){
-        if (window.RealtyVis || window.__rvScriptLoaded || window.__rvScriptLoading) return;
-        window.__rvScriptLoading = true;
-        var s = document.createElement("script");
-        s.src = {JSON.stringify(RV_URL)};
-        s.async = true;
-        s.onload = function(){
-          window.__rvScriptLoaded = true;
-          try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(e){}
-        };
-        s.onerror = function(e){ console.error("RealtyVis failed to load", e); window.__rvScriptLoading = false; };
-        document.head.appendChild(s);
-      })();
-    </script>
-  </Fragment>
-
   <HeroBleed
     src={heroImg ? heroPath(heroImg) : ""}
     title={title}
@@ -147,44 +122,19 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     <div class="container listings-wrap">
       <h2 class="h2">Current Listings</h2>
 
-      <!-- Render sanitized container -->
-      <div id="rv-root" class="rv-slot" set:html={containerHtml}></div>
-
-      <!-- Rescan & light empty handling -->
-      <script is:inline>
-        (function(){
-          const root = document.getElementById('rv-root');
-          const rescan = ()=> { try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(_){} };
-          const mounted = ()=> !!root.querySelector('[data-rv-card], .rv-card, [data-rv-mounted]');
-          const count = ()=> root.querySelectorAll('[data-rv-card], .rv-card').length;
-
-          function maybeEmptyNotice(){
-            if (!mounted()) return;
-            if (count() === 0 && !document.getElementById('rv-empty')) {
-              root.insertAdjacentHTML('afterend',
-                `<div id="rv-empty" class="rv-empty">
-                   <div class="rv-empty__card">
-                     <div class="rv-empty__title">No active listings right now</div>
-                     <p class="rv-empty__text">Try a broader search or check back soon.</p>
-                     <a class="btn-secondary" href="/search">Browse all listings</a>
-                   </div>
-                 </div>`);
-            }
-          }
-
-          const mo = new MutationObserver(()=> mounted() && setTimeout(maybeEmptyNotice, 200));
-          mo.observe(root, { childList:true, subtree:true });
-
-          // Hooks that cover SPA nav + bfcache returns
-          document.addEventListener('astro:page-load', ()=>{ rescan(); setTimeout(maybeEmptyNotice,200); });
-          document.addEventListener('astro:after-swap', ()=>{ rescan(); setTimeout(maybeEmptyNotice,200); });
-          window.addEventListener('pageshow', e=>{ if (e.persisted) { rescan(); setTimeout(maybeEmptyNotice,200); }});
-          document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ rescan(); setTimeout(maybeEmptyNotice,200); }});
-
-          // Safety retry
-          setTimeout(rescan, 1200);
-        })();
-      </script>
+      {rvBlockId
+        ? (
+            <!-- ✅ Lazy, one-time RealtyVis render -->
+            <RVEmbed block={rvBlockId} className="container" minHeight="1000px" />
+          )
+        : (
+            <!-- Fallback if no usable block id -->
+            <div class="rv-fallback">
+              <p>Listings are unavailable right now.</p>
+              <p><a href="/search">Browse all listings</a></p>
+            </div>
+          )
+      }
     </div>
   )}
 
@@ -212,27 +162,10 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     .listings-wrap{ padding-top:16px; padding-bottom:8px; }
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
 
-    /* shimmer while RV mounts */
-    .rv-slot { min-height: 200px; }
-    .rv-slot:empty::before{
-      content:""; display:block; height:180px; border-radius:10px;
-      background:linear-gradient(90deg,#eee 25%,#f6f6f6 37%,#eee 63%);
-      background-size:400% 100%; animation:shimmer 1.2s infinite linear;
-      border:1px solid #eee;
+    .rv-fallback{
+      margin-top: 12px; padding:12px 16px; background:#fff3cd;
+      border:1px solid #ffe69c; border-radius:10px; color:#5c3c00;
     }
-    @keyframes shimmer { 0%{background-position:100% 0} 100%{background-position:0 0} }
-
-    /* light empty card */
-    .rv-empty { margin-top: 12px; }
-    .rv-empty__card { border:1px solid #e5e7eb; background:#fff; border-radius:14px; padding:16px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
-    .rv-empty__title { font-weight:700; margin-bottom:6px; font-size:1.05rem; color:#111827; }
-    .rv-empty__text { margin:0 0 12px; color:#374151; line-height:1.5; }
-    .btn-secondary {
-      display:inline-flex; align-items:center; justify-content:center;
-      padding:.65rem 1rem; border-radius:10px; border:1px solid #e5e7eb; background:#fff;
-      color:#111827; font-weight:600; text-decoration:none;
-    }
-    .btn-secondary:hover{ background:#f9fafb; }
 
     .note{
       color:#666; background:#fafafa; border:1px solid #eee;

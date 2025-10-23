@@ -1,0 +1,76 @@
+---
+// src/components/RVEmbed.astro
+// Props:
+// - block: string  → your data-rv-block code (e.g., "MQP2VMLT-14Y2W8DC")
+// - className?: string
+// - minHeight?: string
+const { block, className = "", minHeight = "900px" } = Astro.props;
+const safeId = `rv-${block.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
+---
+<section id={safeId} class={`rv-wrap ${className}`} style={`min-height:${minHeight}`}>
+  <div class="rv-skeleton">
+    <div class="rv-line title"></div>
+    <div class="rv-grid">
+      <div class="rv-card"></div><div class="rv-card"></div>
+      <div class="rv-card"></div><div class="rv-card"></div>
+    </div>
+  </div>
+
+  <div class="rv-target" data-rv-block={block} hidden></div>
+
+  <script type="module">
+    import { ensureRVLoaded, initRV } from "../../lib/rv-loader";
+
+    const root = document.currentScript.closest(".rv-wrap");
+    const target = root?.querySelector(".rv-target");
+    let loaded = false;
+
+    async function loadRV() {
+      if (loaded) return;
+      loaded = true;
+      try {
+        await ensureRVLoaded();
+        root?.querySelector(".rv-skeleton")?.remove();
+        target?.removeAttribute("hidden");
+        initRV(root || document);
+      } catch {
+        const err = document.createElement("div");
+        err.className = "rv-error";
+        err.textContent = "Sorry—listings failed to load. Please retry.";
+        root?.appendChild(err);
+      }
+    }
+
+    // 1) Near-viewport → load
+    const io = new IntersectionObserver((entries) => {
+      if (!entries[0]?.isIntersecting) return;
+      io.disconnect();
+      loadRV();
+    }, { rootMargin: "200px" });
+    if (root) io.observe(root);
+
+    // 2) Also load after a moment of idle (tab-restore safe)
+    if ("requestIdleCallback" in window) {
+      (window).requestIdleCallback(() => loadRV(), { timeout: 3000 });
+    } else {
+      setTimeout(() => loadRV(), 3000);
+    }
+
+    // 3) Any first user interaction is a backup
+    const arm = () => { loadRV(); };
+    window.addEventListener("pointerdown", arm, { once: true, capture: true });
+    window.addEventListener("keydown", arm, { once: true, capture: true });
+  </script>
+
+  <style>
+    .rv-wrap { position: relative; }
+    .rv-skeleton { padding: 16px; }
+    .rv-line.title { height: 20px; width: 220px; margin: 8px 0 16px; border-radius: 6px; background: var(--skel, rgba(0,0,0,.08)); }
+    .rv-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+    .rv-card { height: 220px; border-radius: 12px; background: var(--skel, rgba(0,0,0,.08)); }
+    @media (max-width: 1100px) { .rv-grid { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+    @media (max-width: 800px)  { .rv-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    @media (max-width: 520px)  { .rv-grid { grid-template-columns: 1fr; } }
+    .rv-error { padding: 12px 16px; background: #fee; border: 1px solid #f99; border-radius: 10px; }
+  </style>
+</section>

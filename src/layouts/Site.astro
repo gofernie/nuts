@@ -207,35 +207,6 @@ const NAV_ORDER = [
       </div>
     </footer>
 
-    <!-- 🧭 RealtyVis conditional loader (only loads when needed) -->
-    <script is:inline>
-      (function(){
-        function needRV(){ return !!document.querySelector('[data-rv-block]'); }
-        function loadRVOnce(){
-          if (window.RealtyVis || window.__rvScriptLoaded || window.__rvScriptLoading) return;
-          window.__rvScriptLoading = true;
-          var s = document.createElement('script');
-          s.src = 'https://cdn.realtyvis.com/js/embed.js';
-          s.async = true;
-          s.onload = function(){
-            window.__rvScriptLoaded = true;
-            try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(_){}
-          };
-          s.onerror = function(e){ console.error('RealtyVis failed to load', e); window.__rvScriptLoading = false; };
-          document.head.appendChild(s);
-        }
-        function boot(){ if (needRV()) loadRVOnce(); }
-
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', boot, { once:true });
-        } else {
-          boot();
-        }
-        document.addEventListener('astro:page-load', boot);
-        document.addEventListener('astro:after-swap', boot);
-        window.addEventListener('pageshow', (e)=>{ if (e.persisted) boot(); });
-        document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) boot(); });
-      })();
-    </script>
+    
   </body>
 </html>
