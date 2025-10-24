@@ -76,35 +76,9 @@ try {
   error = e?.message || String(e);
 }
 
-/* ---- Neighbourhoods (4 only; Ski Hill first) ---- */
-const MAX_NEIGH_CARDS = 4;
-const MUST_SLUGS = new Set(["skihill","ski-hill","fernie-ski-hill","ski-hill-condos","fernie-ski-hill-condos"]);
-
-function chooseNeighbourCards(list: Row[], max = MAX_NEIGH_CARDS): Row[] {
-  if (!list.length) return [];
-  const lower = (s:string)=> (s||"").toLowerCase();
-  const isSki = (slug?:string)=> {
-    const s = lower(slug||"");
-    return MUST_SLUGS.has(s) || /(^|-)ski(-|\b).*hill(\b|-$)/.test(s) || /ski.*hill/.test(s);
-  };
-
-  const must = list.find(r => isSki(r.slug));
-  const rest = list.filter(r => r !== must);
-
-  // Shuffle the rest
-  const a = [...rest];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-
-  const picked: Row[] = [];
-  if (must) picked.push(must);
-  picked.push(...a.slice(0, Math.max(0, max - picked.length)));
-  return picked.slice(0, max);
-}
-
-items = chooseNeighbourCards(allItems);
+/* ---- Neighbourhoods (first 8 only) ---- */
+const MAX_NEIGH_CARDS = 8;
+items = allItems.slice(0, MAX_NEIGH_CARDS);
 
 /* ---- SEO / hero ---- */
 const heroSrc      = header?.hero_img ? heroPath(header.hero_img) : "";
@@ -175,7 +149,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       </a>
     </section>
 
-    <!-- NEW LISTINGS -->
+    <!-- NEW LISTINGS (RealtyVis clamped to 8) -->
     <section class="section" id="new-listings">
       <div class="section-head">
         <h2>New Listings</h2>
@@ -186,7 +160,8 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
         <p class="error">Error: {error}</p>
       ) : header?.cta1 ? (
         <div class="listing-wrap">
-          <div class="rv-host">
+          <!-- data-max controls limit; change here if you want a different cap -->
+          <div class="rv-host" data-max="8">
             {
               /[<>]/.test(header.cta1)
                 ? <Fragment set:html={header.cta1}></Fragment>
@@ -212,6 +187,61 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
   ["pointerover","touchstart","focusin"].forEach(ev=>{
     host.addEventListener(ev,warm,{once:true,passive:true});
   });
+})();`}
+          </script>
+
+          <!-- Limit RV to first N cards and stop further loads -->
+          <script is:inline>
+{`(function(){
+  const host = document.querySelector('.rv-host');
+  if(!host) return;
+  const MAX = Number(host.getAttribute('data-max')) || 8;
+
+  // Candidate containers RV might use for listing cards
+  const CONTAINER_SEL = [
+    '[data-rv-listings]',
+    '.rv-listings',
+    '.rv-grid',
+    '.rv-results',
+    '.rv-cards',
+    '[class*="results"]',
+    '[class*="listings"]'
+  ].join(',');
+
+  // Elements that can trigger further loads (infinite loader / sentinels / "show more")
+  const LOADER_SEL = [
+    '[data-rv-loader]',
+    '.rv-infinite-loader',
+    '.rv-loader',
+    '[class*="infinite"]',
+    'button:has([class*="more"]), button:has([class*="load"])',
+    'a:has([class*="more"]), a:has([class*="load"])'
+  ].join(',');
+
+  function clamp(){
+    const containers = host.querySelectorAll(CONTAINER_SEL);
+    containers.forEach(c=>{
+      const kids = Array.from(c.children);
+      for(let i=0;i<kids.length;i++){
+        kids[i].style.display = (i < MAX) ? '' : 'none';
+      }
+    });
+
+    // Hide / remove loaders so RV doesn't append more
+    host.querySelectorAll(LOADER_SEL).forEach(el=>{
+      el.style.display='none';
+      el.remove?.();
+    });
+  }
+
+  // Observe RV mutations and re-clamp
+  const mo = new MutationObserver(()=>clamp());
+  mo.observe(host, { subtree:true, childList:true });
+
+  // Initial clamps
+  setTimeout(clamp, 150);
+  setTimeout(clamp, 500);
+  window.addEventListener('pageshow', (e)=>{ if(e.persisted) clamp(); });
 })();`}
           </script>
         </div>
@@ -258,7 +288,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       </div>
     </section>
 
-    <!-- NEIGHBOURHOODS TEASER (4 only; Ski Hill first) -->
+    <!-- NEIGHBOURHOODS TEASER (8 only) -->
     {items.length > 0 && (
       <section class="section" id="neigh">
         <div class="section-head">
@@ -266,7 +296,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
           <a class="link" href="/neighbourhoods" data-astro-prefetch="hover">Browse all →</a>
         </div>
         <div class="grid">
-          {items.slice(0,4).map((n) => {
+          {items.map((n) => {
             const primary = n.hero_img ? heroPath(n.hero_img) : "";
             return (
               <a class="card" href={`/neighbourhoods/${n.slug}`} aria-label={n.title}>
@@ -326,7 +356,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
           e.preventDefault();
 
           const start = window.scrollY;
-          const end = target.getBoundingClientRect().top + window.scrollY - 12; // small offset
+          const end = target.getBoundingClientRect().top + window.scrollY - 12;
           const dur = 500;
           const t0 = performance.now();
           function step(t){
@@ -340,16 +370,16 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       });
 
       document.addEventListener('click', (e)=>{
-        const btn = (e.target as HTMLElement)?.closest('.ripple, .btn, .tile');
+        const btn = (e.target)?.closest('.ripple, .btn, .tile');
         if (!btn) return;
-        const rect = (btn as HTMLElement).getBoundingClientRect();
+        const rect = btn.getBoundingClientRect();
         const circle = document.createElement('span');
         circle.className = 'ripple-ink';
         const size = Math.max(rect.width, rect.height);
         circle.style.width = circle.style.height = size + 'px';
-        circle.style.left = (('clientX' in e ? (e as MouseEvent).clientX : rect.left) - rect.left - size/2) + 'px';
-        circle.style.top  = (('clientY' in e ? (e as MouseEvent).clientY : rect.top)  - rect.top  - size/2) + 'px';
-        (btn as HTMLElement).appendChild(circle);
+        circle.style.left = ((('clientX' in e ? e.clientX : rect.left) - rect.left - size/2)) + 'px';
+        circle.style.top  = ((('clientY' in e ? e.clientY : rect.top)  - rect.top  - size/2)) + 'px';
+        btn.appendChild(circle);
         setTimeout(()=>circle.remove(), 450);
       }, {passive:true});
     }
@@ -466,6 +496,17 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     }
     .rv-host * { animation-duration: 0s !important; transition: none !important; }
 
+    /* ✅ Clamp RealtyVis to first 8 cards by default (defensive CSS in case JS is delayed) */
+    .rv-host [data-rv-listings] > *:nth-child(n+9),
+    .rv-host .rv-listings > *:nth-child(n+9),
+    .rv-host .rv-grid > *:nth-child(n+9),
+    .rv-host .rv-results > *:nth-child(n+9),
+    .rv-host .rv-cards > *:nth-child(n+9) { display: none !important; }
+
+    /* Hide infinite loader / show more if present */
+    .rv-host .rv-infinite-loader,
+    .rv-host [data-rv-loader] { display: none !important; }
+
     /* FEATURE */
     .feature { background: #fff; border:1px solid #eee; border-radius: 14px; }
     .feature-inner { display:grid; grid-template-columns: 1.35fr .95fr; gap: 18px; padding: 18px; }
@@ -504,7 +545,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     }
     @keyframes ripple { to { transform: scale(2.5); opacity: 0; } }
 
-    /* NEIGHBOURHOODS GRID (4 cards with title overlay) */
+    /* NEIGHBOURHOODS GRID (8 cards with title overlay) */
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
     .card { display:flex; flex-direction:column; background:#fff; border:1px solid #eee; border-radius:12px; overflow:hidden; text-decoration:none; color:inherit; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transform: translateY(0); transition: transform .25s ease, box-shadow .25s ease; }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
@@ -528,6 +569,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .wx-metric { background:#f9fafb; border:1px solid #f1f1f1; border-radius:10px; padding:12px; text-align:center; }
     .wx-label { font-size:.8rem; color:#666; }
     .wx-value { font-size:1.25rem; font-weight:700; margin-top:4px; }
+
     .wx-now { display:flex; align-items:baseline; gap:16px; margin-bottom:12px; }
     .wx-now-temp { font-size:2rem; font-weight:800; }
     .wx-now-temp .unit { font-size:1rem; opacity:.8; margin-left:2px; }

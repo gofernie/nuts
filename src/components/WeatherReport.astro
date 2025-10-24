@@ -1,136 +1,76 @@
 ---
 /**
- * WeatherReport.astro — Fernie Alpine Resort
- * Uses Open-Meteo for current weather + 3-day forecast
- * No API key required
+ * WeatherReport.astro (wttr.in version)
+ * ✅ No API key required
+ * 🌤 Current + 3-day forecast
+ * Props:
+ *  - city (string) defaults to "Fernie"
+ *  - title (string) defaults to "Weather"
  */
-
-const LAT = 49.5043;
-const LON = -115.0910;
-const TZ  = "America/Edmonton";
-
-// Build API URL
-const url = new URL("https://api.open-meteo.com/v1/forecast");
-url.searchParams.set("latitude", String(LAT));
-url.searchParams.set("longitude", String(LON));
-url.searchParams.set("current", "temperature_2m,apparent_temperature,wind_speed_10m,weather_code");
-url.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,weather_code");
-url.searchParams.set("timezone", TZ);
-url.searchParams.set("forecast_days", "3");
-
-let data: any = null;
-let err: string | null = null;
-try {
-  const res = await fetch(url.toString(), { headers: { "cache-control": "no-cache" } });
-  if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
-  data = await res.json();
-} catch (e:any) {
-  err = e?.message || "Failed to load weather data";
-}
-
-// Helper to map weather codes to icon/text
-const weatherMap: Record<number, { icon: string; text: string }> = {
-  0: { icon: "☀️", text: "Clear" },
-  1: { icon: "🌤️", text: "Mostly Clear" },
-  2: { icon: "⛅", text: "Partly Cloudy" },
-  3: { icon: "☁️", text: "Cloudy" },
-  45: { icon: "🌫️", text: "Fog" },
-  48: { icon: "🌫️", text: "Rime Fog" },
-  51: { icon: "🌦️", text: "Light Drizzle" },
-  61: { icon: "🌧️", text: "Rain" },
-  71: { icon: "🌨️", text: "Snow" },
-  80: { icon: "🌧️", text: "Showers" },
-  95: { icon: "⛈️", text: "Thunderstorm" },
-};
-
-const currentTemp = data?.current?.temperature_2m;
-const currentWind = data?.current?.wind_speed_10m;
-const currentCode = data?.current?.weather_code;
-const currentWx   = weatherMap[currentCode] ?? { icon: "❓", text: "Unknown" };
-
-const forecastDays = data?.daily?.time?.map((t:string, i:number) => {
-  const date = new Date(`${t}T00:00:00`);
-  const label = date.toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" });
-  const code = data.daily.weather_code[i];
-  const wx = weatherMap[code] ?? { icon: "❓", text: "?" };
-  return {
-    label,
-    max: Math.round(data.daily.temperature_2m_max[i]),
-    min: Math.round(data.daily.temperature_2m_min[i]),
-    icon: wx.icon,
-    text: wx.text
-  };
-}) ?? [];
+const {
+  city = "Fernie",
+  title = "Weather",
+} = Astro.props;
 ---
 
-<div class="weather-card" role="region" aria-label="Fernie Alpine Resort weather">
-  <div class="current">
-    <div class="icon">{currentWx.icon}</div>
-    <div class="temp">
-      <span class="big">{Math.round(currentTemp)}°C</span>
-      <span class="desc">{currentWx.text}</span>
-      <span class="wind">💨 {Math.round(currentWind)} km/h</span>
-    </div>
+<div class="wx-card" data-city={city}>
+  <div class="wx-header">{title}</div>
+  <div class="wx-now">
+    <div class="wx-now-temp"><span class="temp">–</span><span class="unit">°C</span></div>
+    <div class="wx-now-meta"><span class="winds">Wind –</span> • <span class="precip">Precip –</span></div>
   </div>
-
-  <div class="forecast">
-    {forecastDays.map(d => (
-      <div class="day">
-        <span class="label">{d.label}</span>
-        <span class="icon">{d.icon}</span>
-        <span class="range">{d.min}° / {d.max}°</span>
-      </div>
-    ))}
-  </div>
-
-  <div class="fine">
-    Source: <a href="https://open-meteo.com/" rel="nofollow noopener">Open-Meteo</a> ·
-    TZ: {TZ}
-    {err && <span class="err"> · {err}</span>}
-  </div>
+  <div class="wx-daily"></div>
+  <small class="wx-note">wttr.in • {city}</small>
 </div>
 
+<script is:inline>
+  (function(){
+    const card = document.currentScript.previousElementSibling;
+    const city = card.getAttribute('data-city');
+
+    fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`)
+      .then(r=>r.json())
+      .then(data=>{
+        const $ = (s)=>card.querySelector(s);
+        const current = data.current_condition?.[0];
+        if(!current) return;
+
+        // Current conditions
+        $(".temp").textContent = current.temp_C;
+        $(".winds").textContent = `Wind ${current.windspeedKmph} km/h`;
+        $(".precip").textContent = `Precip ${current.precipMM} mm`;
+
+        // Daily forecast
+        const days = data.weather?.slice(0,3) || [];
+        $(".wx-daily").innerHTML = days.map(d=>{
+          const date = d.date;
+          const max = d.maxtempC;
+          const min = d.mintempC;
+          const snow = d.totalSnow_cm;
+          const rain = d.hourly.reduce((acc,h)=> acc+Number(h.precipMM||0),0).toFixed(1);
+          return `
+            <div class="wx-day">
+              <div class="wx-day-label">${new Date(date).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</div>
+              <div class="wx-day-temps">${max}° / ${min}°</div>
+              <div class="wx-day-snow">${snow} cm snow</div>
+              <div class="wx-day-precip">${rain} mm precip</div>
+            </div>
+          `;
+        }).join("");
+      })
+      .catch(()=>{/* silent fail */});
+  })();
+</script>
+
 <style>
-  .weather-card {
-    --pad: 12px;
-    --radius: 16px;
-    --muted: #5e737f;
-    --line: rgba(0,0,0,.08);
-    background: white;
-    border-radius: var(--radius);
-    box-shadow: 0 6px 24px rgba(0,0,0,.06);
-    padding: calc(var(--pad) * 1.25) calc(var(--pad) * 1.5);
-  }
-  .current {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 10px;
-  }
-  .icon { font-size: 2rem; }
-  .temp { display: flex; flex-direction: column; }
-  .big { font-size: 1.8rem; font-weight: 700; }
-  .desc, .wind { font-size: 0.9rem; color: var(--muted); }
-
-  .forecast {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-  }
-  .day {
-    display: grid;
-    text-align: center;
-    gap: 2px;
-    background: #f7fafb;
-    border-radius: 12px;
-    padding: 6px;
-  }
-  .label { font-size: .85rem; color: var(--muted); }
-  .range { font-weight: 600; }
-
-  .fine {
-    margin-top: 10px;
-    font-size: .8rem;
-    color: var(--muted);
-  }
+  .wx-card { border:1px solid #eee; border-radius:12px; padding:16px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+  .wx-header { font-weight:700; margin-bottom:8px; }
+  .wx-now { display:flex; align-items:baseline; gap:16px; margin-bottom:12px; }
+  .wx-now-temp { font-size:2rem; font-weight:800; }
+  .wx-now-temp .unit { font-size:1rem; opacity:.8; margin-left:2px; }
+  .wx-now-meta { color:#555; }
+  .wx-daily { display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:10px; margin-top:8px; }
+  .wx-day { border:1px solid #f1f1f1; border-radius:10px; padding:10px; background:#fafafa; }
+  .wx-day-label { font-weight:700; margin-bottom:4px; }
+  .wx-note { display:block; margin-top:8px; color:#777; font-size:.75rem; }
 </style>
