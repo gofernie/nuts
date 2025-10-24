@@ -175,7 +175,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       </a>
     </section>
 
-    <!-- NEW LISTINGS (RealtyVis limited to 8) -->
+    <!-- NEW LISTINGS -->
     <section class="section" id="new-listings">
       <div class="section-head">
         <h2>New Listings</h2>
@@ -186,8 +186,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
         <p class="error">Error: {error}</p>
       ) : header?.cta1 ? (
         <div class="listing-wrap">
-          <!-- data-max controls the cap -->
-          <div class="rv-host" data-max="8">
+          <div class="rv-host">
             {
               /[<>]/.test(header.cta1)
                 ? <Fragment set:html={header.cta1}></Fragment>
@@ -213,55 +212,6 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
   ["pointerover","touchstart","focusin"].forEach(ev=>{
     host.addEventListener(ev,warm,{once:true,passive:true});
   });
-})();`}
-          </script>
-
-          <!-- Clamp RV results to first N and stop infinite append -->
-          <script is:inline>
-{`(function(){
-  const host = document.querySelector('.rv-host');
-  if(!host) return;
-  const MAX = Number(host.getAttribute('data-max')) || 8;
-
-  const CONTAINER_SEL = [
-    '[data-rv-listings]',
-    '.rv-listings',
-    '.rv-grid',
-    '.rv-results',
-    '.rv-cards',
-    '[class*="results"]',
-    '[class*="listings"]'
-  ].join(',');
-
-  const LOADER_SEL = [
-    '[data-rv-loader]',
-    '.rv-infinite-loader',
-    '.rv-loader',
-    '[class*="infinite"]',
-    'button:has([class*="more"]), button:has([class*="load"])',
-    'a:has([class*="more"]), a:has([class*="load"])'
-  ].join(',');
-
-  function clamp(){
-    const containers = host.querySelectorAll(CONTAINER_SEL);
-    containers.forEach(c=>{
-      const kids = Array.from(c.children);
-      for(let i=0;i<kids.length;i++){
-        kids[i].style.display = (i < MAX) ? '' : 'none';
-      }
-    });
-    host.querySelectorAll(LOADER_SEL).forEach(el=>{
-      el.style.display='none';
-      el.remove?.();
-    });
-  }
-
-  const mo = new MutationObserver(()=>clamp());
-  mo.observe(host, { subtree:true, childList:true });
-
-  setTimeout(clamp, 150);
-  setTimeout(clamp, 500);
-  window.addEventListener('pageshow', (e)=>{ if(e.persisted) clamp(); });
 })();`}
           </script>
         </div>
@@ -313,7 +263,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       <section class="section" id="neigh">
         <div class="section-head">
           <h2>Neighbourhoods</h2>
-        <a class="link" href="/neighbourhoods" data-astro-prefetch="hover">Browse all →</a>
+          <a class="link" href="/neighbourhoods" data-astro-prefetch="hover">Browse all →</a>
         </div>
         <div class="grid">
           {items.slice(0,4).map((n) => {
@@ -390,16 +340,16 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       });
 
       document.addEventListener('click', (e)=>{
-        const btn = (e.target)?.closest('.ripple, .btn, .tile');
+        const btn = (e.target as HTMLElement)?.closest('.ripple, .btn, .tile');
         if (!btn) return;
-        const rect = btn.getBoundingClientRect();
+        const rect = (btn as HTMLElement).getBoundingClientRect();
         const circle = document.createElement('span');
         circle.className = 'ripple-ink';
         const size = Math.max(rect.width, rect.height);
         circle.style.width = circle.style.height = size + 'px';
-        circle.style.left = ((('clientX' in e ? e.clientX : rect.left) - rect.left - size/2)) + 'px';
-        circle.style.top  = ((('clientY' in e ? e.clientY : rect.top)  - rect.top  - size/2)) + 'px';
-        btn.appendChild(circle);
+        circle.style.left = (('clientX' in e ? (e as MouseEvent).clientX : rect.left) - rect.left - size/2) + 'px';
+        circle.style.top  = (('clientY' in e ? (e as MouseEvent).clientY : rect.top)  - rect.top  - size/2) + 'px';
+        (btn as HTMLElement).appendChild(circle);
         setTimeout(()=>circle.remove(), 450);
       }, {passive:true});
     }
@@ -516,16 +466,6 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     }
     .rv-host * { animation-duration: 0s !important; transition: none !important; }
 
-    /* ✅ Clamp RealtyVis to first 8 cards by default (defensive CSS) */
-    .rv-host [data-rv-listings] > *:nth-child(n+9),
-    .rv-host .rv-listings > *:nth-child(n+9),
-    .rv-host .rv-grid > *:nth-child(n+9),
-    .rv-host .rv-results > *:nth-child(n+9),
-    .rv-host .rv-cards > *:nth-child(n+9) { display: none !important; }
-    /* Hide infinite loader / show more if present */
-    .rv-host .rv-infinite-loader,
-    .rv-host [data-rv-loader] { display: none !important; }
-
     /* FEATURE */
     .feature { background: #fff; border:1px solid #eee; border-radius: 14px; }
     .feature-inner { display:grid; grid-template-columns: 1.35fr .95fr; gap: 18px; padding: 18px; }
@@ -587,8 +527,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .wx-row { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-bottom:10px; }
     .wx-metric { background:#f9fafb; border:1px solid #f1f1f1; border-radius:10px; padding:12px; text-align:center; }
     .wx-label { font-size:.8rem; color:#666; }
-    .wx-value { font-size:1.25rem; font-weight:700; }
-
+    .wx-value { font-size:1.25rem; font-weight:700; margin-top:4px; }
     .wx-now { display:flex; align-items:baseline; gap:16px; margin-bottom:12px; }
     .wx-now-temp { font-size:2rem; font-weight:800; }
     .wx-now-temp .unit { font-size:1rem; opacity:.8; margin-left:2px; }
