@@ -52,23 +52,18 @@ try {
     Array.isArray(raw?.data) ? raw.data :
     Array.isArray(raw?.rows) ? raw.rows : [];
 
-  // flexible header detection (index/header row)
+  // header row (index/header/first with summary)
   const headerCandidates = rows.filter((r:any) => {
     const slug = get(r,"slug").toLowerCase();
     const status = get(r,"status").toLowerCase();
-    const hasSummary =
-      !!get(r,"summary") ||
-      !!get(r,"long_copy") ||
-      !!get(r,"seo_description") ||
-      !!get(r,"description");
+    const hasSummary = !!(get(r,"summary") || get(r,"long_copy") || get(r,"seo_description") || get(r,"description"));
     return slug === "index" || status === "header" || hasSummary;
   });
 
   header =
     headerCandidates.find(r => get(r,"slug").toLowerCase() === "index") ??
     headerCandidates.find(r => get(r,"status").toLowerCase() === "header") ??
-    headerCandidates[0] ??
-    null;
+    headerCandidates[0] ?? null;
 
   items = rows
     .filter(r => visible(r))
@@ -78,8 +73,6 @@ try {
       summary: get(r,"summary"),
       hero_img: get(r,"hero_img"),
       sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
-      seo_title: get(r,"seo_title"),
-      seo_description: get(r,"seo_description"),
     }))
     .filter(r => r.slug && r.title)
     .sort((a,b) => (Number(a.sort) - Number(b.sort)) || a.title!.localeCompare(b.title!));
@@ -88,19 +81,13 @@ try {
   error = e?.message || "Failed to load data.";
 }
 
-// 📝 fallbacks to ensure summary text renders
 const pageTitle = get(header,"title") || "Property Types in Fernie";
 const pageSummary =
-  get(header,"summary") ||
-  get(header,"long_copy") ||
-  get(header,"seo_description") ||
-  get(header,"description") ||
-  "";
+  get(header,"summary") || get(header,"long_copy") || get(header,"seo_description") || get(header,"description") || "";
 const heroImg = get(header,"hero_img");
 const seoTitle = get(header,"seo_title") || pageTitle;
 const seoDesc  = get(header,"seo_description") || pageSummary;
 
-// set to true if your summary text contains HTML markup
 const SUMMARY_IS_HTML = false;
 ---
 
@@ -109,15 +96,17 @@ const SUMMARY_IS_HTML = false;
     src={heroImg ? heroPath(heroImg) : ""}
     title={pageTitle}
     containerMax={1200}
-    flush={false}
     containerPad={12}
+    flush={false}
   />
 
   {pageSummary && (
-    <div class="container summary-wrap">
-      {SUMMARY_IS_HTML
-        ? <div class="lead" set:html={pageSummary}></div>
-        : <p class="lead">{pageSummary}</p>}
+    <div class="container">
+      <div class="summary-card">
+        {SUMMARY_IS_HTML
+          ? <div class="lead" set:html={pageSummary}></div>
+          : <p class="lead">{pageSummary}</p>}
+      </div>
     </div>
   )}
 
@@ -126,54 +115,81 @@ const SUMMARY_IS_HTML = false;
 
     {!error && (
       <div class="grid">
-        {items.map((it) => (
-          <a class="card" href={`${PATH_BASE}/${it.slug}`} data-astro-prefetch="hover">
-            {it.hero_img && (
-              <img src={heroPath(it.hero_img)} alt={it.title} loading="lazy" decoding="async" />
-            )}
-            <div class="body">
-              <h2>{it.title}</h2>
-              {it.summary && <p>{it.summary}</p>}
-            </div>
-          </a>
-        ))}
+        {items.map((it) => {
+          const img = it.hero_img ? heroPath(it.hero_img) : "";
+          return (
+            <a class="card" href={`${PATH_BASE}/${it.slug}`} data-astro-prefetch="hover" aria-label={it.title}>
+              <div class="thumb">
+                {img ? <img src={img} alt={it.title} loading="lazy" decoding="async" /> : <div class="ph">No image</div>}
+                <!-- exact overlay from neighbourhood index/home -->
+                <div class="thumb-grad" aria-hidden="true"></div>
+                <div class="thumb-chip">{it.title}</div>
+              </div>
+              {it.summary && (
+                <div class="body">
+                  <p>{it.summary}</p>
+                </div>
+              )}
+            </a>
+          );
+        })}
       </div>
     )}
   </div>
 
   <style>
-    .container{
-      max-width:1200px;
-      margin-inline:auto;
-      padding-inline:12px;
+    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
+
+    /* summary container (white card) — same as neighbourhood index */
+    .summary-card{
+      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+      padding:20px; margin-top:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05);
     }
-    .summary-wrap{ padding-top:16px; padding-bottom:8px; }
-    .lead{ margin: 0; font-size: 1.075rem; line-height: 1.6; color:#111827; }
+    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
+
     .err{ color:#b91c1c; background:#fee2e2; padding:.75rem 1rem; border-radius:.5rem; margin-top:12px; }
 
-    .grid{
-      display:grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 16px;
-      margin-top: 18px;
-    }
+    .grid{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:16px; margin-top:18px; }
     @media (max-width:1200px){ .grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
     @media (max-width:900px){  .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
     @media (max-width:560px){  .grid{ grid-template-columns: 1fr; } }
 
+    /* neighbourcard: EXACT look/lift as neighbourhood index/home */
     .card{
       display:flex; flex-direction:column;
       background:#fff; border:1px solid #e5e7eb; border-radius:14px;
       overflow:hidden; text-decoration:none; color:inherit;
-      transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+      box-shadow:0 1px 3px rgba(0,0,0,0.05);
+      transform: translateY(0);
+      transition: transform .25s ease, box-shadow .25s ease, border-color .15s ease;
     }
-    .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
-    .card img{ width:100%; aspect-ratio: 16/9; object-fit: cover; display:block; }
+    .card:hover{
+      transform: translateY(-6px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+      border-color:#d1d5db;
+    }
+
+    .thumb{ position:relative; aspect-ratio:16/9; background:#f6f6f6; display:grid; place-items:center; overflow:hidden; }
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .ph{ font-size:12px; color:#999; }
+
+    .thumb-grad{
+      position:absolute; inset:auto 0 0 0; height:56%;
+      background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0));
+      pointer-events:none;
+    }
+    .thumb-chip{
+      position:absolute; left:10px; bottom:10px;
+      color:#fff; font-weight:800; letter-spacing:.2px;
+      text-shadow: 0 2px 8px rgba(0,0,0,.45);
+      font-size: clamp(1rem, 2vw, 1.15rem);
+      pointer-events:none;
+    }
+
     .card .body{ padding:12px; }
-    .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; }
     .card .body p{
-      margin:0; color:#374151; line-height:var(--card-text-lh,1.35);
-      display:-webkit-box; -webkit-line-clamp:var(--card-text-lines,3); -webkit-box-orient:vertical; overflow:hidden;
+      margin:0; color:#374151; line-height:1.35;
+      display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
     }
   </style>
 </Site>

@@ -76,16 +76,22 @@ try {
   error = e?.message || String(e);
 }
 
-/* ---- Random neighbourhoods (always include Ski Hill) ---- */
-const MAX_NEIGH_CARDS = 6;
-const MUST_SLUGS = new Set(["skihill","ski-hill","fernie-ski-hill","ski-hill-condos"]);
+/* ---- Neighbourhoods (4 only; Ski Hill first) ---- */
+const MAX_NEIGH_CARDS = 4;
+const MUST_SLUGS = new Set(["skihill","ski-hill","fernie-ski-hill","ski-hill-condos","fernie-ski-hill-condos"]);
 
 function chooseNeighbourCards(list: Row[], max = MAX_NEIGH_CARDS): Row[] {
   if (!list.length) return [];
   const lower = (s:string)=> (s||"").toLowerCase();
-  const must = list.find(r => MUST_SLUGS.has(lower(r.slug||"")) || /ski.*hill/.test(lower(r.slug||"")));
+  const isSki = (slug?:string)=> {
+    const s = lower(slug||"");
+    return MUST_SLUGS.has(s) || /(^|-)ski(-|\b).*hill(\b|-$)/.test(s) || /ski.*hill/.test(s);
+  };
+
+  const must = list.find(r => isSki(r.slug));
   const rest = list.filter(r => r !== must);
 
+  // Shuffle the rest
   const a = [...rest];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -137,11 +143,13 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     </div>
   </section>
 
-  <!-- Summary under hero (now full container width) -->
+  <!-- SUMMARY: white card container under hero -->
   {header?.summary && (
     <div class="container">
       <section class="section">
-        <div class="lead-under-hero">{header.summary}</div>
+        <div class="summary-card">
+          <div class="prose" set:html={header.summary}></div>
+        </div>
       </section>
     </div>
   )}
@@ -150,7 +158,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
 
     <!-- QUICK TILES -->
     <section class="section tiles">
-      <a class="tile" href="/search" data-astro-prefetch="hover">
+      <a class="tile" href="/search" data-astro-prefetch="hover" data-jump="#new-listings">
         <div class="tile-ico">🏠</div>
         <div class="tile-title">Buy in Fernie</div>
         <p>See active listings and set alerts.</p>
@@ -160,18 +168,18 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
         <div class="tile-title">Sell with a Plan</div>
         <p>Pricing, prep, and marketing that works.</p>
       </a>
-      <a class="tile" href="/neighbourhoods" data-astro-prefetch="hover">
+      <a class="tile" href="#neigh" data-jump="#neigh">
         <div class="tile-ico">🗺️</div>
         <div class="tile-title">Explore Areas</div>
         <p>Compare neighbourhoods, amenities, and vibes.</p>
       </a>
     </section>
 
-    <!-- NEW LISTINGS (no shimmer; hover-to-warm + skeleton-kill CSS) -->
-    <section class="section">
+    <!-- NEW LISTINGS -->
+    <section class="section" id="new-listings">
       <div class="section-head">
         <h2>New Listings</h2>
-        <a class="link" href="/search" data-astro-prefetch="hover">See all →</a>
+        <a class="link btn btn-ghost" href="/search" data-astro-prefetch="hover">See all →</a>
       </div>
 
       {error ? (
@@ -214,7 +222,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       )}
     </section>
 
-    <!-- FEATURE COPY -->
+    <!-- FEATURE -->
     <section class="section feature">
       <div class="feature-inner">
         <div class="feature-copy">
@@ -224,42 +232,52 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
             : header?.summary
               ? <div class="prose"><p>{header.summary}</p></div>
               : <div class="prose">
-                  <p>Local insight, data-driven pricing, and calm guidance. Whether buying or selling, we’ll build a plan that fits your timeline — not the other way around.</p>
-                  <p><a href="/contact">Let’s chat</a> about your next step.</p>
+                  <p>Local insight, data-driven pricing, and calm guidance. Whether buying or selling, we’ll build a plan that fits your timeline.</p>
                 </div>
           }
+          <div class="feature-ctas">
+            <a class="btn btn-dark ripple" href="/contact" data-astro-prefetch>Book a 15-min call</a>
+            <a class="btn btn-ghost ripple" href="#neigh" data-jump="#neigh">Get market brief</a>
+          </div>
         </div>
-        <div class="feature-card">
+
+        <aside class="feature-card">
+          <div class="badge-row">
+            <span class="badge">15+ yrs experience</span>
+            <span class="badge">Local insight</span>
+            <span class="badge">No pressure</span>
+          </div>
           <ul class="ticks">
-            <li>Local market expertise</li>
             <li>Clear pricing strategy</li>
-            <li>No-pressure consults</li>
-            <li>Hands-on marketing</li>
+            <li>Listing prep & media</li>
+            <li>Offer-week game plans</li>
+            <li>Buyer alerts & tours</li>
           </ul>
-          <a class="cta" href="/contact" data-astro-prefetch>Book a 15-min call</a>
-        </div>
+          <a class="btn btn-light block ripple" href="/contact" data-astro-prefetch>Let’s talk</a>
+        </aside>
       </div>
     </section>
 
-    <!-- NEIGHBOURHOODS TEASER -->
+    <!-- NEIGHBOURHOODS TEASER (4 only; Ski Hill first) -->
     {items.length > 0 && (
-      <section class="section">
+      <section class="section" id="neigh">
         <div class="section-head">
           <h2>Neighbourhoods</h2>
           <a class="link" href="/neighbourhoods" data-astro-prefetch="hover">Browse all →</a>
         </div>
         <div class="grid">
-          {items.map((n) => {
+          {items.slice(0,4).map((n) => {
             const primary = n.hero_img ? heroPath(n.hero_img) : "";
             return (
-              <a class="card" href={`/neighbourhoods/${n.slug}`}>
+              <a class="card" href={`/neighbourhoods/${n.slug}`} aria-label={n.title}>
                 <div class="thumb">
                   {primary
                     ? <img src={primary} alt={n.title} loading="lazy" decoding="async" />
                     : <div class="ph">No image</div>}
+                  <div class="thumb-grad" aria-hidden="true"></div>
+                  <div class="thumb-chip">{n.title}</div>
                 </div>
                 <div class="body">
-                  <strong>{n.title}</strong>
                   {n.summary && <p>{n.summary}</p>}
                 </div>
               </a>
@@ -295,6 +313,47 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
   </div>
 
   <script>
+    // Smooth jump + ripple click effect for buttons/tiles with [data-jump] or .ripple
+    function enhanceButtons(){
+      const ease = (t)=>1- Math.pow(1-t,3);
+
+      document.querySelectorAll('[data-jump]').forEach(el=>{
+        el.addEventListener('click', (e)=>{
+          const targetSel = el.getAttribute('data-jump');
+          if (!targetSel) return;
+          const target = document.querySelector(targetSel);
+          if (!target) return;
+          e.preventDefault();
+
+          const start = window.scrollY;
+          const end = target.getBoundingClientRect().top + window.scrollY - 12; // small offset
+          const dur = 500;
+          const t0 = performance.now();
+          function step(t){
+            const p = Math.min(1, (t - t0)/dur);
+            const y = start + (end - start) * ease(p);
+            window.scrollTo(0, y);
+            if (p < 1) requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+        }, {passive:false});
+      });
+
+      document.addEventListener('click', (e)=>{
+        const btn = (e.target as HTMLElement)?.closest('.ripple, .btn, .tile');
+        if (!btn) return;
+        const rect = (btn as HTMLElement).getBoundingClientRect();
+        const circle = document.createElement('span');
+        circle.className = 'ripple-ink';
+        const size = Math.max(rect.width, rect.height);
+        circle.style.width = circle.style.height = size + 'px';
+        circle.style.left = (('clientX' in e ? (e as MouseEvent).clientX : rect.left) - rect.left - size/2) + 'px';
+        circle.style.top  = (('clientY' in e ? (e as MouseEvent).clientY : rect.top)  - rect.top  - size/2) + 'px';
+        (btn as HTMLElement).appendChild(circle);
+        setTimeout(()=>circle.remove(), 450);
+      }, {passive:true});
+    }
+
     // Weather + Snow (Open-Meteo)
     function renderWeather() {
       const lat = {WX_LAT};
@@ -351,8 +410,9 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
         })
         .catch(()=>{ /* ignore for now */ });
     }
-    addEventListener("astro:page-load", renderWeather, { once: true });
-    addEventListener("pageshow", (e)=>{ if (e.persisted) renderWeather(); });
+
+    addEventListener("astro:page-load", () => { enhanceButtons(); renderWeather(); }, { once: true });
+    addEventListener("pageshow", (e)=>{ if (e.persisted) { enhanceButtons(); renderWeather(); } });
   </script>
 
   <style>
@@ -367,8 +427,12 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     }
     .hero-overlay h1 { font-size: clamp(2.5rem, 6vw, 4.75rem); line-height: 1.1; margin: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: -0.01em; }
 
-    /* Summary under hero — now full container width (no max-width clamp) */
-    .lead-under-hero { font-size: clamp(1rem, 2.4vw, 1.15rem); line-height: 1.6; color: #1f2937; }
+    /* SUMMARY CARD */
+    .summary-card {
+      background:#fff; border:1px solid #eee; border-radius:14px; padding:18px 18px 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .summary-card .prose { font-size: clamp(1rem, 2.2vw, 1.1rem); line-height: 1.65; color:#1f2937; }
 
     .section { margin: 28px 0 40px; }
     .section-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:12px; }
@@ -378,12 +442,13 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
 
     /* TILES */
     .tiles { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
-    .tile { display:block; border:1px solid #eee; border-radius:14px; padding:14px; text-decoration:none; color:inherit; background:#fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .tile { position:relative; display:block; border:1px solid #eee; border-radius:14px; padding:14px; text-decoration:none; color:inherit; background:#fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); overflow:hidden; }
     .tile:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.08); transition: .25s; }
+    .tile:active { transform: translateY(0); }
     .tile-ico { font-size: 1.3rem; }
     .tile-title { font-weight: 700; margin: 6px 0 4px; }
 
-    /* LISTINGS — no local shimmer; also kill any third-party shimmer via CSS */
+    /* LISTINGS — disable third-party shimmer */
     .listing-wrap { position: relative; min-height: 160px; }
     .rv-host [class*="skeleton"],
     .rv-host [class*="Skeleton"],
@@ -403,20 +468,53 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
 
     /* FEATURE */
     .feature { background: #fff; border:1px solid #eee; border-radius: 14px; }
-    .feature-inner { display:grid; grid-template-columns: 1.4fr .9fr; gap: 18px; padding: 18px; }
-    .feature-copy .prose { line-height: 1.6; }
-    .ticks { margin: 0 0 12px 0; padding-left: 1.1em; }
-    .ticks li { margin: 6px 0; }
-    .cta { display:inline-block; margin-top: 6px; padding: 10px 14px; border-radius: 10px; border:1px solid #e5e7eb; text-decoration:none; background:#111827; color:#fff; }
-    .cta:hover { opacity: .9; }
+    .feature-inner { display:grid; grid-template-columns: 1.35fr .95fr; gap: 18px; padding: 18px; }
     @media (max-width: 900px) { .feature-inner { grid-template-columns: 1fr; } }
 
-    /* NEIGHBOURHOODS GRID */
+    .feature-copy .prose { line-height: 1.7; }
+    .feature-ctas { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+
+    .feature-card {
+      background: linear-gradient(135deg, #0f172a 0%, #1f2937 100%);
+      color: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
+    }
+    .badge-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .badge {
+      display:inline-block; font-size:.78rem; padding:6px 10px; border-radius:999px;
+      background: rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.2);
+      backdrop-filter: blur(3px);
+    }
+    .ticks { margin: 6px 0 12px 0; padding-left: 1.1em; }
+    .ticks li { margin: 6px 0; }
+
+    .btn { position:relative; overflow:hidden; display:inline-block; text-decoration:none; padding:10px 14px; border-radius:10px; border:1px solid #e5e7eb; will-change:transform; transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease; }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0,0,0,.08); }
+    .btn:active { transform: translateY(0); }
+    .btn-dark { background:#111827; color:#fff; border-color:#111827; }
+    .btn-ghost { background:#fff; color:#111827; }
+    .btn-light { background:#ffffff; color:#111827; border-color:#ffffff; text-align:center; }
+    .btn.block { display:block; text-align:center; width:100%; }
+    .ripple-ink {
+      position:absolute; border-radius:50%; transform:scale(0); opacity:.35; background:#fff;
+      animation:ripple .45s ease-out forwards; pointer-events:none;
+    }
+    @keyframes ripple { to { transform: scale(2.5); opacity: 0; } }
+
+    /* NEIGHBOURHOODS GRID (4 cards with title overlay) */
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
     .card { display:flex; flex-direction:column; background:#fff; border:1px solid #eee; border-radius:12px; overflow:hidden; text-decoration:none; color:inherit; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transform: translateY(0); transition: transform .25s ease, box-shadow .25s ease; }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-    .thumb { aspect-ratio: 16/9; background:#f6f6f6; display:grid; place-items:center; }
+    .thumb { position:relative; aspect-ratio: 16/9; background:#f6f6f6; display:grid; place-items:center; overflow:hidden; }
     .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+    .thumb-grad { position:absolute; inset:auto 0 0 0; height:56%; background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0)); }
+    .thumb-chip {
+      position:absolute; left:10px; bottom:10px; color:#fff; font-weight:800; letter-spacing:.2px;
+      text-shadow: 0 2px 8px rgba(0,0,0,.45); font-size: clamp(1rem, 2vw, 1.15rem);
+    }
     .ph { font-size:12px; color:#999; }
     .body { padding: 12px; }
     .body p { margin:.4rem 0 0; color:#555; font-size:.95rem; line-height:1.35; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }

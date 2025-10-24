@@ -8,43 +8,26 @@ import path from 'node:path';
 const isDev = process.argv.includes('dev');
 const isCI  = !!process.env.CI || !!process.env.NETLIFY;
 
-// Optional HTTPS for local dev
-const useHttps = isDev && !isCI;
-let httpsConfig = undefined;
-if (useHttps) {
+// Dev-only HTTPS using mkcert certs in ./certs
+function devHttpsConfig() {
+  if (!isDev || isCI) return undefined; // never use HTTPS in CI/Netlify build
   const keyPath  = path.resolve('certs/localhost-key.pem');
   const certPath = path.resolve('certs/localhost.pem');
   if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
-    httpsConfig = {
-      key:  fs.readFileSync(keyPath),
-      cert: fs.readFileSync(certPath),
-    };
-  } else {
-    console.warn('[astro.config] HTTPS certs not found; falling back to HTTP for dev.');
+    return { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
   }
+  console.warn('[astro.config] Dev HTTPS certs not found; using HTTP on port 4321.');
+  return undefined;
 }
 
 export default defineConfig({
   site: 'https://fernie.homes',
-
-  // ✅ switched from SSR to fully static
-  output: 'static',
-
-  // Netlify adapter is optional, but fine to keep for static hosting
-  adapter: netlify(),
-
-  // No need for prerender routes — the entire site is prerendered automatically
-  integrations: [
-    sitemap({ changefreq: 'weekly' }),
-  ],
-
+  output: 'static',                              // fully static for local stability
+  adapter: netlify({ devMiddleware: false }),    // disable Netlify dev emulation
+  integrations: [sitemap()],                     // keep if you use @astrojs/sitemap
   server: {
     host: true,
     port: 4321,
-    https: httpsConfig,
-  },
-
-  vite: {
-    server: { https: httpsConfig },
+    https: devHttpsConfig(),                     // enables HTTPS in dev when certs exist
   },
 });

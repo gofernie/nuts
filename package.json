@@ -3,10 +3,10 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "cross-env ASTRO_DISABLE_WASM=true astro dev",
+    "dev": "cross-env ASTRO_DISABLE_WASM=true astro dev --host --https --cert certs/localhost.pem --key certs/localhost-key.pem --port 4321",
+    "dev:http": "cross-env ASTRO_DISABLE_WASM=true astro dev --host --port 4321",
     "build": "cross-env ASTRO_DISABLE_WASM=true astro build",
-    "preview": "astro preview",
-    "astro": "astro"
+    "preview": "astro preview"
   },
   "dependencies": {
     "astro": "^5.14.0",
