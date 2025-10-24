@@ -16,9 +16,9 @@ type Row = {
   status?: string;
   seo_title?: string;
   seo_description?: string;
-  cta1?: string; // RealtyVis block ID or full snippet
-  cta2?: string; // Feature copy (HTML/text)
-  cta3?: string; // Optional extra
+  cta1?: string;
+  cta2?: string;
+  cta3?: string;
 };
 
 let header: Row | null = null;
@@ -76,8 +76,8 @@ try {
   error = e?.message || String(e);
 }
 
-/* ---- Random neighbourhoods (always include Ski Hill) ---- */
-const MAX_NEIGH_CARDS = 6;
+/* ---- Pick 4 neighbourhoods (Ski Hill first) ---- */
+const MAX_NEIGH_CARDS = 4;
 const MUST_SLUGS = new Set(["skihill","ski-hill","fernie-ski-hill","ski-hill-condos"]);
 
 function chooseNeighbourCards(list: Row[], max = MAX_NEIGH_CARDS): Row[] {
@@ -86,6 +86,7 @@ function chooseNeighbourCards(list: Row[], max = MAX_NEIGH_CARDS): Row[] {
   const must = list.find(r => MUST_SLUGS.has(lower(r.slug||"")) || /ski.*hill/.test(lower(r.slug||"")));
   const rest = list.filter(r => r !== must);
 
+  // Shuffle the rest
   const a = [...rest];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -98,7 +99,7 @@ function chooseNeighbourCards(list: Row[], max = MAX_NEIGH_CARDS): Row[] {
   return picked.slice(0, max);
 }
 
-items = chooseNeighbourCards(allItems);
+items = chooseNeighbourCards(allItems, 4);
 
 /* ---- SEO / hero ---- */
 const heroSrc      = header?.hero_img ? heroPath(header.hero_img) : "";
@@ -119,8 +120,8 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     </Fragment>
   )}
 
-  <!-- HERO -->
-  <section class="hero-bleed">
+  <!-- HERO (image only; no overlay H1) -->
+  <section class="hero-bleed" aria-hidden={heroSrc ? "true" : "false"}>
     {heroSrc && (
       <img
         src={heroSrc}
@@ -132,16 +133,21 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
         height="1000"
       />
     )}
-    <div class="hero-overlay">
-      <h1>{heroH1}</h1>
-    </div>
+    <div class="hero-mask"></div>
   </section>
 
-  <!-- Summary under hero (now full container width) -->
+  <!-- PAGE HEAD (H1 in same place as other pages) -->
+  <div class="container">
+    <header class="page-head" aria-label="Page header">
+      <h1>{heroH1}</h1>
+    </header>
+  </div>
+
+  <!-- SUMMARY in white container -->
   {header?.summary && (
     <div class="container">
-      <section class="section">
-        <div class="lead-under-hero">{header.summary}</div>
+      <section class="summary-card">
+        <div class="summary-copy">{header.summary}</div>
       </section>
     </div>
   )}
@@ -167,7 +173,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       </a>
     </section>
 
-    <!-- NEW LISTINGS (no shimmer; hover-to-warm + skeleton-kill CSS) -->
+    <!-- NEW LISTINGS -->
     <section class="section">
       <div class="section-head">
         <h2>New Listings</h2>
@@ -185,8 +191,6 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
                 : <div data-rv-block={header.cta1}></div>
             }
           </div>
-
-          <!-- Hover-to-warm connections for RealtyVis -->
           <script is:inline>
 {`(function(){
   let warmed=false;
@@ -224,7 +228,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
             : header?.summary
               ? <div class="prose"><p>{header.summary}</p></div>
               : <div class="prose">
-                  <p>Local insight, data-driven pricing, and calm guidance. Whether buying or selling, we’ll build a plan that fits your timeline — not the other way around.</p>
+                  <p>Local insight, data-driven pricing, and calm guidance. Whether buying or selling, we’ll build a plan that fits your timeline.</p>
                   <p><a href="/contact">Let’s chat</a> about your next step.</p>
                 </div>
           }
@@ -241,7 +245,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       </div>
     </section>
 
-    <!-- NEIGHBOURHOODS TEASER -->
+    <!-- NEIGHBOURHOODS (4 only, Ski Hill first) -->
     {items.length > 0 && (
       <section class="section">
         <div class="section-head">
@@ -361,14 +365,19 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     /* HERO */
     .hero-bleed { position: relative; width: 100%; height: 80vh; min-height: 420px; overflow: clip; isolation: isolate; background: #e5e7eb; }
     .hero-bleed img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
-    .hero-overlay {
-      position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; text-align: center; color: white; padding: 0 1rem;
-      background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%);
-    }
-    .hero-overlay h1 { font-size: clamp(2.5rem, 6vw, 4.75rem); line-height: 1.1; margin: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: -0.01em; }
+    .hero-mask { position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%); }
 
-    /* Summary under hero — now full container width (no max-width clamp) */
-    .lead-under-hero { font-size: clamp(1rem, 2.4vw, 1.15rem); line-height: 1.6; color: #1f2937; }
+    /* PAGE HEAD (H1 like other pages) */
+    .page-head { padding: 16px 0 8px; }
+    .page-head h1 { margin: 0; font-size: clamp(2rem, 4.8vw, 3rem); letter-spacing: -0.01em; line-height: 1.1; }
+
+    /* SUMMARY WHITE CARD */
+    .summary-card {
+      background: #fff; border: 1px solid #eee; border-radius: 14px;
+      padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      margin: 8px 0 24px;
+    }
+    .summary-copy { font-size: clamp(1rem, 2.4vw, 1.1rem); line-height: 1.6; color: #1f2937; }
 
     .section { margin: 28px 0 40px; }
     .section-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:12px; }
@@ -383,7 +392,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .tile-ico { font-size: 1.3rem; }
     .tile-title { font-weight: 700; margin: 6px 0 4px; }
 
-    /* LISTINGS — no local shimmer; also kill any third-party shimmer via CSS */
+    /* LISTINGS */
     .listing-wrap { position: relative; min-height: 160px; }
     .rv-host [class*="skeleton"],
     .rv-host [class*="Skeleton"],
@@ -430,6 +439,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .wx-metric { background:#f9fafb; border:1px solid #f1f1f1; border-radius:10px; padding:12px; text-align:center; }
     .wx-label { font-size:.8rem; color:#666; }
     .wx-value { font-size:1.25rem; font-weight:700; margin-top:4px; }
+
     .wx-now { display:flex; align-items:baseline; gap:16px; margin-bottom:12px; }
     .wx-now-temp { font-size:2rem; font-weight:800; }
     .wx-now-temp .unit { font-size:1rem; opacity:.8; margin-left:2px; }
