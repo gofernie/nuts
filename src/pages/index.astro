@@ -122,6 +122,12 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
   {heroSrc && (
     <Fragment slot="head">
       <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
+      <!-- RealtyVis warm-up -->
+      <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin>
+      <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
+      <link rel="preconnect" href="https://app.realtyvis.com" crossorigin>
+      <link rel="dns-prefetch" href="https://app.realtyvis.com">
+      <link rel="prefetch" href="https://cdn.realtyvis.com/js/embed.js" as="script">
     </Fragment>
   )}
 
@@ -140,6 +146,11 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     )}
     <div class="hero-overlay">
       <h1>{heroH1}</h1>
+      <p class="hero-sub">Local insight • Calm guidance • Results</p>
+      <div class="hero-ctas">
+        <a class="btn btn-dark ripple" href="/contact" data-astro-prefetch>Book a 15-min call</a>
+        <a class="btn btn-ghost ripple" href="#neigh" data-jump="#neigh">Explore areas</a>
+      </div>
     </div>
   </section>
 
@@ -171,7 +182,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       <a class="tile" href="#neigh" data-jump="#neigh">
         <div class="tile-ico">🗺️</div>
         <div class="tile-title">Explore Areas</div>
-        <p>Compare neighbourhoods, amenities, and vibes.</p>
+        <p>Compare neighbourhoods and vibes.</p>
       </a>
     </section>
 
@@ -222,7 +233,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       )}
     </section>
 
-    <!-- FEATURE -->
+    <!-- FEATURE (refreshed) -->
     <section class="section feature">
       <div class="feature-inner">
         <div class="feature-copy">
@@ -230,7 +241,8 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
           {header?.cta2
             ? <div class="prose" set:html={header.cta2}></div>
             : header?.summary
-              ? <div class="prose"><p>{header.summary}</p></div>
+              // 🔧 FIX: render summary as HTML here too so links don't appear as raw tags
+              ? <div class="prose" set:html={header.summary}></div>
               : <div class="prose">
                   <p>Local insight, data-driven pricing, and calm guidance. Whether buying or selling, we’ll build a plan that fits your timeline.</p>
                 </div>
@@ -313,7 +325,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
   </div>
 
   <script>
-    // Smooth jump + ripple click effect for buttons/tiles with [data-jump] or .ripple
+    // Smooth jump + ripple click effect
     function enhanceButtons(){
       const ease = (t)=>1- Math.pow(1-t,3);
 
@@ -326,7 +338,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
           e.preventDefault();
 
           const start = window.scrollY;
-          const end = target.getBoundingClientRect().top + window.scrollY - 12; // small offset
+          const end = target.getBoundingClientRect().top + window.scrollY - 12;
           const dur = 500;
           const t0 = performance.now();
           function step(t){
@@ -374,8 +386,8 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
           const precip = data?.current?.precipitation ?? 0;
 
           if (el("temp"))    el("temp").textContent = String(temp);
-          if (el("winds"))   el("winds").textContent = `Wind ${wind} km/h`;
-          if (el("precip"))  el("precip").textContent = `Precip ${Number(precip||0).toFixed(1)} mm`;
+          if (el("winds"))   el("winds").textContent = \`Wind \${wind} km/h\`;
+          if (el("precip"))  el("precip").textContent = \`Precip \${Number(precip||0).toFixed(1)} mm\`;
 
           const daily = document.getElementById("wx-daily");
           if (daily && data?.daily?.time) {
@@ -386,13 +398,13 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
               const tmin = Math.round(data.daily.temperature_2m_min[i] ?? 0);
               const snow = Number(data.daily.snowfall_sum[i] ?? 0).toFixed(1);
               const p = Number(data.daily.precipitation_sum[i] ?? 0).toFixed(1);
-              return `
+              return \`
                 <div class="wx-day">
-                  <div class="wx-day-label">${label}</div>
-                  <div class="wx-day-temps">${tmax}° / ${tmin}°</div>
-                  <div class="wx-day-snow">${snow} cm snow</div>
-                  <div class="wx-day-precip">${p} mm precip</div>
-                </div>`;
+                  <div class="wx-day-label">\${label}</div>
+                  <div class="wx-day-temps">\${tmax}° / \${tmin}°</div>
+                  <div class="wx-day-snow">\${snow} cm snow</div>
+                  <div class="wx-day-precip">\${p} mm precip</div>
+                </div>\`;
             }).join("");
           }
 
@@ -404,9 +416,9 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
           ).toFixed(1);
           const depth  = Number(data?.daily?.snow_depth_max?.[0] ?? 0).toFixed(0);
 
-          if (el("snow24"))   el("snow24").textContent  = `${snow24} cm`;
-          if (el("snow72"))   el("snow72").textContent  = `${snow72} cm`;
-          if (el("snowDepth"))el("snowDepth").textContent = `${depth} cm`;
+          if (el("snow24"))   el("snow24").textContent  = \`\${snow24} cm\`;
+          if (el("snow72"))   el("snow72").textContent  = \`\${snow72} cm\`;
+          if (el("snowDepth"))el("snowDepth").textContent = \`\${depth} cm\`;
         })
         .catch(()=>{ /* ignore for now */ });
     }
@@ -426,6 +438,8 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%);
     }
     .hero-overlay h1 { font-size: clamp(2.5rem, 6vw, 4.75rem); line-height: 1.1; margin: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: -0.01em; }
+    .hero-sub { margin: 8px 0 14px; opacity:.9; font-weight:600; letter-spacing:.01em; }
+    .hero-ctas { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
 
     /* SUMMARY CARD */
     .summary-card {
@@ -433,6 +447,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .summary-card .prose { font-size: clamp(1rem, 2.2vw, 1.1rem); line-height: 1.65; color:#1f2937; }
+    .summary-card .prose a { text-decoration: underline; }
 
     .section { margin: 28px 0 40px; }
     .section-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:12px; }
@@ -472,6 +487,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     @media (max-width: 900px) { .feature-inner { grid-template-columns: 1fr; } }
 
     .feature-copy .prose { line-height: 1.7; }
+    .feature-copy .prose a { text-decoration: underline; }
     .feature-ctas { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
 
     .feature-card {
@@ -504,7 +520,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     }
     @keyframes ripple { to { transform: scale(2.5); opacity: 0; } }
 
-    /* NEIGHBOURHOODS GRID (4 cards with title overlay) */
+    /* NEIGHBOURHOODS GRID */
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
     .card { display:flex; flex-direction:column; background:#fff; border:1px solid #eee; border-radius:12px; overflow:hidden; text-decoration:none; color:inherit; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transform: translateY(0); transition: transform .25s ease, box-shadow .25s ease; }
     .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
