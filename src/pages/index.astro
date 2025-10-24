@@ -122,7 +122,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
   {heroSrc && (
     <Fragment slot="head">
       <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
-      <!-- RealtyVis warm-up -->
+      <!-- RealtyVis warm-up DNS/conn -->
       <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin>
       <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
       <link rel="preconnect" href="https://app.realtyvis.com" crossorigin>
@@ -205,25 +205,25 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
             }
           </div>
 
-          <!-- Hover-to-warm connections for RealtyVis -->
+          <!-- Hover-to-warm connections for RealtyVis (no template literals) -->
           <script is:inline>
-{`(function(){
-  let warmed=false;
-  function warm(){
-    if(warmed) return; warmed=true;
-    new Image().src="https://app.realtyvis.com/favicon.ico";
-    new Image().src="https://cdn.realtyvis.com/favicon.ico";
-    try{
-      fetch("https://app.realtyvis.com/css/site.min.css",{mode:"no-cors"}).catch(()=>{});
-      fetch("https://app.realtyvis.com/js/site.min.js",{mode:"no-cors"}).catch(()=>{});
-    }catch(e){}
+(function () {
+  var warmed = false;
+  function warm() {
+    if (warmed) return; warmed = true;
+    new Image().src = "https://app.realtyvis.com/favicon.ico";
+    new Image().src = "https://cdn.realtyvis.com/favicon.ico";
+    try {
+      fetch("https://app.realtyvis.com/css/site.min.css", { mode: "no-cors" }).catch(function(){});
+      fetch("https://app.realtyvis.com/js/site.min.js", { mode: "no-cors" }).catch(function(){});
+    } catch (e) {}
   }
-  const host=document.querySelector(".rv-host")||document.querySelector(".listing-wrap");
-  if(!host) return;
-  ["pointerover","touchstart","focusin"].forEach(ev=>{
-    host.addEventListener(ev,warm,{once:true,passive:true});
+  var host = document.querySelector(".rv-host") || document.querySelector(".listing-wrap");
+  if (!host) return;
+  ["pointerover", "touchstart", "focusin"].forEach(function (ev) {
+    host.addEventListener(ev, warm, { once: true, passive: true });
   });
-})();`}
+})();
           </script>
         </div>
       ) : (
@@ -241,7 +241,6 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
           {header?.cta2
             ? <div class="prose" set:html={header.cta2}></div>
             : header?.summary
-              // 🔧 FIX: render summary as HTML here too so links don't appear as raw tags
               ? <div class="prose" set:html={header.summary}></div>
               : <div class="prose">
                   <p>Local insight, data-driven pricing, and calm guidance. Whether buying or selling, we’ll build a plan that fits your timeline.</p>
@@ -386,8 +385,8 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
           const precip = data?.current?.precipitation ?? 0;
 
           if (el("temp"))    el("temp").textContent = String(temp);
-          if (el("winds"))   el("winds").textContent = \`Wind \${wind} km/h\`;
-          if (el("precip"))  el("precip").textContent = \`Precip \${Number(precip||0).toFixed(1)} mm\`;
+          if (el("winds"))   el("winds").textContent = `Wind ${wind} km/h`;
+          if (el("precip"))  el("precip").textContent = `Precip ${Number(precip||0).toFixed(1)} mm`;
 
           const daily = document.getElementById("wx-daily");
           if (daily && data?.daily?.time) {
@@ -398,13 +397,13 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
               const tmin = Math.round(data.daily.temperature_2m_min[i] ?? 0);
               const snow = Number(data.daily.snowfall_sum[i] ?? 0).toFixed(1);
               const p = Number(data.daily.precipitation_sum[i] ?? 0).toFixed(1);
-              return \`
+              return `
                 <div class="wx-day">
-                  <div class="wx-day-label">\${label}</div>
-                  <div class="wx-day-temps">\${tmax}° / \${tmin}°</div>
-                  <div class="wx-day-snow">\${snow} cm snow</div>
-                  <div class="wx-day-precip">\${p} mm precip</div>
-                </div>\`;
+                  <div class="wx-day-label">${label}</div>
+                  <div class="wx-day-temps">${tmax}° / ${tmin}°</div>
+                  <div class="wx-day-snow">${snow} cm snow</div>
+                  <div class="wx-day-precip">${p} mm precip</div>
+                </div>`;
             }).join("");
           }
 
@@ -416,9 +415,9 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
           ).toFixed(1);
           const depth  = Number(data?.daily?.snow_depth_max?.[0] ?? 0).toFixed(0);
 
-          if (el("snow24"))   el("snow24").textContent  = \`\${snow24} cm\`;
-          if (el("snow72"))   el("snow72").textContent  = \`\${snow72} cm\`;
-          if (el("snowDepth"))el("snowDepth").textContent = \`\${depth} cm\`;
+          if (el("snow24"))   el("snow24").textContent  = `${snow24} cm`;
+          if (el("snow72"))   el("snow72").textContent  = `${snow72} cm`;
+          if (el("snowDepth"))el("snowDepth").textContent = `${depth} cm`;
         })
         .catch(()=>{ /* ignore for now */ });
     }
