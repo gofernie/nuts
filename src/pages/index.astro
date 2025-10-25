@@ -146,8 +146,6 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     )}
     <div class="hero-overlay">
       <h1>{heroH1}</h1>
-      
-     
     </div>
   </section>
 
@@ -164,20 +162,28 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
 
   <div class="container">
 
-    <!-- QUICK TILES -->
-    <section class="section tiles">
-      <a class="tile" href="/search" data-astro-prefetch="hover" data-jump="#new-listings">
-        <div class="tile-ico">🏠</div>
+    <!-- QUICK TILES (🔧 upgraded: bigger icons + accent glow) -->
+    <section class="section tiles tiles--upgraded">
+      <a class="tile" href="/search" data-astro-prefetch="hover" data-jump="#new-listings" data-accent="indigo" aria-label="Buy in Fernie">
+        <div class="tile-ico-wrap">
+          <div class="tile-ico">🏠</div>
+        </div>
         <div class="tile-title">Buy in Fernie</div>
         <p>See active listings and set alerts.</p>
       </a>
-      <a class="tile" href="/contact" data-astro-prefetch>
-        <div class="tile-ico">📈</div>
+
+      <a class="tile" href="/contact" data-astro-prefetch data-accent="rose" aria-label="Sell with a Plan">
+        <div class="tile-ico-wrap">
+          <div class="tile-ico">📈</div>
+        </div>
         <div class="tile-title">Sell with a Plan</div>
         <p>Pricing, prep, and marketing that works.</p>
       </a>
-      <a class="tile" href="#neigh" data-jump="#neigh">
-        <div class="tile-ico">🗺️</div>
+
+      <a class="tile" href="#neigh" data-jump="#neigh" data-accent="emerald" aria-label="Explore Areas">
+        <div class="tile-ico-wrap">
+          <div class="tile-ico">🗺️</div>
+        </div>
         <div class="tile-title">Explore Areas</div>
         <p>Compare neighbourhoods and vibes.</p>
       </a>
@@ -451,13 +457,102 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .link { text-decoration:none; color:#111827; opacity:.8; }
     .link:hover { opacity:1; }
 
-    /* TILES */
+    /* TILES (base) */
     .tiles { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
     .tile { position:relative; display:block; border:1px solid #eee; border-radius:14px; padding:14px; text-decoration:none; color:inherit; background:#fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); overflow:hidden; }
     .tile:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.08); transition: .25s; }
     .tile:active { transform: translateY(0); }
     .tile-ico { font-size: 1.3rem; }
     .tile-title { font-weight: 700; margin: 6px 0 4px; }
+
+    /* ===== UPGRADES: bigger icons + accent + glow (overrides) ===== */
+    .tiles--upgraded {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .tiles--upgraded .tile {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      align-items: start;
+      gap: 10px;
+      padding: 18px 16px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.95));
+      border: 1px solid #eee;
+      box-shadow:
+        0 1px 2px rgba(0,0,0,.04),
+        0 10px 24px rgba(0,0,0,.06);
+      transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease, background .22s ease;
+      overflow: hidden;
+      isolation: isolate;
+    }
+    .tiles--upgraded .tile::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 40%;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(0,0,0,0.04), transparent 60%);
+      z-index: 0;
+    }
+    .tiles--upgraded .tile:hover {
+      transform: translateY(-4px);
+      box-shadow:
+        0 6px 18px rgba(0,0,0,.08),
+        0 18px 40px rgba(0,0,0,.10);
+      border-color: #e7e7e7;
+    }
+    .tiles--upgraded .tile:focus-visible {
+      outline: 3px solid #4f46e5;
+      outline-offset: 2px;
+    }
+
+    .tiles--upgraded .tile-ico-wrap {
+      position: relative;
+      width: clamp(64px, 8vw, 78px);
+      height: clamp(64px, 8vw, 78px);
+      border-radius: 9999px;
+      display: grid;
+      place-items: center;
+      z-index: 1;
+      background: radial-gradient(120% 120% at 30% 30%, rgba(255,255,255,.9), rgba(255,255,255,.65));
+      border: 1px solid rgba(0,0,0,0.05);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 6px 18px rgba(0,0,0,.08);
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+    .tiles--upgraded .tile[data-accent="indigo"]  .tile-ico-wrap { box-shadow: 0 8px 26px rgba(79,70,229,.18),  inset 0 1px 0 rgba(255,255,255,.6); }
+    .tiles--upgraded .tile[data-accent="rose"]    .tile-ico-wrap { box-shadow: 0 8px 26px rgba(244,63,94,.18),  inset 0 1px 0 rgba(255,255,255,.6); }
+    .tiles--upgraded .tile[data-accent="emerald"] .tile-ico-wrap { box-shadow: 0 8px 26px rgba(16,185,129,.18), inset 0 1px 0 rgba(255,255,255,.6); }
+    .tiles--upgraded .tile:hover .tile-ico-wrap { transform: translateY(-2px) scale(1.03); }
+
+    .tiles--upgraded .tile-ico {
+      font-size: clamp(2.4rem, 6vw, 3.2rem);
+      line-height: 1;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.15));
+    }
+    .tiles--upgraded .tile-title {
+      font-weight: 800;
+      letter-spacing: .2px;
+      margin-top: 4px;
+      font-size: clamp(1.05rem, 2.2vw, 1.2rem);
+    }
+    .tiles--upgraded p {
+      margin: 2px 0 0;
+      color: #515c67;
+      font-size: .98rem;
+      line-height: 1.45;
+    }
+    .tiles--upgraded .tile:hover::after {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(79,70,229,.18), rgba(244,63,94,.14), rgba(16,185,129,.14));
+      z-index: -1;
+      filter: blur(14px);
+      opacity: .9;
+    }
 
     /* LISTINGS — disable third-party shimmer */
     .listing-wrap { position: relative; min-height: 160px; }
