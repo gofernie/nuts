@@ -63,15 +63,22 @@ const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").tri
 const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
 const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
 
-const SUMMARY_IS_HTML = false;
+/* ✅ Render summary as HTML */
+const SUMMARY_IS_HTML = true;
 const BODY_IS_HTML    = true;
 
 /* ---------- listings (RealtyVis) ---------- */
+/** In Sheets, store EITHER:
+ *   - block id only:        XXXXXXXX-XXXXXXXX
+ *   - or the container div: <div data-rv-block="XXXXXXXX-XXXXXXXX"></div>
+ *   NEVER the <script src=".../embed.js"> tag.
+ */
 const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
 const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
+/* Reuse the sanitizer for any HTML fields we inject */
 function stripScripts(html:string) { return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ""); }
 function extractRvId(html:string) {
   const clean = stripScripts(html);
@@ -80,6 +87,10 @@ function extractRvId(html:string) {
 }
 const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
 const hasValidBlock = ID_RE.test(rvBlockId);
+
+/* Safe HTML for summary/body when using set:html */
+const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summary) : "";
+const bodyHtml    = BODY_IS_HTML    ? stripScripts(body)    : "";
 
 /* ---------- hero preload hint ---------- */
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
@@ -100,7 +111,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       <div class="container">
         <div class="summary-card">
           {SUMMARY_IS_HTML
-            ? <div class="lead" set:html={summary}></div>
+            ? <div class="lead" set:html={summaryHtml}></div>
             : <p class="lead">{summary}</p>}
         </div>
       </div>
@@ -109,7 +120,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 
   {(rawCta) && (
     <div class="container listings-wrap">
-         <h2 class="h2">Current {title} Listings</h2>
+      <h2 class="h2">Current {title} Listings</h2>
 
       {hasValidBlock ? (
         <div class="rv-host">
@@ -149,7 +160,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
   {body && (
     <div class="container body-wrap">
       {BODY_IS_HTML
-        ? <div class="lead" set:html={body}></div>
+        ? <div class="lead" set:html={bodyHtml}></div>
         : <p class="lead">{body}</p>}
     </div>
   )}
@@ -169,9 +180,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     }
 
     /* 👇 summary section matches neighbourhood index */
-    .summary-section {
-      padding: 18px 0 4px;
-    }
+    .summary-section { padding: 18px 0 4px; }
     .summary-card {
       background: #fff;
       border: 1px solid #ececec;
@@ -180,39 +189,19 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
     }
 
-    .lead {
-      margin: 0;
-      font-size: 1.075rem;
-      line-height: 1.6;
-      color: #111827;
-    }
+    .lead { margin: 0; font-size: 1.075rem; line-height: 1.6; color: #111827; }
 
-    .listings-wrap {
-      padding-top: 16px;
-      padding-bottom: 8px;
-    }
-
-    .h2 {
-      font-size: clamp(20px, 2.6vw, 28px);
-      margin: 0 0 10px;
-    }
+    .listings-wrap { padding-top: 16px; padding-bottom: 8px; }
+    .h2 { font-size: clamp(20px, 2.6vw, 28px); margin: 0 0 10px; }
 
     .rv-fallback {
-      margin-top: 12px;
-      padding: 12px 16px;
-      background: #fff3cd;
-      border: 1px solid #ffe69c;
-      border-radius: 10px;
-      color: #5c3c00;
+      margin-top: 12px; padding: 12px 16px; background: #fff3cd;
+      border: 1px solid #ffe69c; border-radius: 10px; color: #5c3c00;
     }
 
     .note {
-      color: #666;
-      background: #fafafa;
-      border: 1px solid #eee;
-      padding: 12px 14px;
-      border-radius: 8px;
-      margin-top: 16px;
+      color: #666; background: #fafafa; border: 1px solid #eee;
+      padding: 12px 14px; border-radius: 8px; margin-top: 16px;
     }
 
     /* Kill shimmer/skeletons coming from RV */
@@ -223,16 +212,9 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     .rv-host .rv-skeleton,
     .rv-host .loading-skeleton,
     .rv-host .rv-loading {
-      animation: none !important;
-      background: none !important;
-      background-image: none !important;
-      box-shadow: none !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
+      animation: none !important; background: none !important; background-image: none !important;
+      box-shadow: none !important; opacity: 0 !important; pointer-events: none !important;
     }
-    .rv-host * {
-      animation-duration: 0s !important;
-      transition: none !important;
-    }
+    .rv-host * { animation-duration: 0s !important; transition: none !important; }
   </style>
 </Site>
