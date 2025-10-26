@@ -1,102 +1,70 @@
 ---
-/* HeroBleed.astro — fix H1 clipping on narrow viewports */
-export interface Props {
-  src?: string;
-  title?: string;
-  alt?: string;
-  height?: { min?: number; vh?: number; max?: number };
-  gradient?: string;
-  preload?: boolean;
-  containerMax?: number;
-  flush?: boolean;
-  containerPad?: number;
-}
 const {
   src = "",
   title = "",
-  alt = "",
-  height = { min: 100, vh: 65, max: 800 },
-  gradient = "linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 55%)",
-  preload = false,
+  kicker = "",
   containerMax = 1200,
-  flush = true,
-  containerPad = 16,
-} = Astro.props as Props;
-
-const hMin = Number.isFinite(height?.min) ? height!.min : 260;
-const hVh  = Number.isFinite(height?.vh)  ? height!.vh  : 42;
-const hMax = Number.isFinite(height?.max) ? height!.max : 480;
-
-const heightCss = `clamp(${hMin}px, ${hVh}svh, ${hMax}px)`;
-
-/* ✅ Use CSS min()/max() so we never set a negative left on small screens */
-const leftExpr = flush
-  ? `max(0px, calc((100vw - ${containerMax}px)/2))`
-  : `max(${containerPad}px, calc((100vw - ${containerMax}px)/2 + ${containerPad}px))`;
-
-const widthExpr = flush
-  ? `min(${containerMax}px, 100vw)`
-  : `min(${containerMax - 2*containerPad}px, calc(100vw - ${2*containerPad}px))`;
+  containerPad = 12,
+  flush = false,
+  preload = false
+} = Astro.props;
 ---
 
-{preload && src && (
-  <Fragment slot="head">
-    <link rel="preload" as="image" href={src} fetchpriority="high" />
-  </Fragment>
-)}
+<section class={`hero-bleed${flush ? " hero-flush" : ""}`} style={src ? `--hero-bg:url(${src})` : ""}>
+  <div class="overlay">
+    <div class="inner" style={`max-width:${containerMax}px;padding-inline:${containerPad}px`}>
+      {title && <h1 class="hero-title fade-in-up">{title}</h1>}
+      {kicker && <p class="hero-kicker fade-in-up delay-1">{kicker}</p>}
+    </div>
+  </div>
 
-<section class="hb" data-hb style={`height:${heightCss}; --scrim:${gradient};`}>
-  {src && (
-    <img
-      src={src}
-      alt={alt}
-      fetchpriority="high"
-      loading="eager"
-      decoding="async"
-      width="2000"
-      height="1000"
-      class="hb__img"
-    />
-  )}
-  <div class="hb__scrim" aria-hidden="true"></div>
+  <style>
+    .hero-bleed {
+      position: relative;
+      min-height: 48vh;
+      display: flex;
+      align-items: flex-end;
+      background: var(--hero-bg, none) center/cover no-repeat;
+      isolation: isolate;
+    }
+    .hero-flush { min-height: 38vh; }
 
-  {title && (
-    <h1 class="hb__pin" style={`left:${leftExpr}; width:${widthExpr};`}>
-      {title}
-    </h1>
-  )}
+    .overlay {
+      width: 100%;
+      background: linear-gradient(to top, rgba(0,0,0,.48), rgba(0,0,0,.20) 40%, transparent 75%);
+      padding-block: clamp(16px, 4vw, 28px);
+    }
+
+    .inner { width: 100%; margin-inline: auto; }
+
+    .hero-title {
+      color: #fff;
+      margin: 0;
+      font-size: clamp(28px, 5vw, 48px);
+      line-height: 1.08;
+      text-shadow: 0 1px 10px rgba(0,0,0,.28);
+    }
+
+    .hero-kicker {
+      margin: .4rem 0 0 0;
+      color: #e5e7eb;
+font-size: clamp(15px, 2vw, 20px);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      opacity: .95;
+      text-shadow: 0 1px 6px rgba(0,0,0,.22);
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in-up { opacity: 0; animation: fadeInUp 420ms ease-out 40ms both; }
+    .delay-1 { animation-delay: 140ms; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fade-in-up, .delay-1 { animation: none !important; opacity: 1 !important; transform: none !important; }
+    }
+    @media (max-width: 640px) { .hero-bleed { min-height: 42vh; } }
+  </style>
 </section>
-
-<style>
-  .hb {
-    position: relative;
-    isolation: isolate;
-    left: 50%; right: 50%;
-    margin-left: -50vw; margin-right: -50vw;
-    width: 100vw; max-width: 100vw;
-    overflow: hidden;
-    background: #e5e7eb;
-    display: block;
-    margin-bottom: clamp(16px, 2.5vw, 24px);
-  }
-  .hb__img {
-    width: 100%; height: 100%; display: block;
-    object-fit: cover; object-position: center;
-  }
-  .hb__scrim {
-    position: absolute; inset: 0; z-index: 10;
-    background: var(--scrim);
-  }
-  .hb__pin {
-    position: absolute; z-index: 20; margin: 0 0 0 2px;
-    bottom: clamp(16px, 3vw, 28px);
-    pointer-events: none;
-
-    color: #ebebeb;
-    font-weight: 700;
-    line-height: 1.1;
-    font-size: clamp(2rem, 5vw, 3rem);
-    text-shadow: 0 2px 8px rgba(0,0,0,.45);
-    text-align: left;
-  }
-</style>
