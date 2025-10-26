@@ -1,5 +1,4 @@
 ---
-// File: src/pages/types/[slug].astro
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
@@ -50,6 +49,7 @@ type Row = {
   hero_img?: string; heroImg?: string; HeroImg?: string;
   seo_title?: string; seoTitle?: string;
   seo_description?: string; seoDescription?: string;
+  kicker?: string; subhead?: string;
   cta1?: string; rv_block?: string; slug?: string; status?: string;
 };
 const { row: rowIn } = Astro.props as { row?: Row };
@@ -63,23 +63,23 @@ const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").tri
 const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
 const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
 
-/* ✅ Render summary as HTML */
+/* ---------- kicker/subhead (falls back to Fernie, BC) ---------- */
+const kickerRaw = String(row?.kicker ?? row?.subhead ?? "").trim();
+const kicker    = kickerRaw || "Fernie, BC";
+
+/* ✅ sanitize HTML */
+function stripScripts(html:string) { return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ""); }
 const SUMMARY_IS_HTML = true;
 const BODY_IS_HTML    = true;
+const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summary) : "";
+const bodyHtml    = BODY_IS_HTML    ? stripScripts(body)    : "";
 
 /* ---------- listings (RealtyVis) ---------- */
-/** In Sheets, store EITHER:
- *   - block id only:        XXXXXXXX-XXXXXXXX
- *   - or the container div: <div data-rv-block="XXXXXXXX-XXXXXXXX"></div>
- *   NEVER the <script src=".../embed.js"> tag.
- */
 const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
 const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
-/* Reuse the sanitizer for any HTML fields we inject */
-function stripScripts(html:string) { return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ""); }
 function extractRvId(html:string) {
   const clean = stripScripts(html);
   const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
@@ -87,10 +87,6 @@ function extractRvId(html:string) {
 }
 const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
 const hasValidBlock = ID_RE.test(rvBlockId);
-
-/* Safe HTML for summary/body when using set:html */
-const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summary) : "";
-const bodyHtml    = BODY_IS_HTML    ? stripScripts(body)    : "";
 
 /* ---------- hero preload hint ---------- */
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
@@ -100,6 +96,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
   <HeroBleed
     src={heroImg ? heroPath(heroImg) : ""}
     title={title}
+    kicker={kicker}            /* ✅ shown under H1 inside hero with fade-in */
     containerMax={1200}
     containerPad={12}
     flush={false}
@@ -173,22 +170,17 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
   )}
 
   <style>
-    .container {
-      max-width: 1200px;
-      margin-inline: auto;
-      padding-inline: 12px;
-    }
+    .container { max-width: 1200px; margin-inline: auto; padding-inline: 12px; }
 
-    /* 👇 summary section matches neighbourhood index */
+    /* summary section */
     .summary-section { padding: 18px 0 4px; }
     .summary-card {
       background: #fff;
       border: 1px solid #ececec;
       border-radius: 14px;
       padding: 16px 18px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
     }
-
     .lead { margin: 0; font-size: 1.075rem; line-height: 1.6; color: #111827; }
 
     .listings-wrap { padding-top: 16px; padding-bottom: 8px; }
@@ -203,18 +195,5 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       color: #666; background: #fafafa; border: 1px solid #eee;
       padding: 12px 14px; border-radius: 8px; margin-top: 16px;
     }
-
-    /* Kill shimmer/skeletons coming from RV */
-    .rv-host [class*="skeleton"],
-    .rv-host [class*="Skeleton"],
-    .rv-host [class*="loading"],
-    .rv-host [data-skeleton],
-    .rv-host .rv-skeleton,
-    .rv-host .loading-skeleton,
-    .rv-host .rv-loading {
-      animation: none !important; background: none !important; background-image: none !important;
-      box-shadow: none !important; opacity: 0 !important; pointer-events: none !important;
-    }
-    .rv-host * { animation-duration: 0s !important; transition: none !important; }
   </style>
 </Site>
