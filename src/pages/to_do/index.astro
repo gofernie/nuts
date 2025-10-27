@@ -6,6 +6,7 @@ import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
+import sanitizeHtml from "sanitize-html";
 
 const PATH_BASE = "/to_do";
 
@@ -25,6 +26,17 @@ const visible = (r:any) => {
   const rawSlug = get(r,"slug").toLowerCase();
   return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
+
+/* Render-safe utilities for summaries */
+const toHtml = (v:string) => sanitizeHtml(v ?? "", {
+  allowedTags: ["p","strong","em","a","ul","ol","li","br"],
+  allowedAttributes: { a: ["href","target","rel"] },
+  transformTags: { a: (_:any, attr:any) => ({ tagName:"a", attribs:{...attr, rel:"noopener nofollow ugc"} }) }
+});
+const toText = (v:string) =>
+  sanitizeHtml(v ?? "", { allowedTags: [], allowedAttributes: {} })
+    .replace(/\s+/g, " ")
+    .trim();
 
 /* Detect season from common fields; default "all" */
 function detectSeason(r:any): "summer"|"winter"|"all" {
@@ -46,6 +58,8 @@ type Row = {
   slug?: string;
   title?: string;
   summary?: string;
+  summary_text?: string;   // <- plain-text for cards
+  summary_html?: string;   // <- safe html if you ever want rich card text
   long_copy?: string;
   hero_img?: string;
   status?: string;
@@ -91,15 +105,26 @@ try {
     .filter(r => visible(r))
     .map(r => {
       const season = detectSeason(r);
+      const title  = get(r,"title");
+      const slug   = get(r,"slug") || slugify(title);
+      const summaryRaw =
+        get(r,"summary") ||
+        get(r,"description") ||
+        get(r,"seo_description") ||
+        "";
+
       return {
-        slug: get(r,"slug") || slugify(get(r,"title")),
-        title: get(r,"title"),
-        summary: get(r,"summary"),
+        slug,
+        title,
         hero_img: get(r,"hero_img"),
         sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
         seo_title: get(r,"seo_title"),
         seo_description: get(r,"seo_description"),
         season,
+        // keep raw (optional), plus prepared versions:
+        summary: summaryRaw,
+        summary_text: toText(summaryRaw),  // <- use this in cards
+        summary_html: toHtml(summaryRaw),  // <- available if you want rich text somewhere else
       };
     })
     .filter(r => r.slug && r.title)
@@ -176,7 +201,8 @@ items = itemsSorted;
               )}
               <div class="body">
                 <h2>{it.title}</h2>
-                {it.summary && <p>{it.summary}</p>}
+                {/* Use plain text to avoid literal <p>…</p> in the card */}
+                {it.summary_text && <p>{it.summary_text}</p>}
               </div>
             </a>
           ))}
