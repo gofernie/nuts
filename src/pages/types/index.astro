@@ -52,7 +52,6 @@ try {
     Array.isArray(raw?.data) ? raw.data :
     Array.isArray(raw?.rows) ? raw.rows : [];
 
-  // header row (index/header/first with summary)
   const headerCandidates = rows.filter((r:any) => {
     const slug = get(r,"slug").toLowerCase();
     const status = get(r,"status").toLowerCase();
@@ -101,12 +100,10 @@ const SUMMARY_IS_HTML = false;
   />
 
   {pageSummary && (
-    <div class="container">
-      <div class="summary-card">
-        {SUMMARY_IS_HTML
-          ? <div class="lead" set:html={pageSummary}></div>
-          : <p class="lead">{pageSummary}</p>}
-      </div>
+    <div class="container summary-wrap">
+      {SUMMARY_IS_HTML
+        ? <div class="lead" set:html={pageSummary}></div>
+        : <p class="lead">{pageSummary}</p>}
     </div>
   )}
 
@@ -119,11 +116,9 @@ const SUMMARY_IS_HTML = false;
           const img = it.hero_img ? heroPath(it.hero_img) : "";
           return (
             <a class="card" href={`${PATH_BASE}/${it.slug}`} data-astro-prefetch="hover" aria-label={it.title}>
-              <div class="thumb">
-                {img ? <img src={img} alt={it.title} loading="lazy" decoding="async" /> : <div class="ph">No image</div>}
-              </div>
+              {img && <img src={img} alt={it.title} loading="lazy" decoding="async" />}
               <div class="body">
-                <h3 class="card-title">{it.title}</h3>
+                <h2>{it.title}</h2>
                 {it.summary && <p>{it.summary}</p>}
               </div>
             </a>
@@ -136,12 +131,13 @@ const SUMMARY_IS_HTML = false;
   <style>
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
 
-    /* summary container */
-    .summary-card{
-      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
-      padding:20px; margin-top:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05);
+    /* 🧭 match xtraarea summary spacing */
+    .summary-wrap{
+      padding-top:16px;
+      padding-bottom:8px;
+      margin-top: 8px; /* this was the missing space */
     }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
+    .lead{ margin: 0; font-size: 1.075rem; line-height: 1.6; color:#111827; }
 
     .err{ color:#b91c1c; background:#fee2e2; padding:.75rem 1rem; border-radius:.5rem; margin-top:12px; }
 
@@ -159,56 +155,23 @@ const SUMMARY_IS_HTML = false;
       display:flex; flex-direction:column;
       background:#fff; border:1px solid #e5e7eb; border-radius:14px;
       overflow:hidden; text-decoration:none; color:inherit;
-      box-shadow:0 1px 3px rgba(0,0,0,0.05);
-      transform: translateY(0);
-      transition: transform .25s ease, box-shadow .25s ease, border-color .15s ease;
+      transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
     }
-    .card:hover{
-      transform: translateY(-6px);
-      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
-      border-color:#d1d5db;
-    }
+    .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
 
-    .thumb{
-      position:relative; aspect-ratio:16/9;
-      background:#f6f6f6; display:grid; place-items:center; overflow:hidden;
-    }
-    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-    .ph{ font-size:12px; color:#999; }
+    .card > img{ width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }
+    .card .body{ padding:12px; }
+    .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; }
 
-    /* match xtraarea card body padding */
-    .card .body{
-      padding: 12px;
-    }
-
-    /* remove UA default heading margins so spacing is identical */
-    .card .body h1,
-    .card .body h2,
-    .card .body h3{
-      margin:0;
-      padding:0;
-    }
-
-    /* ✅ card titles now match xtraarea exactly */
-    .card .body .card-title{
-      margin-top: 4px;
-      margin-bottom: 6px;
-      font-size: clamp(1rem, 1.7vw, 1.1rem);
-      font-weight: 700;
-      line-height: 1.25;
-      color:#111827;
-      letter-spacing: -0.2px;
-    }
-
+    /* Clamp summary to 2 lines */
     .card .body p{
-      margin:0;
-      color:#555;
-      font-size:0.925rem;
-      line-height:1.4;
+      margin:0; color:#374151;
+      line-height:1.35;
       display:-webkit-box;
       -webkit-line-clamp:2;
       -webkit-box-orient:vertical;
       overflow:hidden;
+      text-overflow:ellipsis;
     }
   </style>
 </Site>

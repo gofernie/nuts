@@ -145,7 +145,8 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
         height="1000"
       />
     )}
-    <div class="hero-overlay">
+    <!-- NOTE: added 'hero--bt' -->
+    <div class="hero-overlay hero--bt">
       <div class="hero-inner">
         <h1 class="fade-slide">{heroH1}</h1>
         <p class="fade-slide subhead">{subhead}</p>
@@ -413,11 +414,29 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     /* HERO */
     .hero-bleed { position: relative; width: 100%; height: 80vh; min-height: 420px; overflow: clip; isolation: isolate; background: #e5e7eb; }
     .hero-bleed img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+
     .hero-overlay {
-      position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; text-align: center; color: white; padding: 0 1rem;
+      position: absolute; inset: 0; z-index: 1;
+      color: white; padding: 0 1rem;
+      /* keep gradient for legibility */
       background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%);
     }
-    .hero-inner { max-width: 800px; margin: 0 auto; text-align: center; }
+
+    /* NEW: bottom-third placement */
+    .hero--bt { /* overlay is the positioning context */ }
+    .hero--bt .hero-inner {
+      position: absolute;
+      left: 50%;
+      top: 66%;                    /* ~bottom third */
+      transform: translate(-50%, -50%);
+      width: min(92vw, 800px);
+      text-align: center;
+    }
+
+    /* mobile tweak: a bit lower for tall safe area + thumbs */
+    @media (max-width: 640px) {
+      .hero--bt .hero-inner { top: 72%; width: min(96vw, 760px); }
+    }
 
     .hero-overlay h1 { font-size: clamp(2.5rem, 6vw, 4.75rem); line-height: 1.1; margin: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: -0.01em; }
 
@@ -427,7 +446,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .hero-cta.fade-slide { animation-delay: 0.45s; }
     @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-    /* smaller subhead (uppercase via CSS) */
+    /* subhead (uppercase) */
     .hero-overlay .subhead {
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -483,7 +502,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       outline-offset: 2px;
     }
 
-    /* ripple ink (shared) */
+    /* ripple ink */
     .ripple { overflow: hidden; }
     .ripple-ink {
       position: absolute; border-radius: 9999px; transform: scale(0);
@@ -492,7 +511,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     }
     @keyframes ripple { to { transform: scale(2.4); opacity: 0; } }
 
-    /* SUMMARY CARD */
+    /* SUMMARY CARD (unchanged; you can remove this whole block if you don't want the card) */
     .summary-card {
       background:#fff; border:1px solid #eee; border-radius:14px; padding:18px 18px 16px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
