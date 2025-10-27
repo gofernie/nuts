@@ -109,6 +109,7 @@ items = chooseNeighbourCards(allItems);
 /* ---- SEO / hero ---- */
 const heroSrc      = header?.hero_img ? heroPath(header.hero_img) : "";
 const heroH1       = header?.title || "Fernie Real Estate";
+const subhead      = header?.seo_description || header?.summary || "Homes, neighbourhoods, and listings across the Elk Valley";
 const pageSeoTitle = header?.seo_title || heroH1;
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
 
@@ -145,7 +146,10 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       />
     )}
     <div class="hero-overlay">
-      <h1>{heroH1}</h1>
+      <div class="hero-inner">
+        <h1 class="fade-slide">{heroH1}</h1>
+        <p class="fade-slide subhead">{subhead}</p>
+      </div>
     </div>
   </section>
 
@@ -208,7 +212,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
             }
           </div>
 
-          <!-- Hover-to-warm connections for RealtyVis (no template literals) -->
+          <!-- Hover-to-warm connections for RealtyVis -->
           <script is:inline>
 (function () {
   var warmed = false;
@@ -405,6 +409,21 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     }
     .hero-overlay h1 { font-size: clamp(2.5rem, 6vw, 4.75rem); line-height: 1.1; margin: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: -0.01em; }
 
+    /* NEW: hero inner + soft motion */
+    .hero-inner { max-width: 800px; margin: 0 auto; text-align: center; }
+    .fade-slide { opacity: 0; transform: translateY(20px); animation: fadeSlideUp 0.8s ease-out forwards; }
+    .fade-slide.subhead { animation-delay: 0.3s; }
+    @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .hero-overlay .subhead {
+      font-size: clamp(1.125rem, 2vw, 1.5rem);
+      color: #fff;
+      opacity: 0.9;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      max-width: 640px;
+      margin: .5rem auto 0;
+      line-height: 1.4;
+    }
+
     /* SUMMARY CARD */
     .summary-card {
       background:#fff; border:1px solid #eee; border-radius:14px; padding:18px 18px 16px;
@@ -418,12 +437,11 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .link { text-decoration:none; color:#111827; opacity:.8; }
     .link:hover { opacity:1; }
 
-    /* ========= QUICK TILES (white lift + colored shadow) ========= */
+    /* ========= QUICK TILES ========= */
     .tiles { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
     .tiles--upgraded { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
     .tiles--upgraded .tile {
-      --glow: rgba(79,70,229,.26); /* default indigo glow (fallback) */
-
+      --glow: rgba(79,70,229,.26);
       position: relative;
       display: grid;
       grid-template-rows: auto auto 1fr;
@@ -432,7 +450,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       padding: 18px 16px;
       border-radius: 16px;
       border: 1px solid #eaecef;
-      background-color: #ffffff; /* stays white */
+      background-color: #ffffff;
       box-shadow: 0 1px 3px rgba(0,0,0,.05);
       text-decoration: none; color: inherit;
       overflow: hidden;
@@ -442,18 +460,13 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .tiles--upgraded .tile:hover {
       transform: translateY(-6px);
       border-color: #e1e5ea;
-      box-shadow:
-        0 6px 16px rgba(0,0,0,.10),
-        0 14px 36px var(--glow);
+      box-shadow: 0 6px 16px rgba(0,0,0,.10), 0 14px 36px var(--glow);
       background-color: #ffffff;
     }
+    .tiles--upgraded .tile[data-accent="indigo"] { --glow: rgba(79,70,229,.28); }
+    .tiles--upgraded .tile[data-accent="rose"]   { --glow: rgba(244,63,94,.28); }
+    .tiles--upgraded .tile[data-accent="emerald"]{ --glow: rgba(16,185,129,.28); }
 
-    /* Per-accent colored shadow */
-    .tiles--upgraded .tile[data-accent="indigo"] { --glow: rgba(79,70,229,.28); }   /* indigo-600 */
-    .tiles--upgraded .tile[data-accent="rose"]   { --glow: rgba(244,63,94,.28); }   /* rose-500 */
-    .tiles--upgraded .tile[data-accent="emerald"]{ --glow: rgba(16,185,129,.28); }  /* emerald-500 */
-
-    /* icon motion */
     .tile-ico-wrap {
       position: relative;
       width: clamp(56px, 8vw, 72px);
@@ -507,38 +520,30 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .muted { color:#6b7280; }
     .error { color:#b91c1c; }
 
-    /* =========================================
-       ✨ INLINE TEXT LINK “PILL/TAB” STYLE (updated)
-       Default looks like previous hover; hover just darkens slightly.
-       Applies to links in CMS prose blocks.
-       ========================================= */
+    /* Inline link pill style */
     :global(.summary-card .prose a:not(.btn)),
     :global(.feature-copy .prose a:not(.btn)) {
       display: inline-block;
       padding: 0px 10px;
       font-size: 1.0rem;
       font-weight: 500;
-      color: #1e1b4b;                 /* indigo-950-ish text */
-      background-color: #ececec;      /* indigo-200 base */
-      border-radius: 5px;          /* pill */
+      color: #1e1b4b;
+      background-color: #ececec;
+      border-radius: 5px;
       text-decoration: none;
       box-shadow: 0 0 0 rgba(79,70,229,0.18);
-      transition:
-        background-color .25s ease,
-        color .25s ease,
-        box-shadow .25s ease,
-        transform .15s ease;
+      transition: background-color .25s ease, color .25s ease, box-shadow .25s ease, transform .15s ease;
     }
     :global(.summary-card .prose a:not(.btn):hover),
     :global(.feature-copy .prose a:not(.btn):hover) {
-      background-color: #d8d8d8;      /* a touch darker */
+      background-color: #d8d8d8;
       box-shadow: 0 4px 12px rgba(255, 255, 255, 0.28);
       transform: translateY(0px);
       text-decoration: none;
     }
     :global(.summary-card .prose a.active:not(.btn)),
     :global(.feature-copy .prose a.active:not(.btn)) {
-      background-color: #111827;      /* dark tab look when you add .active */
+      background-color: #111827;
       color: #fff;
       font-weight: 700;
       box-shadow: 0 4px 12px rgba(17,24,39,0.25);
