@@ -1,5 +1,5 @@
 ---
-/** File: src/pages/to_do/index.astro */
+// File: src/pages/to_do/index.astro
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
@@ -26,6 +26,22 @@ const visible = (r:any) => {
   return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
 
+/* Detect season from common fields; default "all" */
+function detectSeason(r:any): "summer"|"winter"|"all" {
+  const direct = get(r,"season").toLowerCase();
+  if (direct === "summer" || direct === "winter") return direct as any;
+
+  const tagsRaw = [
+    get(r,"tags"), get(r,"tag"), get(r,"category"), get(r,"categories"),
+    get(r,"type"), get(r,"types")
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  if (/winter|ski|snow|ice|sled|x-?country|nordic|snowshoe/.test(tagsRaw)) return "winter";
+  if (/summer|hike|bike|swim|lake|golf|paddle|camp|trail/.test(tagsRaw)) return "summer";
+
+  return "all";
+}
+
 type Row = {
   slug?: string;
   title?: string;
@@ -36,6 +52,7 @@ type Row = {
   seo_title?: string;
   seo_description?: string;
   sort?: number|string;
+  season?: "summer"|"winter"|"all";
 };
 
 let items: Row[] = [];
@@ -52,7 +69,6 @@ try {
     Array.isArray(raw?.data) ? raw.data :
     Array.isArray(raw?.rows) ? raw.rows : [];
 
-  // 🪄 more flexible header detection
   const headerCandidates = rows.filter((r:any) => {
     const slug = get(r,"slug").toLowerCase();
     const status = get(r,"status").toLowerCase();
@@ -67,20 +83,23 @@ try {
   header =
     headerCandidates.find(r => get(r,"slug").toLowerCase() === "index") ??
     headerCandidates.find(r => get(r,"status").toLowerCase() === "header") ??
-    headerCandidates[0] ??
-    null;
+    headerCandidates[0] ?? null;
 
   items = rows
     .filter(r => visible(r))
-    .map(r => ({
-      slug: get(r,"slug") || slugify(get(r,"title")),
-      title: get(r,"title"),
-      summary: get(r,"summary"),
-      hero_img: get(r,"hero_img"),
-      sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
-      seo_title: get(r,"seo_title"),
-      seo_description: get(r,"seo_description"),
-    }))
+    .map(r => {
+      const season = detectSeason(r);
+      return {
+        slug: get(r,"slug") || slugify(get(r,"title")),
+        title: get(r,"title"),
+        summary: get(r,"summary"),
+        hero_img: get(r,"hero_img"),
+        sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
+        seo_title: get(r,"seo_title"),
+        seo_description: get(r,"seo_description"),
+        season,
+      };
+    })
     .filter(r => r.slug && r.title)
     .sort((a,b) => (Number(a.sort) - Number(b.sort)) || a.title!.localeCompare(b.title!));
 
@@ -88,7 +107,6 @@ try {
   error = e?.message || "Failed to load data.";
 }
 
-// 📝 fallbacks to ensure summary text renders
 const pageTitle = get(header,"title") || "Things To Do in Fernie";
 const pageSummary =
   get(header,"summary") ||
@@ -100,8 +118,12 @@ const heroImg = get(header,"hero_img");
 const seoTitle = get(header,"seo_title") || pageTitle;
 const seoDesc  = get(header,"seo_description") || pageSummary;
 
-// set to true if your summary text contains HTML markup
 const SUMMARY_IS_HTML = false;
+
+// initial season (from query)
+const initialSeason = (Astro.url?.searchParams?.get("season") || "all").toLowerCase();
+const VALID = new Set(["all","summer","winter"]);
+const seasonStart = (VALID.has(initialSeason) ? initialSeason : "all") as "all"|"summer"|"winter";
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
@@ -125,37 +147,107 @@ const SUMMARY_IS_HTML = false;
     {error && <p class="err">{error}</p>}
 
     {!error && (
-      <div class="grid">
-        {items.map((it) => (
-          <a class="card" href={`${PATH_BASE}/${it.slug}`} data-astro-prefetch="hover">
-            {it.hero_img && (
-              <img src={heroPath(it.hero_img)} alt={it.title} loading="lazy" decoding="async" />
-            )}
-            <div class="body">
-              <h2>{it.title}</h2>
-              {it.summary && <p>{it.summary}</p>}
-            </div>
-          </a>
-        ))}
-      </div>
+      <>
+        <!-- Season filter controls -->
+        <div class="controls" role="tablist" aria-label="Filter activities by season">
+          <button class="pill" data-filter="all" aria-selected={seasonStart==="all"}>All</button>
+          <button class="pill" data-filter="summer" aria-selected={seasonStart==="summer"}>Summer</button>
+          <button class="pill" data-filter="winter" aria-selected={seasonStart==="winter"}>Winter</button>
+        </div>
+
+        <div class="grid" data-season={seasonStart}>
+          {items.map((it) => (
+            <a
+              class="card"
+              href={`${PATH_BASE}/${it.slug}`}
+              data-astro-prefetch="hover"
+              data-season={it.season}
+              aria-label={it.title}
+            >
+              {it.hero_img && (
+                <img src={heroPath(it.hero_img)} alt={it.title} loading="lazy" decoding="async" />
+              )}
+              <div class="body">
+                <h2>{it.title}</h2>
+                {it.summary && <p>{it.summary}</p>}
+              </div>
+            </a>
+          ))}
+        </div>
+      </>
     )}
   </div>
 
-  <style>
-    .container{
-      max-width:1200px;
-      margin-inline:auto;
-      padding-inline:12px;
+  <script>
+    function initSeasonFilter(){
+      const grid = document.querySelector(".grid");
+      const pills = Array.from(document.querySelectorAll(".controls .pill"));
+      if (!grid || !pills.length) return;
+
+      function applyFilter(next) {
+        const wanted = (next || "all").toLowerCase();
+        grid.setAttribute("data-season", wanted);
+
+        // Update button states
+        pills.forEach(btn => btn.setAttribute("aria-selected", String(btn.dataset.filter === wanted)));
+
+        // Update query param (no scroll)
+        const url = new URL(location.href);
+        if (wanted === "all") url.searchParams.delete("season");
+        else url.searchParams.set("season", wanted);
+        history.replaceState({}, "", url);
+      }
+
+      pills.forEach(btn => {
+        btn.addEventListener("click", () => applyFilter(btn.dataset.filter || "all"), { passive: true });
+      });
+
+      // Ensure initial state
+      const start = grid.getAttribute("data-season") || "all";
+      applyFilter(start);
     }
+
+    // Robust init across SSR/SPA/navigation/bfcache
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initSeasonFilter, { once: true });
+    } else {
+      initSeasonFilter();
+    }
+    window.addEventListener("pageshow", (e) => {
+      if (e.persisted) initSeasonFilter();
+    });
+  </script>
+
+  <style>
+    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
     .summary-wrap{ padding-top:16px; padding-bottom:8px; }
     .lead{ margin: 0; font-size: 1.075rem; line-height: 1.6; color:#111827; }
     .err{ color:#b91c1c; background:#fee2e2; padding:.75rem 1rem; border-radius:.5rem; margin-top:12px; }
 
+    /* Controls: pill buttons */
+    .controls{
+      display:flex; gap:8px; align-items:center;
+      margin-top: 10px; margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .pill{
+      appearance:none; border:1px solid #e5e7eb; background:#fff;
+      padding:8px 12px; border-radius:9999px; cursor:pointer;
+      font-weight:700; font-size:.9rem; letter-spacing:.2px;
+      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background-color .12s ease;
+    }
+    .pill[aria-selected="true"]{
+      border-color:#111827; background:#111827; color:#fff; box-shadow:0 4px 12px rgba(0,0,0,.08);
+    }
+    .pill:hover{ transform: translateY(-1px); }
+    .pill:active{ transform: translateY(0); }
+
+    /* Grid + cards (match types/xtraarea) */
     .grid{
       display:grid;
       grid-template-columns: repeat(4, minmax(0,1fr));
       gap: 16px;
-      margin-top: 18px;
+      margin-top: 8px;
     }
     @media (max-width:1200px){ .grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
     @media (max-width:900px){  .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
@@ -168,12 +260,23 @@ const SUMMARY_IS_HTML = false;
       transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
     }
     .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
-    .card img{ width:100%; aspect-ratio: 16/9; object-fit: cover; display:block; }
+    .card img{ width:100%; aspect-ratio:16/9; object-fit: cover; display:block; }
     .card .body{ padding:12px; }
     .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; }
+
+    /* 2-line clamp like types/xtraarea */
     .card .body p{
-      margin:0; color:#374151; line-height:var(--card-text-lh,1.35);
-      display:-webkit-box; -webkit-line-clamp:var(--card-text-lines,3); -webkit-box-orient:vertical; overflow:hidden;
+      margin:0; color:#374151; line-height:1.35;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis;
     }
+
+    /* Filtering:
+       - Summer view shows "summer" and "all"
+       - Winter view shows "winter" and "all"
+       - All view shows everything
+    */
+    .grid[data-season="summer"] .card:not([data-season="summer"]):not([data-season="all"]) { display:none; }
+    .grid[data-season="winter"] .card:not([data-season="winter"]):not([data-season="all"]) { display:none; }
+    .grid[data-season="all"]    .card { display:flex; }
   </style>
 </Site>
