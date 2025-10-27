@@ -9,7 +9,7 @@ import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import sanitizeHtml from "sanitize-html";
 
-/* ---------- sanitize config (arrays for allowedAttributes!) ---------- */
+/* ---------- sanitize config (arrays for allowedAttributes) ---------- */
 const ALLOWED = {
   allowedTags: [
     "p","h2","h3","h4","ul","ol","li","a","strong","em","br","hr","span",
@@ -27,7 +27,7 @@ const ALLOWED = {
   }
 };
 
-/* ---------- STATIC PATHS (local helper to avoid scope issues) ---------- */
+/* ---------- STATIC PATHS (local helper so it's always in scope) ---------- */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_TODO_JSON;
   if (!url) return [];
@@ -185,7 +185,8 @@ const debug       = Astro.url?.searchParams?.get("debug") === "1";
 
       {hasValidBlock ? (
         <div class="rv-host">
-          <RVEmbed block={rvBlockId} showSkeleton={false} />
+          <!-- ↓ Smaller explicit min-height -->
+          <RVEmbed block={rvBlockId} minHeight="560px" showSkeleton={false} />
         </div>
       ) : (
         <div class="rv-fallback">
@@ -254,9 +255,14 @@ const debug       = Astro.url?.searchParams?.get("debug") === "1";
       background:rgba(0,0,0,.55); color:#fff; font-size:.85rem; border-radius:8px;
     }
 
-    /* RealtyVis spacing */
-    .listings-wrap{ padding-top:16px; padding-bottom:16px; }
-    .rv-host{ margin-bottom:0; }
+    /* RealtyVis spacing — clamp any injected tall min-heights */
+    .listings-wrap{ padding-top:16px; padding-bottom:8px; } /* was 16px */
+    .rv-host{ margin:0; padding:0; }
+    .rv-host [style*="min-height"] { min-height:0 !important; }
+    .rv-host [data-rv-root],
+    .rv-host .rv-root,
+    .rv-host > div { min-height:0 !important; }
+    .rv-host * { margin-bottom:0 !important; } /* kill stray margins */
 
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
 
@@ -270,7 +276,7 @@ const debug       = Astro.url?.searchParams?.get("debug") === "1";
       padding:12px 14px; border-radius:8px; margin-top:16px;
     }
 
-    /* Kill shimmer/skeletons from RV */
+    /* Disable any shimmer/skeletons from RV */
     .rv-host [class*="skeleton"],
     .rv-host [class*="Skeleton"],
     .rv-host [class*="loading"],
