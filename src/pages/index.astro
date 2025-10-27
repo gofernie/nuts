@@ -17,7 +17,7 @@ type Row = {
   seo_title?: string;
   seo_description?: string;
   cta1?: string; // RealtyVis block ID or full snippet
-  cta2?: string; // Feature copy (HTML/text)
+  cta2?: string; // HERO SUBHEAD (we're using this)
   cta3?: string; // Optional extra
 };
 
@@ -109,7 +109,7 @@ items = chooseNeighbourCards(allItems);
 /* ---- SEO / hero ---- */
 const heroSrc      = header?.hero_img ? heroPath(header.hero_img) : "";
 const heroH1       = header?.title || "Fernie Real Estate";
-const subhead      = header?.seo_description || header?.summary || "Homes, neighbourhoods, and listings across the Elk Valley";
+const subhead      = header?.cta2 || header?.seo_description || header?.summary || "Homes, neighbourhoods, and listings across the Elk Valley";
 const pageSeoTitle = header?.seo_title || heroH1;
 const pageSeoDesc  = header?.seo_description || header?.summary || "";
 
@@ -149,6 +149,16 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       <div class="hero-inner">
         <h1 class="fade-slide">{heroH1}</h1>
         <p class="fade-slide subhead">{subhead}</p>
+        <div class="hero-cta fade-slide">
+          <a
+            href="/search"
+            class="btn btn-outline ripple"
+            data-jump="#new-listings"
+            aria-label="Browse Fernie listings"
+          >
+            Browse listings →
+          </a>
+        </div>
       </div>
     </div>
   </section>
@@ -407,22 +417,80 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; text-align: center; color: white; padding: 0 1rem;
       background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%);
     }
+    .hero-inner { max-width: 800px; margin: 0 auto; text-align: center; }
+
     .hero-overlay h1 { font-size: clamp(2.5rem, 6vw, 4.75rem); line-height: 1.1; margin: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: -0.01em; }
 
-    /* NEW: hero inner + soft motion */
-    .hero-inner { max-width: 800px; margin: 0 auto; text-align: center; }
+    /* subtle motion */
     .fade-slide { opacity: 0; transform: translateY(20px); animation: fadeSlideUp 0.8s ease-out forwards; }
-    .fade-slide.subhead { animation-delay: 0.3s; }
+    .fade-slide.subhead { animation-delay: 0.25s; }
+    .hero-cta.fade-slide { animation-delay: 0.45s; }
     @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* smaller subhead (uppercase via CSS) */
     .hero-overlay .subhead {
-      font-size: clamp(1.125rem, 2vw, 1.5rem);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: clamp(1rem, 1.6vw, 1.125rem);
       color: #fff;
-      opacity: 0.9;
+      opacity: 0.92;
       text-shadow: 0 2px 6px rgba(0,0,0,0.4);
-      max-width: 640px;
-      margin: .5rem auto 0;
-      line-height: 1.4;
+      max-width: 680px;
+      margin: .6rem auto 0;
+      line-height: 1.45;
     }
+
+    /* outline button for hero */
+    .hero-cta { margin-top: 14px; }
+    .btn {
+      --bdr: rgba(255,255,255,0.9);
+      --txt: #ffffff;
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5ch;
+      padding: 10px 16px;
+      font-weight: 700;
+      letter-spacing: .2px;
+      text-decoration: none;
+      border-radius: 9999px;
+      border: 1.5px solid var(--bdr);
+      transition: transform .18s ease, background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease;
+      will-change: transform;
+      box-shadow: 0 2px 10px rgba(0,0,0,.15);
+      color: var(--txt);
+      background: transparent;
+      backdrop-filter: saturate(120%) blur(0px);
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+
+    .btn-outline {
+      background: transparent;
+      color: #fff;
+      border-color: rgba(255,255,255,0.8);
+    }
+    .btn-outline:hover {
+      background: rgba(255,255,255,0.10);
+      border-color: #fff;
+      color: #fff;
+      box-shadow: 0 6px 22px rgba(0,0,0,.25);
+      text-decoration: none;
+    }
+    .btn-outline:focus-visible {
+      outline: 3px solid rgba(255,255,255,0.65);
+      outline-offset: 2px;
+    }
+
+    /* ripple ink (shared) */
+    .ripple { overflow: hidden; }
+    .ripple-ink {
+      position: absolute; border-radius: 9999px; transform: scale(0);
+      animation: ripple .45s ease-out forwards; pointer-events: none; background: rgba(255,255,255,.35);
+      left: 0; top: 0; width: 0; height: 0;
+    }
+    @keyframes ripple { to { transform: scale(2.4); opacity: 0; } }
 
     /* SUMMARY CARD */
     .summary-card {
