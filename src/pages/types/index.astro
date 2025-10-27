@@ -129,17 +129,32 @@ const SUMMARY_IS_HTML = false;
   </div>
 
   <style>
-    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
+    .container{
+      max-width:1200px;
+      margin-inline:auto;
+      padding-inline:12px;
+    }
 
-    /* 🧭 match xtraarea summary spacing */
+    /* ✅ match xtraarea/neighbourhoods spacing */
     .summary-wrap{
       padding-top:16px;
       padding-bottom:8px;
-      margin-top: 8px; /* this was the missing space */
     }
-    .lead{ margin: 0; font-size: 1.075rem; line-height: 1.6; color:#111827; }
 
-    .err{ color:#b91c1c; background:#fee2e2; padding:.75rem 1rem; border-radius:.5rem; margin-top:12px; }
+    .lead{
+      margin: 0;
+      font-size: 1.075rem;
+      line-height: 1.6;
+      color:#111827;
+    }
+
+    .err{
+      color:#b91c1c;
+      background:#fee2e2;
+      padding:.75rem 1rem;
+      border-radius:.5rem;
+      margin-top:12px;
+    }
 
     .grid{
       display:grid;
@@ -152,20 +167,44 @@ const SUMMARY_IS_HTML = false;
     @media (max-width:560px){  .grid{ grid-template-columns: 1fr; } }
 
     .card{
-      display:flex; flex-direction:column;
-      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
-      overflow:hidden; text-decoration:none; color:inherit;
+      display:flex;
+      flex-direction:column;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:14px;
+      overflow:hidden;
+      text-decoration:none;
+      color:inherit;
       transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
     }
-    .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
 
-    .card > img{ width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }
-    .card .body{ padding:12px; }
-    .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; }
+    .card:hover{
+      transform: translateY(-2px);
+      box-shadow:0 6px 14px rgba(0,0,0,.08);
+      border-color:#d1d5db;
+    }
+
+    .card > img{
+      width:100%;
+      aspect-ratio:16/9;
+      object-fit:cover;
+      display:block;
+    }
+
+    .card .body{
+      padding:12px;
+    }
+
+    .card .body h2{
+      margin:0 0 6px;
+      font-size:1.05rem;
+      line-height:1.3;
+    }
 
     /* Clamp summary to 2 lines */
     .card .body p{
-      margin:0; color:#374151;
+      margin:0;
+      color:#374151;
       line-height:1.35;
       display:-webkit-box;
       -webkit-line-clamp:2;
