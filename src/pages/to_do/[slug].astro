@@ -9,27 +9,39 @@ import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import sanitizeHtml from "sanitize-html";
 
-/* ---------- utils ---------- */
-const slugify = (v:string) =>
-  (v ?? "").toLowerCase().trim()
-    .replace(/&/g,"-and-")
-    .replace(/[^a-z0-9]+/g,"-")
-    .replace(/^-+|-+$/g,"");
-
-/* ---------- config ---------- */
-const SUMMARY_IS_HTML = true;
-const BODY_IS_HTML    = true;
-
-/* ---------- allowed HTML ---------- */
+/* ---------- sanitize config (arrays for allowedAttributes!) ---------- */
 const ALLOWED = {
-  allowedTags: ["p","h2","h3","h4","ul","ol","li","a","strong","em","br","hr","span"],
-  allowedAttributes: { a: ["href","target","rel"] },
+  allowedTags: [
+    "p","h2","h3","h4","ul","ol","li","a","strong","em","br","hr","span",
+    "blockquote","code","pre","figure","figcaption","img","div"
+  ],
+  allowedAttributes: {
+    a: ["href","target","rel"],
+    img: ["src","alt","title","loading","decoding"]
+  },
+  transformTags: {
+    a: (_tag: any, attr: any) => ({
+      tagName: "a",
+      attribs: { ...attr, rel: "noopener nofollow ugc" }
+    })
+  }
 };
 
-/* ---------- build static paths ---------- */
+/* ---------- STATIC PATHS (local helper to avoid scope issues) ---------- */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_TODO_JSON;
   if (!url) return [];
+
+  const getField = (r:any, k:string) =>
+    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+      .toString().trim();
+
+  const slugifyLocal = (v:string) =>
+    (v ?? "").toLowerCase().trim()
+      .replace(/&/g,"-and-")
+      .replace(/[^a-z0-9]+/g,"-")
+      .replace(/^-+|-+$/g,"");
+
   let rows:any[] = [];
   try {
     const raw = await getJson<any>(url);
@@ -39,104 +51,110 @@ export async function getStaticPaths() {
   } catch { return []; }
 
   const indexRow =
-    rows.find((r:any) =>
-      (String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase()) === "index"
-    ) || null;
+    rows.find((r:any) => getField(r,"slug").toLowerCase() === "index") || null;
 
   const items = rows.map((r:any) => {
-    const status  = (String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase());
-    const rawSlug = (String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase());
+    const status  = getField(r,"status").toLowerCase();
+    const rawSlug = getField(r,"slug").toLowerCase();
     const hidden  = status === "hidden" || status === "inactive" || rawSlug === "index";
     if (hidden) return null;
-    const title   = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    const slug    = (rawSlug || slugify(title)).toLowerCase();
+
+    const title = getField(r,"title");
+    const slug  = (rawSlug || slugifyLocal(title)).toLowerCase();
     return slug ? { params: { slug }, props: { row: r, indexRow } } : null;
   }).filter(Boolean) as any[];
 
   return items;
 }
 
-/* ---------- page data ---------- */
-type Row = {
-  title?: string; Title?: string; TITLE?: string;
-  summary?: string; Summary?: string; SUMMARY?: string;
-  long_copy?: string; longcopy?: string; LongCopy?: string;
-  hero_img?: string; heroImg?: string; HeroImg?: string;
-  seo_title?: string; seoTitle?: string;
-  seo_description?: string; seoDescription?: string;
-  cta1?: string; rv_block?: string; slug?: string;
-  spare_1?: string; spare_2?: string; spare_3?: string;
-  spare_1_caption?: string; spare_2_caption?: string; spare_3_caption?: string;
+/* ---------- PAGE HELPERS ---------- */
+const get = (r:any, ...keys:string[]) => {
+  for (const k of keys) {
+    const v = r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()];
+    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+  }
+  return "";
 };
+const slugify = (v:string) =>
+  (v ?? "").toLowerCase().trim()
+    .replace(/&/g,"-and-")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"");
 
+/* ---------- PAGE DATA ---------- */
+type Row = Record<string, any>;
 const { row: rowIn, indexRow: indexRowIn } = Astro.props as { row?: Row; indexRow?: Row | null };
-const row = rowIn ?? ({} as Row);
+const row = rowIn ?? {};
 const indexRow = indexRowIn ?? null;
 
-/* ---------- fields ---------- */
-const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Things To Do in Fernie").trim();
-const summary  = String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
-const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
-const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
-const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
-const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
+/* basic fields */
+const title    = get(row, "title") || "Things To Do in Fernie";
+const subhead  = get(row, "subhead","kicker");
+const kicker   = subhead || get(row,"Kicker","KICKER");
+const heroImg  = get(row, "hero_img","heroImg","HeroImg");
+const seoTitle = get(row, "seo_title","seoTitle") || title;
 
-/* ---------- sanitize ---------- */
-const safeSummary = SUMMARY_IS_HTML ? sanitizeHtml(summary, ALLOWED) : summary;
-const safeBody    = BODY_IS_HTML    ? sanitizeHtml(body, ALLOWED)    : body;
+/* content fields */
+const summaryRaw = get(row, "summary","Summary","SUMMARY","excerpt","description");
+const bodyRaw    = get(row, "long_copy","longcopy","LongCopy","body","content","longtext","Long Text");
 
-/* ---------- gallery (spare_1..3) with automatic pathing ---------- */
-// filename only  -> /img/hero/activity/<file>
-// subpath        -> /img/hero/<subpath>
-// /img/hero/...  -> used as-is
-// http(s) URL    -> used as-is
+/* sanitize as HTML */
+const safeSummary = sanitizeHtml(summaryRaw, ALLOWED);
+const safeBody    = sanitizeHtml(bodyRaw, ALLOWED);
+
+/* gallery from spare_1..3 (auto-path filenames to /img/hero/activity/) */
 function resolveImgFromCell(v:string): string {
-  const s = String(v ?? "").trim();
+  const s = (v ?? "").trim();
   if (!s) return "";
   if (/^https?:\/\//i.test(s)) return s;
   if (s.startsWith("/img/hero/")) return s;
   const rel = s.includes("/") ? s : `activity/${s}`;
   return heroPath(rel);
 }
-
 const gallery = [1,2,3].map(n => {
-  const raw = (row as any)[`spare_${n}`];
-  const src = resolveImgFromCell(raw);
-  const cap = String((row as any)[`spare_${n}_caption`] ?? "").trim();
+  const src = resolveImgFromCell(get(row, `spare_${n}`));
+  const cap = get(row, `spare_${n}_caption`);
   return src ? { src, cap } : null;
 }).filter(Boolean) as {src:string; cap:string}[];
 
-/* ---------- RealtyVis embeds ---------- */
+/* RealtyVis embed (from INDEX row cta1 or env fallback) */
 const rawCta =
-  String(indexRow?.cta1 ?? (indexRow as any)?.rv_block ?? "").trim() ||
+  get(indexRow ?? {}, "cta1","rv_block") ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
 const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
-function stripScripts(html:string) {
-  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
-}
-function extractRvId(html:string) {
-  const clean = stripScripts(html);
-  const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
+const stripScripts = (html:string) => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+const extractRvId  = (html:string) => {
+  const m = stripScripts(html).match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
   return m?.[1] || "";
-}
-const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
+};
+const rvBlockId     = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
 const hasValidBlock = ID_RE.test(rvBlockId);
 
+/* meta + debug */
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
+const seoDesc     = (summaryRaw || "").slice(0, 160);
+const debug       = Astro.url?.searchParams?.get("debug") === "1";
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
+  {debug && (
+    <pre style="max-width:1200px;margin:8px auto;padding:8px 12px;border:1px solid #eee;background:#fafafa;overflow:auto">
+      {JSON.stringify(row, null, 2)}
+    </pre>
+  )}
+
   <HeroBleed
     src={heroImg ? heroPath(heroImg) : ""}
     title={title}
+    kicker={kicker}
     containerMax={1200}
     containerPad={12}
     flush={false}
     preload={false}
   />
 
-  {summary && (
+  {safeSummary && (
     <div class="container summary-wrap">
       <div class="lead prose prose-neutral max-w-none" set:html={safeSummary}></div>
     </div>
@@ -155,9 +173,8 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     </div>
   )}
 
-  {body && (
+  {safeBody && (
     <div class="container body-wrap">
-      {/* ✅ Make long copy exactly same font as summary */}
       <div class="lead prose prose-neutral max-w-none" set:html={safeBody}></div>
     </div>
   )}
@@ -168,7 +185,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 
       {hasValidBlock ? (
         <div class="rv-host">
-          <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
+          <RVEmbed block={rvBlockId} showSkeleton={false} />
         </div>
       ) : (
         <div class="rv-fallback">
@@ -177,7 +194,6 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
         </div>
       )}
 
-      {/* Hover-to-warm RealtyVis */}
       {hasValidBlock && (
         <script is:inline>
 {`(function(){
@@ -210,21 +226,18 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 
   <style>
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
-    .summary-wrap{ padding-top:16px; }
+
+    .summary-wrap{ padding-top:10px; }  /* tuck under hero */
     .body-wrap{ padding-top:12px; }
 
     /* Shared font for summary & long copy */
     .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-
-    /* Ensure Tailwind Typography doesn’t shrink body text */
     .lead.prose p, .lead.prose li {
-      font-size:1.075rem !important;
-      line-height:1.6 !important;
-      color:#111827;
+      font-size:1.075rem !important; line-height:1.6 !important; color:#111827;
     }
     .lead.prose :where(h2,h3){ margin-top:1.2em; }
 
-    /* --- Gallery strip --- */
+    /* Gallery strip */
     .gallery-wrap{ padding-top:14px; padding-bottom:6px; }
     .gallery{
       display:grid; gap:10px;
@@ -241,7 +254,10 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       background:rgba(0,0,0,.55); color:#fff; font-size:.85rem; border-radius:8px;
     }
 
-    .listings-wrap{ padding-top:16px; padding-bottom:8px; }
+    /* RealtyVis spacing */
+    .listings-wrap{ padding-top:16px; padding-bottom:16px; }
+    .rv-host{ margin-bottom:0; }
+
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
 
     .rv-fallback{
