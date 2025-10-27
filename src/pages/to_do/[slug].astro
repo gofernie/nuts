@@ -1,6 +1,5 @@
 ---
 // File: src/pages/to_do/[slug].astro
-// Requirements: npm i sanitize-html
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
@@ -17,21 +16,17 @@ const slugify = (v:string) =>
     .replace(/[^a-z0-9]+/g,"-")
     .replace(/^-+|-+$/g,"");
 
-/* tiny inline getter */
-const G = (r:any,k:string) =>
-  String(r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").trim();
+/* ---------- config ---------- */
+const SUMMARY_IS_HTML = true;
+const BODY_IS_HTML    = true;
 
-/* ---------- config: flip these if a cell contains HTML ---------- */
-const SUMMARY_IS_HTML = false; // true if your summary cell has HTML
-const BODY_IS_HTML    = true;  // long_copy is HTML
-
-/* ---------- allowed HTML for set:html ---------- */
+/* ---------- allowed HTML ---------- */
 const ALLOWED = {
-  allowedTags: ["p","h2","h3","h4","ul","ol","li","a","strong","em","br","hr"],
+  allowedTags: ["p","h2","h3","h4","ul","ol","li","a","strong","em","br","hr","span"],
   allowedAttributes: { a: ["href","target","rel"] },
 };
 
-/* ---------- build static paths (and carry index row) ---------- */
+/* ---------- build static paths ---------- */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_TODO_JSON;
   if (!url) return [];
@@ -43,7 +38,6 @@ export async function getStaticPaths() {
       : Array.isArray(raw?.rows) ? raw.rows : [];
   } catch { return []; }
 
-  // Get INDEX row once
   const indexRow =
     rows.find((r:any) =>
       (String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase()) === "index"
@@ -62,7 +56,7 @@ export async function getStaticPaths() {
   return items;
 }
 
-/* ---------- page data (from props; do not refetch/throw) ---------- */
+/* ---------- page data ---------- */
 type Row = {
   title?: string; Title?: string; TITLE?: string;
   summary?: string; Summary?: string; SUMMARY?: string;
@@ -71,6 +65,8 @@ type Row = {
   seo_title?: string; seoTitle?: string;
   seo_description?: string; seoDescription?: string;
   cta1?: string; rv_block?: string; slug?: string;
+  spare_1?: string; spare_2?: string; spare_3?: string;
+  spare_1_caption?: string; spare_2_caption?: string; spare_3_caption?: string;
 };
 
 const { row: rowIn, indexRow: indexRowIn } = Astro.props as { row?: Row; indexRow?: Row | null };
@@ -78,24 +74,39 @@ const row = rowIn ?? ({} as Row);
 const indexRow = indexRowIn ?? null;
 
 /* ---------- fields ---------- */
-const title =
-  String(row?.title ?? row?.Title ?? row?.TITLE ?? "Things To Do in Fernie").trim();
-const summary =
-  String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
-const body =
-  String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
-const heroImg =
-  String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
-const seoTitle =
-  String(row?.seo_title ?? row?.seoTitle ?? title).trim();
-const seoDesc =
-  String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
+const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Things To Do in Fernie").trim();
+const summary  = String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
+const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
+const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
+const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
+const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
 
-/* ---------- sanitize (only when using HTML) ---------- */
+/* ---------- sanitize ---------- */
 const safeSummary = SUMMARY_IS_HTML ? sanitizeHtml(summary, ALLOWED) : summary;
 const safeBody    = BODY_IS_HTML    ? sanitizeHtml(body, ALLOWED)    : body;
 
-/* ---------- embed from INDEX row's cta1 (or env fallback) ---------- */
+/* ---------- gallery (spare_1..3) with automatic pathing ---------- */
+// filename only  -> /img/hero/activity/<file>
+// subpath        -> /img/hero/<subpath>
+// /img/hero/...  -> used as-is
+// http(s) URL    -> used as-is
+function resolveImgFromCell(v:string): string {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("/img/hero/")) return s;
+  const rel = s.includes("/") ? s : `activity/${s}`;
+  return heroPath(rel);
+}
+
+const gallery = [1,2,3].map(n => {
+  const raw = (row as any)[`spare_${n}`];
+  const src = resolveImgFromCell(raw);
+  const cap = String((row as any)[`spare_${n}_caption`] ?? "").trim();
+  return src ? { src, cap } : null;
+}).filter(Boolean) as {src:string; cap:string}[];
+
+/* ---------- RealtyVis embeds ---------- */
 const rawCta =
   String(indexRow?.cta1 ?? (indexRow as any)?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
@@ -112,7 +123,6 @@ function extractRvId(html:string) {
 const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
 const hasValidBlock = ID_RE.test(rvBlockId);
 
-/* hero preload hook */
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 ---
 
@@ -128,17 +138,27 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 
   {summary && (
     <div class="container summary-wrap">
-      {SUMMARY_IS_HTML
-        ? <div class="lead prose prose-neutral max-w-none" set:html={safeSummary}></div>
-        : <p class="lead">{summary}</p>}
+      <div class="lead prose prose-neutral max-w-none" set:html={safeSummary}></div>
+    </div>
+  )}
+
+  {gallery.length > 0 && (
+    <div class="container gallery-wrap">
+      <div class="gallery">
+        {gallery.map(({src,cap}) => (
+          <figure class="tile">
+            <img loading="lazy" decoding="async" src={src} alt={cap || title} />
+            {cap && <figcaption>{cap}</figcaption>}
+          </figure>
+        ))}
+      </div>
     </div>
   )}
 
   {body && (
     <div class="container body-wrap">
-      {BODY_IS_HTML
-        ? <div class="prose prose-neutral max-w-none" set:html={safeBody}></div>
-        : <p class="lead">{body}</p>}
+      {/* ✅ Make long copy exactly same font as summary */}
+      <div class="lead prose prose-neutral max-w-none" set:html={safeBody}></div>
     </div>
   )}
 
@@ -157,7 +177,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
         </div>
       )}
 
-      {/* Hover-to-warm connections for RealtyVis */}
+      {/* Hover-to-warm RealtyVis */}
       {hasValidBlock && (
         <script is:inline>
 {`(function(){
@@ -192,8 +212,34 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
     .summary-wrap{ padding-top:16px; }
     .body-wrap{ padding-top:12px; }
+
+    /* Shared font for summary & long copy */
     .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-    .prose :where(h2,h3){ margin-top: 1.2em; }
+
+    /* Ensure Tailwind Typography doesn’t shrink body text */
+    .lead.prose p, .lead.prose li {
+      font-size:1.075rem !important;
+      line-height:1.6 !important;
+      color:#111827;
+    }
+    .lead.prose :where(h2,h3){ margin-top:1.2em; }
+
+    /* --- Gallery strip --- */
+    .gallery-wrap{ padding-top:14px; padding-bottom:6px; }
+    .gallery{
+      display:grid; gap:10px;
+      grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
+    }
+    .tile{ position:relative; overflow:hidden; border-radius:14px; background:#f4f4f5; }
+    .tile img{
+      width:100%; height:220px; object-fit:cover;
+      transform: scale(1.02); transition: transform .4s ease, filter .4s ease;
+    }
+    .tile:hover img{ transform: scale(1.06); filter: saturate(1.1) contrast(1.05); }
+    .tile figcaption{
+      position:absolute; left:10px; bottom:10px; padding:4px 8px;
+      background:rgba(0,0,0,.55); color:#fff; font-size:.85rem; border-radius:8px;
+    }
 
     .listings-wrap{ padding-top:16px; padding-bottom:8px; }
     .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
@@ -208,7 +254,7 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       padding:12px 14px; border-radius:8px; margin-top:16px;
     }
 
-    /* Kill shimmer/skeletons coming from RV */
+    /* Kill shimmer/skeletons from RV */
     .rv-host [class*="skeleton"],
     .rv-host [class*="Skeleton"],
     .rv-host [class*="loading"],
