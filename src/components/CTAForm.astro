@@ -15,8 +15,8 @@ const {
   <div class="cta__text">
     <h2 class="cta__title">Like {pageTitle.toLowerCase()} in Fernie?</h2>
     <p class="cta__intro">
-      If you love it here, why not make it part of your life?  
-      Get a curated list of homes near the places where you actually want to be — 
+      If you love it here, why not make it part of your life?
+      Get a curated list of homes near the places where you actually want to be —
       trails, lifts, rivers, patios, and everything in between.
     </p>
     <ul class="cta__list">
@@ -26,7 +26,7 @@ const {
     </ul>
   </div>
 
-  <form 
+  <form
     action={`https://formspree.io/${formId}`}
     method="POST"
     class="cta__form"
@@ -55,7 +55,7 @@ const {
       <input id="beds" name="beds" placeholder="2+">
     </div>
 
-    <div class="fld">
+    <div class="fld fld--full">
       <label for="timing">When are you thinking?</label>
       <select id="timing" name="timing">
         <option value="">Select…</option>
@@ -82,15 +82,17 @@ const {
       margin: 2rem auto;
       display: grid;
       gap: 2rem;
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr; /* stack on mobile */
       background: #fff;
       border: 1px solid #e0e0e0;
       border-radius: 16px;
       padding: 2rem;
       box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+      align-items: start;
     }
 
-    @media (min-width: 800px) {
+    /* Two-column layout for text + form at wider screens */
+    @media (min-width: 900px) {
       .cta {
         grid-template-columns: 1fr 1fr;
       }
@@ -107,7 +109,11 @@ const {
       color: #444;
       margin-bottom: 1rem;
       line-height: 1.5;
-      max-width: 500px;
+    }
+
+    /* Limit intro width only on large screens to avoid narrow feel on mobile */
+    @media (min-width: 900px) {
+      .cta__intro { max-width: 520px; }
     }
 
     .cta__list {
@@ -123,21 +129,31 @@ const {
 
     .cta__form {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem 1rem;
+      grid-template-columns: 1fr;            /* stack fields on mobile */
+      gap: 1rem;
       background: #f8f9fb;
       padding: 1rem;
       border: 1px solid #ddd;
       border-radius: 12px;
+      width: 100%;
+    }
+
+    /* Switch to two columns for fields on medium+ screens */
+    @media (min-width: 700px) {
+      .cta__form {
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem 1rem;
+      }
     }
 
     .fld {
       display: flex;
       flex-direction: column;
+      min-width: 0; /* prevent overflow in grid */
     }
 
     .fld--full {
-      grid-column: 1 / -1;
+      grid-column: 1 / -1; /* full width row */
     }
 
     .fld label {
@@ -150,31 +166,35 @@ const {
     .fld input,
     .fld select,
     .fld textarea {
-      padding: 0.5rem 0.6rem;
+      padding: 0.6rem 0.7rem;
       border: 1px solid #ccc;
       border-radius: 8px;
       font-size: 0.95rem;
       outline: none;
+      width: 100%;
+      box-sizing: border-box; /* ensure 100% width respects padding */
+      background: #fff;
     }
 
     .fld input:focus,
     .fld select:focus,
     .fld textarea:focus {
       border-color: #333;
-      box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.08);
     }
 
     .cta__btn {
-      grid-column: 1 / -1;
+      grid-column: 1 / -1; /* full width button */
       background: #111;
       color: #fff;
-      padding: 0.75rem;
+      padding: 0.9rem;
       font-size: 1rem;
       font-weight: 600;
       border: none;
       border-radius: 8px;
       cursor: pointer;
       transition: background 0.2s ease;
+      width: 100%;
     }
 
     .cta__btn:hover {
