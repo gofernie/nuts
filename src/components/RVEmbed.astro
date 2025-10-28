@@ -1,64 +1,47 @@
 ---
 // src/components/RVEmbed.astro
-export interface Props {
-  blockId: string;
-}
+export interface Props { blockId: string }
 const { blockId } = Astro.props;
 ---
 
 <section class="rv-section">
-  <div class="rv-wrap" data-rv-block={blockId}></div>
+  <div class="rv-wrap">
+    <div data-rv-block={blockId}></div>
+  </div>
 
   <style>
-    .rv-section {
-      margin: 0;
-      padding: 0;
-    }
+    .rv-section { margin: 0; padding: 0; }
 
     .rv-wrap {
       display: block;
       margin: 0;
       padding: 0;
-      line-height: 0;
+      line-height: 0;          /* kills inline-gap around iframes */
     }
 
-    /* kill any default padding/margin the embed injects */
-    .rv-wrap * {
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-
-    /* force block layout and collapse inline spacing */
-    .rv-wrap iframe,
-    .rv-wrap div[data-rv-block],
-    .rv-wrap .rv-container {
+    /* Let RV handle internal padding for height calcs — don't zero it out. */
+    .rv-wrap > * {
       display: block;
       margin: 0;
-      padding: 0;
-      border: none;
+      border: 0;
       width: 100%;
-      height: auto;
     }
 
-    /* sometimes RealtyVis injects bottom padding via inline style */
-    .rv-wrap [style*="padding-bottom"] {
-      padding-bottom: 0 !important;
+    /* Remove only *margins* that create the “mystery gap” */
+    .rv-wrap :where(iframe, .rv-container, [data-rv-block]) {
+      margin-bottom: 0 !important;
     }
 
-    /* make sure nothing is pushing it down */
-    .rv-wrap:after {
-      content: "";
-      display: block;
-      height: 0;
-    }
+    /* If RV uses aspect-ratio padding-bottom trick, keep it! Only clamp extra spacing below */
+    .rv-wrap [style*="margin-bottom"] { margin-bottom: 0 !important; }
+
+    /* belt-and-suspenders */
+    .rv-wrap::after { content: ""; display: block; height: 0; }
   </style>
 </section>
 
 <script is:inline>
   if (window?.RealtyVis?.init) {
     RealtyVis.init();
-  } else {
-    window.__rvInitQueue = window.__rvInitQueue || [];
-    window.__rvInitQueue.push({ id: "{blockId}" });
   }
 </script>
