@@ -1,81 +1,74 @@
 ---
-// File: src/components/RVEmbed.astro
-const {
-  block,
-  className = "",
-  minHeight = "1000px",
-  showSkeleton = true, // 🆕 control whether skeleton shimmer shows
-} = Astro.props;
-
-if (!block) {
-  throw new Error("[RVEmbed] Missing block id");
+// src/components/RVEmbed.astro
+export interface Props {
+  blockId: string;
+  minHeight?: string;    // default: one card tall
+  class?: string;
 }
+
+const { blockId, minHeight = "560px", class: klass = "" } = Astro.props;
 ---
 
-<section class={`rv-wrap ${className}`} style={`min-height:${minHeight};`}>
-  {showSkeleton && (
-    <div class="rv-skel-grid" aria-hidden="true">
-      <div class="rv-skel-card"></div>
-      <div class="rv-skel-card"></div>
-      <div class="rv-skel-card"></div>
-      <div class="rv-skel-card"></div>
-    </div>
-  )}
+<section class={`rv-section ${klass}`}>
+  <div class="rv-wrap" style={`min-height:${minHeight}`}>
+    <div data-rv-block={blockId}></div>
+  </div>
 
-  <div class="rv-target" data-rv-block={block}></div>
+  <style>
+    .rv-section {
+      margin: 0;
+      padding: 0;
+    }
+
+    .rv-wrap {
+      display: block;
+      margin: 0;
+      padding: 0;
+      line-height: 0;
+    }
+
+    .rv-wrap > * {
+      display: block;
+      width: 100%;
+      border: 0;
+    }
+
+    /* Prevent extra gap under RV */
+    .rv-wrap :where(iframe, .rv-container, [data-rv-block]) {
+      margin-bottom: 0 !important;
+    }
+  </style>
 </section>
 
-<style>
-  .rv-wrap {
-    position: relative;
-    width: 100%;
-  }
-  .rv-skel-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
-    margin-top: 12px;
-  }
-  .rv-skel-card {
-    height: 220px;
-    border-radius: 12px;
-    background: linear-gradient(90deg, #f4f4f4 25%, #ececec 37%, #f4f4f4 63%);
-    background-size: 400% 100%;
-    animation: shimmer 1.4s infinite linear;
-  }
-  @keyframes shimmer {
-    0% { background-position: 100% 0 }
-    100% { background-position: -100% 0 }
-  }
-  @media (max-width: 1100px) {
-    .rv-skel-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  }
-  @media (max-width: 800px) {
-    .rv-skel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
-  @media (max-width: 520px) {
-    .rv-skel-grid { grid-template-columns: 1fr; }
-  }
-</style>
+<script is:inline>
+  (function initRV() {
+    if (window?.RealtyVis?.init) {
+      try { window.RealtyVis.init(); } catch (_) {}
+      return;
+    }
 
-<script>
-  (function(){
-    if (!window.RealtyVis) {
-      const s = document.createElement("script");
-      s.src = "https://cdn.realtyvis.com/js/embed.js";
-      s.async = true;
-      s.onload = () => {
-        try {
-          window.RealtyVis?.init?.();
-          window.RealtyVis?.scan?.();
-        } catch(e){ console.error("[RVEmbed] init error", e); }
-      };
-      s.onerror = (e) => console.error("[RVEmbed] script load failed", e);
-      document.head.appendChild(s);
+    // If the script hasn't finished loading yet, wait for it.
+    const s = document.querySelector(
+      'script[src*="realtyvis"][src*="in.js"], script[src*="app.realtyvis.com/in.js"]'
+    );
+
+    if (s) {
+      s.addEventListener(
+        "load",
+        () => {
+          try { window.RealtyVis.init(); } catch (_) {}
+        },
+        { once: true }
+      );
     } else {
-      try {
-        window.RealtyVis?.scan?.();
-      } catch(e){ console.error("[RVEmbed] scan error", e); }
+      // fallback tiny poll
+      const t = setInterval(() => {
+        if (window?.RealtyVis?.init) {
+          clearInterval(t);
+          try { window.RealtyVis.init(); } catch (_) {}
+        }
+      }, 60);
+      setTimeout(() => clearInterval(t), 2000);
     }
   })();
 </script>
