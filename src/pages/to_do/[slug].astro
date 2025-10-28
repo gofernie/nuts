@@ -28,7 +28,7 @@ const ALLOWED = {
   }
 };
 
-/* ---------- STATIC PATHS ---------- */
+/* ---------- STATIC PATHS (local helper so it's always in scope) ---------- */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_TODO_JSON;
   if (!url) return [];
@@ -189,8 +189,8 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
 
       {hasValidBlock ? (
         <div class="rv-host">
-          <!-- ✅ fixed prop name -->
-          <RVEmbed blockId={rvBlockId} minHeight="560px" showSkeleton={false} />
+          <!-- ↓ Smaller explicit min-height -->
+          <RVEmbed block={rvBlockId} minHeight="560px" showSkeleton={false} />
         </div>
       ) : (
         <div class="rv-fallback">
@@ -229,7 +229,7 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
     </div>
   )}
 
-  <!-- ===== Bottom CTA ===== -->
+  <!-- ===== Bottom CTA (with animated title + Formspree) ===== -->
   <div class="container cta-bottom-wrap">
     <CTAForm
       formId={formspreeId}
@@ -242,15 +242,18 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
 
   <style>
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
-    .summary-wrap{ padding-top:10px; }
+
+    .summary-wrap{ padding-top:10px; }  /* tuck under hero */
     .body-wrap{ padding-top:12px; }
 
+    /* Shared font for summary & long copy */
     .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
     .lead.prose p, .lead.prose li {
       font-size:1.075rem !important; line-height:1.6 !important; color:#111827;
     }
     .lead.prose :where(h2,h3){ margin-top:1.2em; }
 
+    /* Gallery strip */
     .gallery-wrap{ padding-top:14px; padding-bottom:6px; }
     .gallery{
       display:grid; gap:10px;
@@ -261,4 +264,51 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
       width:100%; height:220px; object-fit:cover;
       transform: scale(1.02); transition: transform .4s ease, filter .4s ease;
     }
-    .tile:hover img{ transform: scale(1.06); filter: saturate(1
+    .tile:hover img{ transform: scale(1.06); filter: saturate(1.1) contrast(1.05); }
+    .tile figcaption{
+      position:absolute; left:10px; bottom:10px; padding:4px 8px;
+      background:rgba(0,0,0,.55); color:#fff; font-size:.85rem; border-radius:8px;
+    }
+
+    /* RealtyVis spacing — clamp any injected tall min-heights */
+    .listings-wrap{ padding-top:16px; padding-bottom:8px; }
+    .rv-host{ margin:0; padding:0; }
+    .rv-host [style*="min-height"] { min-height:0 !important; }
+    .rv-host [data-rv-root],
+    .rv-host .rv-root,
+    .rv-host > div { min-height:0 !important; }
+    .rv-host * { margin-bottom:0 !important; } /* kill stray margins */
+
+    .h2{ font-size: clamp(20px,2.6vw,28px); margin: 0 0 10px; }
+
+    .rv-fallback{
+      margin-top: 12px; padding:12px 16px; background:#fff3cd;
+      border:1px solid #ffe69c; border-radius:10px; color:#5c3c00;
+    }
+
+    .note{
+      color:#666; background:#fafafa; border:1px solid #eee;
+      padding:12px 14px; border-radius:8px; margin-top:16px;
+    }
+
+    /* Bottom CTA spacing */
+    .cta-bottom-wrap { padding-top:18px; padding-bottom:28px; }
+
+    /* Disable any shimmer/skeletons from RV */
+    .rv-host [class*="skeleton"],
+    .rv-host [class*="Skeleton"],
+    .rv-host [class*="loading"],
+    .rv-host [data-skeleton],
+    .rv-host .rv-skeleton,
+    .rv-host .loading-skeleton,
+    .rv-host .rv-loading {
+      animation: none !important;
+      background: none !important;
+      background-image: none !important;
+      box-shadow: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    .rv-host * { animation-duration: 0s !important; transition: none !important; }
+  </style>
+</Site>
