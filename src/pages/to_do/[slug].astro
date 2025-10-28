@@ -8,6 +8,7 @@ import RVEmbed from "../../components/RVEmbed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import sanitizeHtml from "sanitize-html";
+import CTAForm from "../../components/CTAForm.astro"; // ← NEW
 
 /* ---------- sanitize config (arrays for allowedAttributes) ---------- */
 const ALLOWED = {
@@ -135,6 +136,9 @@ const hasValidBlock = ID_RE.test(rvBlockId);
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 const seoDesc     = (summaryRaw || "").slice(0, 160);
 const debug       = Astro.url?.searchParams?.get("debug") === "1";
+
+/* ---------- Formspree ---------- */
+const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdHere");
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
@@ -225,6 +229,17 @@ const debug       = Astro.url?.searchParams?.get("debug") === "1";
     </div>
   )}
 
+  <!-- ===== Bottom CTA (with animated title + Formspree) ===== -->
+  <div class="container cta-bottom-wrap">
+    <CTAForm
+      formId={formspreeId}
+      title="Plan the perfect Fernie day"
+      subtitle="Share your dates and interests—I'll send a quick, personalized plan with local picks."
+      pageSlug={Astro.params.slug}
+      pageTitle={title}
+    />
+  </div>
+
   <style>
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
 
@@ -256,7 +271,7 @@ const debug       = Astro.url?.searchParams?.get("debug") === "1";
     }
 
     /* RealtyVis spacing — clamp any injected tall min-heights */
-    .listings-wrap{ padding-top:16px; padding-bottom:8px; } /* was 16px */
+    .listings-wrap{ padding-top:16px; padding-bottom:8px; }
     .rv-host{ margin:0; padding:0; }
     .rv-host [style*="min-height"] { min-height:0 !important; }
     .rv-host [data-rv-root],
@@ -275,6 +290,9 @@ const debug       = Astro.url?.searchParams?.get("debug") === "1";
       color:#666; background:#fafafa; border:1px solid #eee;
       padding:12px 14px; border-radius:8px; margin-top:16px;
     }
+
+    /* Bottom CTA spacing */
+    .cta-bottom-wrap { padding-top:18px; padding-bottom:28px; }
 
     /* Disable any shimmer/skeletons from RV */
     .rv-host [class*="skeleton"],

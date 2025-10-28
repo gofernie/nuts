@@ -1,0 +1,184 @@
+---
+export interface Props {
+  formId: string;
+  pageSlug?: string;
+  pageTitle?: string; // Activity name
+}
+const {
+  formId,
+  pageSlug = "",
+  pageTitle = "spending time"
+} = Astro.props;
+---
+
+<section class="cta">
+  <div class="cta__text">
+    <h2 class="cta__title">Like {pageTitle.toLowerCase()} in Fernie?</h2>
+    <p class="cta__intro">
+      If you love it here, why not make it part of your life?  
+      Get a curated list of homes near the places where you actually want to be — 
+      trails, lifts, rivers, patios, and everything in between.
+    </p>
+    <ul class="cta__list">
+      <li>• Local homes close to the action</li>
+      <li>• No spam — just hand-picked listings</li>
+      <li>• Simple, friendly guidance</li>
+    </ul>
+  </div>
+
+  <form 
+    action={`https://formspree.io/${formId}`}
+    method="POST"
+    class="cta__form"
+  >
+    <input type="hidden" name="page_slug" value={pageSlug}>
+    <input type="hidden" name="page_title" value={pageTitle}>
+    <input type="hidden" name="_subject" value="Fernie Quiet List Request">
+
+    <div class="fld">
+      <label for="name">Name</label>
+      <input id="name" name="name" placeholder="Jane Rider" required>
+    </div>
+
+    <div class="fld">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" placeholder="jane@example.com" required>
+    </div>
+
+    <div class="fld">
+      <label for="budget">Budget (approx.)</label>
+      <input id="budget" name="budget" placeholder="$700k – $900k">
+    </div>
+
+    <div class="fld">
+      <label for="beds">Beds</label>
+      <input id="beds" name="beds" placeholder="2+">
+    </div>
+
+    <div class="fld">
+      <label for="timing">When are you thinking?</label>
+      <select id="timing" name="timing">
+        <option value="">Select…</option>
+        <option>Soon (0–3 months)</option>
+        <option>3–6 months</option>
+        <option>6–12 months</option>
+        <option>Just browsing / curious</option>
+      </select>
+    </div>
+
+    <div class="fld fld--full">
+      <label for="notes">Anything specific?</label>
+      <textarea id="notes" name="notes" rows="3" placeholder="e.g., walkable, quiet street, rental-friendly"></textarea>
+    </div>
+
+    <button type="submit" class="cta__btn">
+      Get my quiet list →
+    </button>
+  </form>
+
+  <style>
+    .cta {
+      max-width: 1000px;
+      margin: 2rem auto;
+      display: grid;
+      gap: 2rem;
+      grid-template-columns: 1fr;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+    }
+
+    @media (min-width: 800px) {
+      .cta {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .cta__title {
+      font-size: 1.9rem;
+      font-weight: 700;
+      margin: 0 0 0.5rem;
+    }
+
+    .cta__intro {
+      font-size: 1rem;
+      color: #444;
+      margin-bottom: 1rem;
+      line-height: 1.5;
+      max-width: 500px;
+    }
+
+    .cta__list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      color: #555;
+      font-size: 0.95rem;
+    }
+    .cta__list li {
+      margin-bottom: 0.4rem;
+    }
+
+    .cta__form {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem 1rem;
+      background: #f8f9fb;
+      padding: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+    }
+
+    .fld {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .fld--full {
+      grid-column: 1 / -1;
+    }
+
+    .fld label {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.3rem;
+      color: #333;
+    }
+
+    .fld input,
+    .fld select,
+    .fld textarea {
+      padding: 0.5rem 0.6rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    .fld input:focus,
+    .fld select:focus,
+    .fld textarea:focus {
+      border-color: #333;
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+    }
+
+    .cta__btn {
+      grid-column: 1 / -1;
+      background: #111;
+      color: #fff;
+      padding: 0.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .cta__btn:hover {
+      background: #222;
+    }
+  </style>
+</section>

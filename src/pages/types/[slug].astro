@@ -1,9 +1,11 @@
 ---
+// File: src/pages/types/[slug].astro
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import RVEmbed from "../../components/RVEmbed.astro";
+import CTAForm from "../../components/CTAForm.astro"; // ← NEW
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
@@ -61,13 +63,13 @@ const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").tri
 const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
 const seoDesc  = String(row?.seo_description ?? row?.seoDescription ?? summary ?? "").trim();
 
-/* ---------- kicker/subhead from sheet (case-insensitive) ---------- */
+/* ---------- kicker/subhead from sheet ---------- */
 const kicker = String(
   row?.kicker ?? row?.Kicker ?? row?.KICKER ??
   row?.subhead ?? row?.Subhead ?? row?.SUBHEAD ?? ""
 ).trim() || "Fernie, BC";
 
-/* ✅ sanitize HTML */
+/* ✅ strip scripts only */
 function stripScripts(html:string) { return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ""); }
 const SUMMARY_IS_HTML = true;
 const BODY_IS_HTML    = true;
@@ -90,6 +92,9 @@ const hasValidBlock = ID_RE.test(rvBlockId);
 
 /* ---------- hero preload hint ---------- */
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
+
+/* ---------- Formspree ---------- */
+const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdHere");
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
@@ -137,6 +142,18 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
     </div>
   )}
 
+  <!-- ⬇️ Subtle real-estate CTA lives OUTSIDE .lead content -->
+  <div class="container cta-bottom-wrap">
+    <CTAForm
+      formId={formspreeId}
+      pageSlug={Astro.params.slug}
+      pageTitle={title}
+      /* optional:
+      subtitle="Prefer a quick short list? I’ll send a few good fits — no pressure."
+      */
+    />
+  </div>
+
   <style>
     .container { max-width: 1200px; margin-inline: auto; padding-inline: 12px; }
 
@@ -155,5 +172,14 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
       border-radius: 10px;
       color: #5c3c00;
     }
+
+    /* ✅ make sure anything with floats in summary/body can’t overlap following blocks */
+    .summary-section::after,
+    .body-wrap::after {
+      content: ""; display: block; clear: both;
+    }
+
+    /* ✅ CTA spacing & float clearing */
+    .cta-bottom-wrap { padding: 18px 0 28px; clear: both; }
   </style>
 </Site>
