@@ -1,3 +1,6 @@
+# always run inside this script's folder (the repo root)
+Set-Location -Path $PSScriptRoot
+
 # milestone-save.ps1 – creates a weekly or stable checkpoint
 $date = Get-Date -Format "yyyy-MM-dd"
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()

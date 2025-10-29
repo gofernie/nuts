@@ -1,3 +1,6 @@
+# always run inside this script's folder (the repo root)
+Set-Location -Path $PSScriptRoot
+
 # snapshot-save.ps1 – Auto-save Git snapshot (safe for detached HEAD)
 $date = Get-Date -Format "yyyy-MM-dd-HH-mm"
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
