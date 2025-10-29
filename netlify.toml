@@ -1,9 +1,0 @@
-﻿[build]
-  command = ""
-  publish = "."
-
-# long-cache hashed Astro assets (keep this, it's safe & useful)
-[[headers]]
-  for = "/_astro/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
