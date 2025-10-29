@@ -1,0 +1,9 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="utf-8"><title>RV Smoke Test</title></head> <body style="max-width:1100px;margin:2rem auto;font-family:system-ui;"> <h1>RealtyVis Smoke Test</h1> <!-- the exact vendor snippet --> <div data-rv-block="MQP2VMLT-HDQLLMRY"></div> <script>
+      (function(){
+        const SRC="https://cdn.realtyvis.com/js/embed.js";
+        function init(){ try{ window.RealtyVis && window.RealtyVis.init && window.RealtyVis.init(); }catch(e){ console.error(e); } }
+        if(!document.querySelector('script[src="'+SRC+'"]')) {
+          const s=document.createElement("script"); s.src=SRC; s.async=true; s.onload=init; s.onerror=()=>console.error("Failed to load RV script"); document.body.appendChild(s);
+        } else { init(); }
+      })();
+    </script> </body> </html>

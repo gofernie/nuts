@@ -1,0 +1,1 @@
+{"skew_protection":{"patterns":["/_actions/.*","/_server-islands/.*",".*\\.(html)$"],"sources":[{"type":"header","name":"X-Netlify-Deploy-ID"},{"type":"query","name":"dpl"}]}}
