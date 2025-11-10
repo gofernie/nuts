@@ -1,8 +1,8 @@
 ---
-// File: src/pages/search/index.astro
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
+import HeroBleed from "../../components/HeroBleed.astro";
 import RVEmbed from "../../components/RVEmbed.astro";
 
 const seo_title = "Search Fernie Real Estate Listings";
@@ -11,84 +11,46 @@ const seo_description =
 
 const rvBlockId = "MQP2VMLT-HDQLLMRY";
 const hasValidBlock = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i.test(rvBlockId);
+
+const heroImg = "/hero/search-hero.webp"; // you pick
 ---
 
-<Site title="Search" seo_title={seo_title} seo_description={seo_description}>
-  <div class="container">
-    <div class="search-card">
-      {hasValidBlock ? (
-        <div class="rv-host">
-          <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
-        </div>
-      ) : (
-        <div class="rv-fallback">
-          <p>Search embed unavailable right now.</p>
-          <p><a href="/neighbourhoods">Browse by neighbourhood</a></p>
-        </div>
-      )}
-    </div>
+<Site
+  title="Search"
+  seo_title={seo_title}
+  seo_description={seo_description}
+>
+ 
+
+  <section class="intro-copy">
+ 
+  </section>
+
+  <div class="search-wrap">
+    {hasValidBlock ? (
+      <div class="rv-host">
+        <RVEmbed block={rvBlockId} minHeight="1200px" showSkeleton={false} />
+      </div>
+    ) : (
+      <div class="rv-fallback">
+        <p>Search embed unavailable right now.</p>
+        <p><a href="/neighbourhoods">Browse by neighbourhood</a></p>
+      </div>
+    )}
   </div>
 
   <style>
-    /* Outer container */
-    .container {
-      max-width: 1200px;
-      margin: 90px auto 40px;
-      padding-inline: 12px;
+    .intro-copy {
+      max-width: var(--container-max);
+      margin-inline:auto;
+      padding: 1rem var(--edge-pad) 0;
+      font-size:1.1rem;
+      line-height:1.5;
     }
 
-    /* White card wrapper */
-    .search-card {
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-      overflow: hidden;
-    }
-
-    .rv-fallback {
-      margin-top: 12px;
-      padding: 12px 16px;
-      background: #fff3cd;
-      border: 1px solid #ffe69c;
-      border-radius: 10px;
-      color: #5c3c00;
-    }
-
-    /* Center RealtyVis widget */
-    .rv-host .rv-root,
-    .rv-host .rv-container,
-    .rv-host .rv-shell {
-      max-width: 1200px;
-      margin-left: auto;
-      margin-right: auto;
-      display: block;
-    }
-
-    /* Remove shimmer/loading placeholders */
-    .rv-host [class*="skeleton"],
-    .rv-host [class*="Skeleton"],
-    .rv-host [class*="loading"],
-    .rv-host [data-skeleton],
-    .rv-host .rv-skeleton,
-    .rv-host .loading-skeleton,
-    .rv-host .rv-loading {
-      animation: none !important;
-      background: none !important;
-      background-image: none !important;
-      box-shadow: none !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
-    }
-    .rv-host * {
-      animation-duration: 0s !important;
-      transition: none !important;
-    }
-
-    @media (max-width: 900px) {
-      .rv-host .rv-root {
-        padding-inline: 10px;
+    @media(min-width:900px){
+      .intro-copy{
+        padding:1rem var(--edge-pad-lg) 0;
       }
     }
   </style>

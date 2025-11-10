@@ -107,11 +107,18 @@ function chooseNeighbourCards(list: Row[], max = MAX_NEIGH_CARDS): Row[] {
 items = chooseNeighbourCards(allItems);
 
 /* ---- SEO / hero ---- */
+const stripMeta = (s:string="") =>
+  s.replace(/<[^>]+>/g," ")
+   .replace(/&[^;\s]+;/g," ")
+   .replace(/\s+/g," ")
+   .trim();
+
 const heroSrc      = header?.hero_img ? heroPath(header.hero_img) : "";
 const heroH1       = header?.title || "Fernie Real Estate";
 const subhead      = header?.cta2 || header?.seo_description || header?.summary || "Homes, neighbourhoods, and listings across the Elk Valley";
 const pageSeoTitle = header?.seo_title || heroH1;
-const pageSeoDesc  = header?.seo_description || header?.summary || "";
+/* ✅ Prefer explicit seo_description; fall back to summary; clean; NO truncation */
+const pageSeoDesc  = stripMeta(header?.seo_description || header?.summary || "");
 
 /* ---- Weather coords (default: FAR) ---- */
 const WX_LAT = Number(import.meta.env.PUBLIC_WEATHER_LAT ?? "") || 49.463;
@@ -412,8 +419,21 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
     .container { max-width: 1200px; margin: 24px auto 0; padding: 0 1rem; }
 
     /* HERO */
-    .hero-bleed { position: relative; width: 100%; height: 80vh; min-height: 420px; overflow: clip; isolation: isolate; background: #e5e7eb; }
-    .hero-bleed img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+.hero-bleed {
+ --hero-radius: 10px;
+
+  position: relative;
+  width: 100%;
+  height: 80vh;
+  min-height: 420px;
+  background: #e5e7eb;
+  border-radius: var(--hero-radius);
+  overflow: hidden;
+  clip-path: inset(0 round var(--hero-radius));
+  isolation: isolate;
+  box-shadow: 0 8px 30px rgba(0,0,0,.12);
+}
+ .hero-bleed img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
 
     .hero-overlay {
       position: absolute; inset: 0; z-index: 1;
@@ -538,7 +558,7 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
       border-radius: 16px;
       border: 1px solid #eaecef;
       background-color: #ffffff;
-      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
       text-decoration: none; color: inherit;
       overflow: hidden;
       transform: translateZ(0);

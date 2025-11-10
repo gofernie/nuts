@@ -1,5 +1,5 @@
 ---
-// File: src/layouts/Site.astro
+// File: src/layouts/Site.astro  (mobile nav polish + scrollbar compensation)
 const {
   title = "Fernie Real Estate",
   seo_title = title,
@@ -7,6 +7,7 @@ const {
   summary = "",
   showHeader = true,
   class: bodyClass = "",
+  wrapContent = true,
   heroPreload = null as null | {
     href: string;
     imagesrcset?: string;
@@ -19,24 +20,31 @@ const {
 
 import { getJson } from "../lib/fetchJson";
 
-/* ---------- helpers ---------- */
-const RESERVED = new Set(["index","page","pages","all","view","list"]);
-const getField = (r:any, k:string) =>
-  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
-const visible = (r:any) => {
+/* helpers */
+const RESERVED = new Set(["index", "page", "pages", "all", "view", "list"]);
+const getField = (r: any, k: string) =>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+    .toString()
+    .trim();
+
+const visible = (r: any) => {
   const s = getField(r, "status").toLowerCase();
   const rawSlug = getField(r, "slug").toLowerCase();
   return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
-type MenuItem = { title:string; slug:string; sort:number };
+
+type MenuItem = { title: string; slug: string; sort: number };
 
 async function fetchMenuSafe(url?: string): Promise<MenuItem[]> {
   if (!url) return [];
-  try { new URL(url, "http://x"); } catch { return []; }
-
+  try {
+    new URL(url, "http://x");
+  } catch {
+    return [];
+  }
   try {
     const raw = await getJson<any>(url);
-    const rows:any[] =
+    const rows: any[] =
       Array.isArray(raw) ? raw :
       Array.isArray(raw?.data) ? raw.data :
       Array.isArray(raw?.rows) ? raw.rows : [];
@@ -50,128 +58,540 @@ async function fetchMenuSafe(url?: string): Promise<MenuItem[]> {
       const sort = Number.isFinite(+r?.sort) ? +r.sort : Number.MAX_SAFE_INTEGER;
       out.push({ title, slug, sort });
     }
-    out.sort((a,b) => (a.sort - b.sort) || a.title.localeCompare(b.title));
+    out.sort((a, b) => (a.sort - b.sort) || a.title.localeCompare(b.title));
     return out;
-  } catch (e) {
-    console.warn("[fetchMenuSafe] using empty menu for", url, e);
+  } catch {
     return [];
   }
 }
 
-/* ---------- build menus (safe) ---------- */
-const neighbourhoods:MenuItem[] = await fetchMenuSafe(import.meta.env.PUBLIC_SHEET_JSON);
-const typesMenu:MenuItem[]      = await fetchMenuSafe(import.meta.env.PUBLIC_TYPES_JSON);
-const xtraMenu:MenuItem[]       = await fetchMenuSafe(import.meta.env.PUBLIC_XTRAAREA_JSON);
+/* warm sheet endpoints — safe no-ops if missing */
+await fetchMenuSafe(import.meta.env.PUBLIC_SHEET_JSON);
+await fetchMenuSafe(import.meta.env.PUBLIC_TYPES_JSON);
+await fetchMenuSafe(import.meta.env.PUBLIC_AREAS_JSON);
 await fetchMenuSafe(import.meta.env.PUBLIC_TODO_JSON);
 
-/* ---------- misc ---------- */
-const metaDescription = (seo_description || summary || "").toString().trim();
+/* Clean meta description from Sheets (may contain HTML) */
+const stripMeta = (s: string = "") =>
+  s.replace(/<[^>]+>/g, " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-/* ---------- nav order ---------- */
-const NAV_ORDER = [
-  "neighbourhoods",
-  "types",
-  "xtra",
-  "todo",
-  "stay",
-  "contact",
-] as const;
+/* No-truncation meta description */
+const metaDescription =
+  stripMeta((seo_description || summary || "").toString()) ||
+  "Fernie real estate, activities, neighbourhoods, and local insights.";
+
+/* active path helper */
+const pathname = Astro.url.pathname;
+const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
 ---
 
 <html lang="en">
   <head>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="alternate icon" href="/favicon.svg" />
+
+    <!-- CRITICAL PRECONNECTS: keep these first -->
+    <link rel="preconnect" href="https://chriscrump.realtyvis.page" crossorigin />
+    <link rel="preconnect" href="https://app.realtyvis.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin />
+
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{seo_title}</title>
-    {metaDescription && <meta name="description" content={metaDescription} />}
 
-    <!-- 🚀 perf hints -->
-    <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin>
-    <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
-    <link rel="dns-prefetch" href="https://api.realtyvis.com">
-    <link rel="preconnect" href="https://api.realtyvis.com" crossorigin>
+    <!-- Always render a clean meta description -->
+    <meta name="description" content={metaDescription} />
 
-    <!-- ✅ NEW: Warm up RealtyVis app origin (handshake + TCP/TLS) -->
-    <link rel="dns-prefetch" href="https://app.realtyvis.com">
-    <link rel="preconnect"  href="https://app.realtyvis.com" crossorigin>
+    <!-- Safe perf hints (no cross-origin prefetch/preload) -->
+    <link rel="dns-prefetch" href="https://cdn.realtyvis.com" />
+    <link rel="dns-prefetch" href="https://api.realtyvis.com" />
+    <link rel="dns-prefetch" href="https://app.realtyvis.com" />
 
-    <!-- ✅ NEW: Light prefetch of RV core assets (safe passive hints) -->
-    <link rel="prefetch" href="https://app.realtyvis.com/js/site.min.js" as="script" crossorigin>
-    <link rel="prefetch" href="https://app.realtyvis.com/css/site.min.css" as="style" crossorigin>
-
-    <!-- ✅ preload hero (when provided) -->
     {heroPreload && (
       <link
         rel="preload"
-        as={heroPreload.as || "image"}
+        as={heroPreload.as ?? "image"}
         href={heroPreload.href}
-        { ...(heroPreload.imagesrcset ? { imagesrcset: heroPreload.imagesrcset } : {}) }
-        { ...(heroPreload.imagesizes ? { imagesizes: heroPreload.imagesizes } : { imagesizes: "100vw" }) }
-        { ...(heroPreload.type ? { type: heroPreload.type } : {}) }
-        { ...(heroPreload.crossorigin ? { crossorigin: heroPreload.crossorigin } : {}) }
+        imagesrcset={heroPreload.imagesrcset}
+        imagesizes={heroPreload.imagesizes ?? "100vw"}
+        type={heroPreload.type}
+        crossorigin={heroPreload.crossorigin ?? "anonymous"}
+        fetchpriority="high"
       />
     )}
 
-    <slot name="head" />
-
-    <!-- 🌟 Minimal LCP helpers -->
-    <style>
-      @media (max-width:900px){
-        header nav{ display:none !important; }
-        header nav.open{ display:flex !important; }
-      }
-    </style>
-
-    <!-- ✨ global styles -->
+    <!-- GLOBAL -->
     <style is:global>
       :root {
         --header-h: 52px;
-        --bg:#2f311010; --ink:#271f11; --ink-muted:#1f2937; --hover-bg:rgba(243,244,246,.9);
-        --hero-h: 55vh;
-        --hero-min: 240px;
-        --container-pad: 12px;
-        --container-max: 1200px;
-        --bleed-fix: 2px;
-        --card-text-lines: 3;
-        --card-text-lh: 1.35;
+        --edge-pad: 12px;
+        --edge-pad-lg: 30px;
+        --container-max: 1280px;
+        --bg: #f5f5f2;
+        --ink: #271f11;
+        --ink-muted: #1f2937;
+        --hover-bg: rgba(243, 244, 246, .9);
+        --ease-snap: cubic-bezier(0.22, 1, 0.36, 1);
+        /* set by script: --sbw = scrollbar width */
       }
-      *,*::before,*::after { box-sizing:border-box; }
-      html,body { height:100%; overflow-x:clip; margin:0; }
-      body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background: var(--bg); color: var(--ink); }
-      .container { max-width: var(--container-max); margin-inline: auto; padding-inline: var(--container-pad); }
-      header { position: fixed; top: 0; left: 0; right: 0; height: var(--header-h); background: rgba(255,255,255,.84); backdrop-filter: blur(10px); border-bottom: 1px solid #e5e7eb; z-index: 1000; }
-      .nav-inner { width: 100%; height: 100%; display: flex; align-items: center; justify-content: space-between; padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); gap: 10px; }
-      .brand { font-weight: 700; font-size: 1rem; color: var(--ink); text-decoration: none; padding: 4px 6px; border-radius: 6px; white-space: nowrap; }
+
+      *, *::before, *::after { box-sizing: border-box; }
+
+      html, body {
+        height: 100%;
+        overflow-x: clip;
+        margin: 0;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+
+      main { padding-top: var(--header-h); }
+
+      .container {
+        max-width: var(--container-max);
+        margin-inline: auto;
+        padding-inline: var(--edge-pad);
+      }
+
+      @media (min-width: 900px) {
+        .container { padding-inline: var(--edge-pad-lg); }
+      }
+
+      header {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        height: var(--header-h);
+        background: rgba(255, 255, 255, .92);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid #e5e7eb;
+        box-shadow: 0 1px 8px rgba(0, 0, 0, .06);
+        z-index: 1000;
+      }
+
+      .nav-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 100%;
+        padding: 0 var(--edge-pad);
+        gap: 10px;
+      }
+
+      @media (min-width: 900px) {
+        .nav-inner { padding: 0 var(--edge-pad-lg); }
+      }
+
+      .brand {
+        font-weight: 700;
+        font-size: 1rem;
+        color: var(--ink);
+        text-decoration: none;
+        padding: 4px 6px;
+        border-radius: 6px;
+        white-space: nowrap;
+      }
       .brand:hover { background: var(--hover-bg); }
-      nav { display: flex; align-items: center; gap: 15px; justify-content: flex-end; flex: 1 1 auto; }
-      nav a { color: var(--ink-muted); padding: 6px 8px; text-decoration: none; border-radius: 8px; font-weight: 500; }
-      nav a:hover, nav a:focus-visible { color: var(--ink); background: var(--hover-bg); }
-      .hamburger { display: none; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--ink-muted); }
-      @media (max-width:900px){
-        header nav { position: absolute; top: var(--header-h); right: 0; background: #fff; flex-direction: column; gap: 0; padding: 8px 12px; box-shadow: 0 2px 8px rgba(0,0,0,.1); width: auto; max-width: 92vw; min-width: 220px; }
-        header nav a { display: block; width: 100%; padding: 10px; }
-        .hamburger { display: block; margin-left: auto; }
+
+      nav {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        justify-content: flex-end;
+        flex: 1 1 auto;
       }
-      footer.site-footer { width: 100%; background: rgba(255,255,255,0.9); backdrop-filter: blur(6px); border-top: 1px solid #e5e7eb; padding: 1rem 0; margin-top: 3rem; text-align: center; font-size: .875rem; color: #4b5563; }
+
+      .navlink {
+        position: relative;
+        color: var(--ink-muted);
+        padding: 6px 8px;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: color .15s ease;
+      }
+      .navlink:hover,
+      .navlink:focus-visible { color: var(--ink); }
+      .navlink.active { color: var(--ink); }
+
+      /* Desktop nav underline hover/active */
+      @media (min-width: 901px) {
+        .navlink {
+          position: relative;
+          padding: 8px 10px 14px; /* space for underline */
+          color: var(--ink-muted);
+          text-decoration: none;
+          border-radius: 8px;
+          font-weight: 500;
+          transition: color .15s ease;
+        }
+        .navlink::after {
+          content: "";
+          position: absolute;
+          left: 10px;
+          right: 10px;
+          bottom: 6px;
+          height: 2px;
+          background: #0f172a;   /* slate-900 */
+          transform: scaleX(0);
+          transform-origin: left;
+          transition: transform .18s ease;
+          border-radius: 2px;
+          opacity: .95;
+        }
+        .navlink:hover,
+        .navlink:focus-visible { color: var(--ink); }
+        .navlink:hover::after,
+        .navlink:focus-visible::after,
+        .navlink.active::after { transform: scaleX(1); }
+        .navlink::before { content: none !important; }
+      }
+
+      /* GLOBAL editorial section headings (hardened, outside media) */
+      body main h2,
+      body .page-content h2,
+      body .below-fold h2,
+      .h2 {
+        font-size: clamp(22px, 2.75vw, 30px);
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        line-height: 1.25;
+        margin-top: 2.25rem;
+        margin-bottom: -7px;
+        color: var(--ink, #111827);
+      }
+
+      body main h3,
+      body .page-content h3,
+      body .below-fold h3,
+      .h3 {
+        font-size: clamp(18px, 2vw, 22px);
+        font-weight: 600;
+        letter-spacing: -0.005em;
+        line-height: 1.3;
+        margin-top: 1.75rem;
+        margin-bottom: 0.4rem;
+        color: #1f2937;
+      }
+
+      /* === Scrollbar compensation when mobile menu is open === */
+      body.nav-open {
+        overflow: hidden;
+        padding-right: var(--sbw, 0px); /* align non-fixed content with fixed header */
+      }
+      /* Offset fixed elements so header/menu/overlay don't jump when scrollbar disappears */
+      body.nav-open header,
+      body.nav-open .nav-overlay,
+      body.nav-open header nav {
+        right: var(--sbw, 0px);
+      }
+
+      /* Mobile: full-width dropdown + subtle slide animation (UPDATED) */
+      .hamburger { display: none; }
+      @media (max-width: 900px) {
+        .hamburger {
+          display: block;
+          margin-left: auto;
+          padding: 6px 8px;
+          border-radius: 10px;
+          border: 1px solid transparent;
+          background: transparent;
+          color: var(--ink);
+          -webkit-tap-highlight-color: transparent;
+        }
+        .hamburger:active { transform: scale(0.98); }
+        .hamburger:focus-visible {
+          outline: none;
+          border-color: #e5e7eb;
+          background: var(--hover-bg);
+        }
+
+        /* prevent desktop underline/dots on mobile */
+        .navlink::before, .navlink::after { content: none !important; }
+
+        header nav {
+          position: fixed;
+          top: var(--header-h);
+          left: 0;
+          right: 0;                 /* use insets, not vw */
+          min-width: 0;
+          background: rgba(255,255,255,.98);
+          -webkit-backdrop-filter: blur(10px);
+          backdrop-filter: blur(10px);
+          flex-direction: column;
+          gap: 0;
+          padding:
+            max(6px, env(safe-area-inset-top))
+            max(var(--edge-pad), env(safe-area-inset-right))
+            max(10px, env(safe-area-inset-bottom))
+            max(var(--edge-pad), env(safe-area-inset-left));
+          border: 0;
+          border-top: 1px solid #e5e7eb;
+          border-radius: 0;
+          box-shadow: 0 6px 18px rgba(0,0,0,.08);
+          z-index: 1001;
+
+          /* animation defaults (closed state) */
+          transform: translateY(-6px);
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transition:
+            transform 180ms var(--ease-snap),
+            opacity 180ms var(--ease-snap),
+            visibility 0s linear 120ms; /* delay hiding to allow fade */
+          will-change: transform, opacity;
+        }
+        header nav.open {
+          transform: translateY(0);
+          opacity: 1;
+          visibility: visible;
+          pointer-events: auto;
+          transition:
+            transform 120ms var(--ease-snap),
+            opacity 120ms var(--ease-snap),
+            visibility 0s; /* visible immediately */
+        }
+
+        /* Apple-y: bigger type, centered, crisp separators, comfy touch target */
+        header nav a.navlink {
+          display: block;
+          width: 100%;
+          text-align: center;
+          padding: 16px 8px;               /* ~48px touch area */
+          font-size: 1.0625rem;            /* ~17px */
+          line-height: 1.35;
+          font-weight: 600;
+          letter-spacing: 0.2px;
+          color: var(--ink);
+          text-decoration: none;
+          border-radius: 0;                 /* full-width list look */
+          position: relative;
+        }
+        /* hairline separators */
+        header nav a.navlink + a.navlink {
+          border-top: 1px solid #eef2f7;   /* subtle separator */
+        }
+
+        /* active & press states, very subtle */
+        header nav a.navlink.active { background: #f8fafc; }
+        header nav a.navlink:active { background: #f3f4f6; }
+
+        /* Gentle section padding top/bottom to breathe */
+        header nav.open { padding-top: 8px; padding-bottom: 12px; }
+
+        /* backdrop behind the menu (click to close) */
+        .nav-overlay {
+          position: fixed;
+          top: var(--header-h);
+          left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,.24);
+          -webkit-tap-highlight-color: transparent;
+          z-index: 1000;
+        }
+        body:not(.nav-open) .nav-overlay { display: none; }
+
+        /* Make header brand slightly larger to match nav scale */
+        .brand { font-size: 1.0625rem; }
+      }
+
+      /* Respect reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        header nav, header nav.open { transition: none !important; }
+        .hamburger:active { transform: none; }
+      }
+
+      footer.site-footer {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(6px);
+        border-top: 1px solid #e5e7eb;
+        padding: 1rem 0;
+        margin-top: 3rem;
+        text-align: center;
+        font-size: .875rem;
+        color: #4b5563;
+      }
+
+      .hero-edge {
+        max-width: var(--container-max);
+        margin-inline: auto;
+        padding-inline: var(--edge-pad);
+      }
+      @media (min-width: 900px) {
+        .hero-edge { padding-inline: var(--edge-pad-lg); }
+      }
+
+      .page-content {
+        max-width: var(--container-max);
+        margin: 1.25rem auto 0 auto;
+        background: #f9fafb;
+        border-radius: 16px;
+        box-shadow: 0 2px 14px rgba(0, 0, 0, .06);
+        border: 1px solid rgba(0, 0, 0, 0.04);
+        padding-left: var(--edge-pad);
+        padding-right: var(--edge-pad);
+        padding-top: 1.6rem;
+        padding-bottom: 1.6rem;
+      }
+      @media (min-width: 900px) {
+        .page-content {
+          padding-left: var(--edge-pad-lg);
+          padding-right: var(--edge-pad-lg);
+          padding-top: 2rem;
+          padding-bottom: 2rem;
+        }
+      }
+      @media (max-width: 900px) {
+        .page-content {
+          margin: 0 auto;
+          border-radius: 0;
+          box-shadow: none;
+          border: 0;
+          background: #fff;
+          padding: 14px var(--edge-pad) 18px;
+        }
+        .page-content > *:first-child { margin-top: 0 !important; }
+        .page-content > *:last-child { margin-bottom: 0 !important; }
+        .hero-edge { padding-inline: 0; }
+        .below-fold { margin-top: 0; }
+        footer.site-footer { margin-top: 1.25rem; }
+      }
+
+      .page-content .container {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+
+      .align-hero-left { margin-left: calc(-1 * var(--edge-pad)); }
+      @media (min-width: 900px) {
+        .align-hero-left { margin-left: calc(-1 * var(--edge-pad-lg)); }
+      }
+
+      /* SAFER skeleton suppression only on RV skeleton hooks */
+      .rv-host [data-skeleton],
+      .rv-host .rv-skeleton {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        animation: none !important;
+        background: none !important;
+        box-shadow: none !important;
+      }
+      .rv-host .rv-root,
+      .rv-host .rv-container,
+      .rv-host .rv-shell {
+        max-width: var(--container-max);
+        margin-inline: auto;
+      }
     </style>
 
+    <!-- Nav JS: binds click/escape/resize/click-outside; no TS casts; no inline handlers -->
     <script is:inline>
-      function toggleNav(){
-        const nav=document.querySelector("header nav");
-        const btn=document.querySelector(".hamburger");
-        if(!nav||!btn)return;
-        const isOpen=nav.classList.toggle("open");
-        btn.setAttribute("aria-expanded",String(isOpen));
-      }
-      window.toggleNav=toggleNav;
-      document.addEventListener("DOMContentLoaded",()=>{ const nav=document.querySelector("header nav"); if(nav) nav.classList.remove("open"); });
+      (function () {
+        function bindNav() {
+          var btn = document.querySelector(".hamburger");
+          var nav = document.querySelector("header nav");
+          var overlay = document.querySelector(".nav-overlay");
+          var body = document.body;
+          if (!btn || !nav) return;
+
+          // Link button to nav for a11y
+          var navId = nav.getAttribute("id") || "primary-nav";
+          nav.setAttribute("id", navId);
+          btn.setAttribute("aria-controls", navId);
+
+          function openNav(open) {
+            if (open) {
+              nav.classList.add("open");
+              body.classList.add("nav-open"); // scroll lock
+              btn.setAttribute("aria-expanded", "true");
+              btn.setAttribute("aria-label", "Close menu");
+              if (overlay) overlay.hidden = false;
+            } else {
+              nav.classList.remove("open");
+              body.classList.remove("nav-open");
+              btn.setAttribute("aria-expanded", "false");
+              btn.setAttribute("aria-label", "Open menu");
+              if (overlay) overlay.hidden = true;
+            }
+          }
+
+          function toggle() { openNav(!nav.classList.contains("open")); }
+
+          // Button click
+          btn.addEventListener("click", toggle);
+
+          // Close when clicking a link in the menu
+          nav.addEventListener("click", function (e) {
+            var t = e.target;
+            var a = t && t.closest ? t.closest("a") : null;
+            if (a) openNav(false);
+          }, { passive: true });
+
+          // Click outside via backdrop overlay
+          if (overlay) overlay.addEventListener("click", function(){ openNav(false); }, { passive: true });
+
+          // Close on Escape
+          document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") openNav(false);
+          });
+
+          // Close if resizing to desktop
+          window.addEventListener("resize", function () {
+            if (window.matchMedia("(min-width: 901px)").matches) openNav(false);
+          }, { passive: true });
+
+          // start closed
+          openNav(false);
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", bindNav);
+        } else {
+          bindNav();
+        }
+      })();
     </script>
 
-    <script is:inline src="/js/smooth-anchors.js"></script>
+    <!-- Scrollbar width measurer for compensation -->
+    <script is:inline>
+      (function () {
+        var root = document.documentElement;
+        function setSBW() {
+          // innerWidth includes scrollbar; clientWidth does not
+          var sbw = Math.max(0, window.innerWidth - root.clientWidth);
+          root.style.setProperty('--sbw', sbw + 'px');
+        }
+        setSBW();
+        window.addEventListener('resize', setSBW, { passive: true });
+        document.addEventListener('visibilitychange', setSBW);
+      })();
+    </script>
 
-    <!-- 🧭 RealtyVis — load globally so embeds never hang -->
-    <link rel="preload" href="https://cdn.realtyvis.com/js/embed.js" as="script">
-    <script src="https://cdn.realtyvis.com/js/embed.js" async></script>
+    <!-- Non-blocking local script -->
+    <script src="/js/smooth-anchors.js?v=5" defer></script>
+
+    <!-- RealtyVis: load unconditionally after parse so listings always render -->
+    <script src="https://cdn.realtyvis.com/js/embed.js" defer></script>
+
+    <!-- tiny debug helper: run __rv_dbg() in console (pure JS) -->
+    <script is:inline>
+      window.__rv_dbg = () => {
+        console.log("RV present?", !!window.RV);
+        console.log(
+          "containers:",
+          document.querySelectorAll(
+            "[data-rv],[data-rv-id],[data-rv-block],[data-rv-block-id],.rv-embed,.rv-container"
+          )
+        );
+      };
+    </script>
   </head>
 
   <body class={bodyClass}>
@@ -179,31 +599,46 @@ const NAV_ORDER = [
 
     {showHeader && (
       <header role="banner">
-        <div class="nav-inner">
+        <div class="nav-inner container">
           <a class="brand" href="/" data-astro-prefetch>Fernie.Homes</a>
-          <button class="hamburger" onclick="toggleNav()" aria-label="Open menu" aria-expanded="false">☰</button>
+
+          <!-- Updated hamburger with SVG icon -->
+          <button class="hamburger" type="button" aria-label="Open menu" aria-expanded="false">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+
           <nav aria-label="Primary">
-            {
-              NAV_ORDER.map((key) => {
-                switch (key) {
-                  case "neighbourhoods": return <a href="/neighbourhoods" data-astro-prefetch="hover">Neighbourhoods</a>;
-                  case "types": return <a href="/types" data-astro-prefetch="hover">Property Types</a>;
-                  case "xtra": return <a href="/xtraarea" data-astro-prefetch="hover">Other Areas</a>;
-                  case "todo": return <a href="/to_do" data-astro-prefetch="hover">To Do</a>;
-                  case "stay": return <a href="/stay" data-astro-prefetch="hover">Stay</a>;
-                  case "contact": return <a href="/contact" data-astro-prefetch>Contact</a>;
-                }
-              })
-            }
+            <a href="/neighbourhoods" class={`navlink ${isActive("/neighbourhoods") ? "active" : ""}`}>Neighbourhoods</a>
+            <a href="/types" class={`navlink ${isActive("/types") ? "active" : ""}`}>Property Types</a>
+            <a href="/living" class={`navlink ${isActive("/living") ? "active" : ""}`}>Living</a>
+            <a href="/areas" class={`navlink ${isActive("/areas") ? "active" : ""}`}>Areas</a>
+            <a href="/to_do" class={`navlink ${isActive("/to_do") ? "active" : ""}`}>To Do</a>
+            <a href="/stay" class={`navlink ${isActive("/stay") ? "active" : ""}`}>Stay</a>
+            <a href="/blog" class={`navlink ${isActive("/blog") ? "active" : ""}`}>Blog</a>
+            <a href="/contact" class={`navlink ${isActive("/contact") ? "active" : ""}`}>Contact</a>
           </nav>
+
+          <!-- mobile backdrop overlay (click to close) -->
+          <div class="nav-overlay" hidden></div>
         </div>
       </header>
     )}
 
     <main id="main" role="main">
-      <slot name="hero" />
+      <div class="hero-edge">
+        <slot name="hero" />
+      </div>
+
       <div class="below-fold">
-        <slot />
+        {wrapContent ? (
+          <div class="page-content">
+            <slot />
+          </div>
+        ) : (
+          <slot />
+        )}
       </div>
     </main>
 
@@ -212,8 +647,6 @@ const NAV_ORDER = [
         <p>&copy; {new Date().getFullYear()} Fernie Real Estate. All rights reserved.</p>
         <div class="footer-links">
           <a href="/privacy" data-astro-prefetch>Privacy Policy</a>
-          <a href="/terms" data-astro-prefetch>Terms of Use</a>
-          <a href="/contact" data-astro-prefetch>Contact</a>
         </div>
       </div>
     </footer>

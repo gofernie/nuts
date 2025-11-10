@@ -1,0 +1,80 @@
+---
+interface Props {
+  src: string;
+  height?: number | string;
+  title?: string;
+  cta?: string;
+  eager?: boolean;
+}
+const {
+  src,
+  height = 760,
+  title = "Listings",
+  cta = "Load listings",
+  eager = false,
+} = Astro.props;
+
+const reservedH = typeof height === "number" ? `${height}px` : String(height || "760px");
+---
+<section
+  class="rv-wrap"
+  style={`min-height:${reservedH}`}
+  data-src={src}
+  data-title={title}
+  data-eager={String(eager)}
+  aria-busy="true"
+>
+  <button class="rv-cta" type="button">{cta}</button>
+</section>
+
+<script is:inline>
+{`
+(function(){
+  var host = document.currentScript && document.currentScript.previousElementSibling;
+  if (!host) return;
+  var src   = host.getAttribute('data-src') || '';
+  var title = host.getAttribute('data-title') || 'Listings';
+  var eager = (host.getAttribute('data-eager') === 'true');
+  if (!src) { host.removeAttribute('aria-busy'); return; }
+
+  var loaded = false;
+  function mount(){
+    if (loaded) return; loaded = true;
+    var h = getComputedStyle(host).minHeight || '760px';
+    host.innerHTML = '';
+    var f = document.createElement('iframe');
+    f.src = src;
+    f.title = title;
+    f.loading = 'lazy';
+    f.style.width = '100%';
+    f.style.height = h;
+    f.style.border = '0';
+    f.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox');
+    host.appendChild(f);
+    host.removeAttribute('aria-busy');
+  }
+
+  var btn = host.querySelector('.rv-cta');
+  if (btn) btn.addEventListener('click', function(){ btn.disabled = true; btn.textContent = 'Loading…'; mount(); }, { once:true });
+
+  function eagerMount(){
+    try{
+      var io = new IntersectionObserver(function(es){
+        es.forEach(function(ent){ if(ent.isIntersecting){ mount(); io.disconnect(); }});
+      }, { rootMargin: '600px 0px', threshold: 0.01 });
+      io.observe(host);
+    } catch(_) { mount(); }
+  }
+  if (eager) eagerMount();
+})();
+`}
+</script>
+
+<style>
+.rv-wrap{ position:relative; background:#0b1220; border:1px solid #0f172a; border-radius:12px; overflow:hidden; }
+.rv-cta{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  border:0; border-radius:9999px; padding:10px 14px; font-weight:700; color:#fff; background:#4f46e5; cursor:pointer;
+}
+.rv-cta:disabled{ opacity:.7; cursor:default; }
+</style>

@@ -20,16 +20,23 @@ const uid = `rv-host-${blockId}-${Math.random().toString(36).slice(2, 8)}`;
 <div id={uid} class={`rv-host ${klass}`} data-rv-block={blockId}></div>
 
 {/*
-  EAGER: load the script tag right away, then init.
+  EAGER: load the script and init after it finishes.
+  (Ensures init happens even if RV wasn't on the page yet.)
 */}
 {eager && (
-  <>
-    <script is:inline src={scriptUrl}></script>
-    <script is:inline>
-      // Re-init in case script was already present
-      if (window.RealtyVis?.init) window.RealtyVis.init();
-    </script>
-  </>
+  <script is:inline define:vars={{ SCRIPT_URL: scriptUrl }}>
+    (() => {
+      // If RV already present, init immediately
+      if (window.RealtyVis?.init) { window.RealtyVis.init(); return; }
+
+      // Otherwise inject, then init on load
+      const s = document.createElement("script");
+      s.src = SCRIPT_URL;
+      s.defer = true;
+      s.onload = () => window.RealtyVis?.init?.();
+      document.head.appendChild(s);
+    })();
+  </script>
 )}
 
 {/*
@@ -37,11 +44,11 @@ const uid = `rv-host-${blockId}-${Math.random().toString(36).slice(2, 8)}`;
   Ensures the script is injected only once per page via window.__rvScriptPromise.
 */}
 {!eager && (
-  <script is:inline>
+  <script
+    is:inline
+    define:vars={{ HOST_ID: uid, SCRIPT_URL: scriptUrl }}
+  >
     (() => {
-      const HOST_ID = {JSON.stringify(uid)};
-      const SCRIPT_URL = {JSON.stringify(scriptUrl)};
-
       const host = document.getElementById(HOST_ID);
       if (!host) return;
 

@@ -26,6 +26,23 @@ const visible = (r:any) => {
   return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
 
+/* ✅ Clean SEO text for meta (no truncation) */
+const stripMeta = (s:string="") =>
+  s.replace(/<[^>]+>/g," ")
+   .replace(/&[^;\s]+;/g," ")
+   .replace(/\s+/g," ")
+   .trim();
+
+/* ✅ For safe HTML render + card excerpts */
+const stripScripts = (html:string) =>
+  html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+const stripTags = (s:string="") =>
+  s.replace(/<[^>]*>/g," ").replace(/&[^;\s]+;/g," ").replace(/\s+/g," ").trim();
+const excerpt = (s:string, n=140) => {
+  const t = stripTags(s);
+  return t.length > n ? t.slice(0, n-1).trimEnd() + "…" : t;
+};
+
 type Row = {
   slug?: string;
   title?: string;
@@ -82,12 +99,20 @@ try {
 
 const pageTitle = get(header,"title") || "Property Types in Fernie";
 const pageSummary =
-  get(header,"summary") || get(header,"long_copy") || get(header,"seo_description") || get(header,"description") || "";
+  get(header,"summary") ||
+  get(header,"long_copy") ||
+  get(header,"seo_description") ||
+  get(header,"description") ||
+  "";
 const heroImg = get(header,"hero_img");
 const seoTitle = get(header,"seo_title") || pageTitle;
-const seoDesc  = get(header,"seo_description") || pageSummary;
 
-const SUMMARY_IS_HTML = false;
+/* ✅ Prefer seo_description; fall back to pageSummary; strip HTML/entities; no truncation */
+const seoDesc  = stripMeta(get(header,"seo_description") || pageSummary);
+
+/* ✅ Render top summary as HTML (scripts removed) */
+const SUMMARY_IS_HTML = true;
+const summaryHtml = SUMMARY_IS_HTML ? stripScripts(pageSummary) : "";
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
@@ -97,12 +122,13 @@ const SUMMARY_IS_HTML = false;
     containerMax={1200}
     containerPad={12}
     flush={false}
+    kicker="Fernie Property Types: Homes, Condos, Land"
   />
 
   {pageSummary && (
     <div class="container summary-wrap">
       {SUMMARY_IS_HTML
-        ? <div class="lead" set:html={pageSummary}></div>
+        ? <div class="lead" set:html={summaryHtml}></div>
         : <p class="lead">{pageSummary}</p>}
     </div>
   )}
@@ -119,7 +145,7 @@ const SUMMARY_IS_HTML = false;
               {img && <img src={img} alt={it.title} loading="lazy" decoding="async" />}
               <div class="body">
                 <h2>{it.title}</h2>
-                {it.summary && <p>{it.summary}</p>}
+                {it.summary && <p>{excerpt(it.summary, 140)}</p>}
               </div>
             </a>
           );
@@ -135,18 +161,14 @@ const SUMMARY_IS_HTML = false;
       padding-inline:12px;
     }
 
-    /* ✅ match xtraarea/neighbourhoods spacing */
-    .summary-wrap{
-      padding-top:16px;
-      padding-bottom:8px;
+   .summary-wrap{
+      padding-top:10px;
+      padding-bottom:10px;
+      border-bottom:1px solid #e5e7eb;
+      margin-bottom:35px;
     }
-
-    .lead{
-      margin: 0;
-      font-size: 1.075rem;
-      line-height: 1.6;
-      color:#111827;
-    }
+    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
+   
 
     .err{
       color:#b91c1c;

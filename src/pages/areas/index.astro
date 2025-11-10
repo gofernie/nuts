@@ -1,5 +1,5 @@
 ---
-// File: src/pages/neighbourhoods/index.astro
+// File: src/pages/areas/index.astro
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
@@ -7,9 +7,9 @@ import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-const PATH_BASE = "/neighbourhoods";
+const PATH_BASE = "/areas";
 
-/* ---------- helpers ---------- */
+/* ---------- tiny helpers (same as snappy pages) ---------- */
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
 const get = (r:any, k:string) =>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
@@ -28,8 +28,6 @@ const visible = (r:any) => {
 
 const stripMeta = (s:string="") =>
   s.replace(/<[^>]*>/g, " ").replace(/&[^;\s]+;/g, " ").replace(/\s+/g, " ").trim();
-const stripScripts = (html:string) =>
-  html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
 const stripTags = (s:string="") =>
   s.replace(/<[^>]*>/g, " ").replace(/&[^;\s]+;/g," ").replace(/\s+/g," ").trim();
 const excerpt = (s:string, n=140) => {
@@ -37,54 +35,64 @@ const excerpt = (s:string, n=140) => {
   return t.length > n ? t.slice(0, n-1).trimEnd() + "…" : t;
 };
 
-/* url helpers */
 const isAbs = (s:string="") => /^https?:\/\//i.test(s);
 const pick = (...vals:string[]) => vals.find(v => v && v.length > 0) || "";
 
+/* keep HTML safe in summary: strip scripts, harden links */
+const stripScripts = (html:string="") =>
+  html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+
+const cleanSummary = (html:string="") =>
+  stripScripts(html).replace(
+    /<a\b([^>]*)>/gi,
+    '<a$1 target="_blank" rel="noopener nofollow">'
+  );
+
+/* ---------- types ---------- */
 type Row = {
   slug?: string; title?: string; Title?: string; TITLE?: string;
   summary?: string; Summary?: string; SUMMARY?: string;
   long_copy?: string; longcopy?: string; LongCopy?: string;
   hero_img?: string; heroImg?: string; HeroImg?: string;
-  card_img?: string; // ✅ new preferred field
+  card_img?: string;
   status?: string;
   seo_title?: string; seoTitle?: string;
   seo_description?: string; seoDescription?: string;
   sort?: number | string;
 };
 
+/* ---------- fetch (static) ---------- */
+const url = import.meta.env.PUBLIC_AREAS_JSON;
+if (!url) throw new Error("Missing PUBLIC_AREAS_JSON in .env");
+
 let items: Row[] = [];
 let header: Row | null = null;
 let error: string | null = null;
 
 try {
-  const url = import.meta.env.PUBLIC_SHEET_JSON;
-  if (!url) throw new Error("Missing PUBLIC_SHEET_JSON in .env (restart dev).");
-
   const raw = await getJson<any>(url);
   const rows:any[] =
     Array.isArray(raw) ? raw :
     Array.isArray(raw?.data) ? raw.data :
     Array.isArray(raw?.rows) ? raw.rows : [];
 
+  // match the snappy pattern: header = slug=index OR status=header
   const pickHeader = (rs:any[]) => {
     const bySlug = rs.find(r => get(r,"slug").toLowerCase() === "index");
     if (bySlug) return bySlug;
     const byStatus = rs.find(r => get(r,"status").toLowerCase() === "header");
-    if (byStatus) return byStatus;
-    const byTitle = rs.find(r => (get(r,"title") || get(r,"Title") || get(r,"TITLE"))
-      .toLowerCase().includes("neighbourhoods"));
-    return byTitle ?? null;
+    return byStatus ?? null;
   };
   header = pickHeader(rows);
 
   const headerTitle = header ? (get(header,"title") || get(header,"Title") || get(header,"TITLE")) : "";
+
   items = rows
     .filter((r:any) => {
       if (!visible(r)) return false;
       const slug = get(r,"slug").toLowerCase();
       const title = get(r,"title") || get(r,"Title") || get(r,"TITLE");
-      if (slug === "index") return false;
+      if (slug === "index") return false;          // exclude header row from grid
       if (header && title && title === headerTitle) return false;
       return true;
     })
@@ -93,7 +101,7 @@ try {
       title: get(r,"title") || get(r,"Title") || get(r,"TITLE"),
       summary: get(r,"summary") || get(r,"Summary") || get(r,"SUMMARY"),
       hero_img: get(r,"hero_img") || get(r,"heroImg") || get(r,"HeroImg"),
-      card_img: get(r,"card_img"), // ✅ pull from sheet
+      card_img: get(r,"card_img"),
       sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
     }))
     .filter((r:Row) => r.slug && r.title)
@@ -103,7 +111,7 @@ try {
   error = e?.message || "Failed to load data.";
 }
 
-/* header/meta */
+/* ---------- header/meta ---------- */
 const headerTitle =
   header ? (get(header,"title") || get(header,"Title") || get(header,"TITLE")) : "";
 const headerSummary =
@@ -112,12 +120,11 @@ const headerSummary =
     get(header,"long_copy") || get(header,"longcopy") || get(header,"LongCopy") ||
     get(header,"seo_description") || get(header,"seoDescription") || ""
   ) : "";
+
 const headerHeroImg =
   header ? (get(header,"hero_img") || get(header,"heroImg") || get(header,"HeroImg")) : "";
 
-const pageTitle = headerTitle || "Fernie Neighbourhoods";
-
-/* ✅ header hero accepts absolute CF or local */
+const pageTitle = headerTitle || "Other Areas Near Fernie";
 const heroImgRaw = headerHeroImg || "";
 const heroImg = heroImgRaw ? (isAbs(heroImgRaw) ? heroImgRaw : heroPath(heroImgRaw)) : "";
 
@@ -125,43 +132,40 @@ const seoTitle  = (header ? (get(header,"seo_title") || get(header,"seoTitle")) 
 const rawSeoDesc = (header ? (get(header,"seo_description") || get(header,"seoDescription")) : "") || headerSummary || "";
 const seoDesc  = stripMeta(rawSeoDesc);
 
+/* render summary as HTML */
 const SUMMARY_IS_HTML = true;
-const summaryHtml = SUMMARY_IS_HTML ? stripScripts(headerSummary) : "";
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
-  {/* HERO */}
   <HeroBleed
     src={heroImg}
     title={pageTitle}
-    kicker="Fernie Neighbourhoods: Lifestyle Variety And Value"
+    kicker="Extra Areas around Fernie for day trips and stays."
     containerMax={1200}
     containerPad={12}
     flush={false}
+    preload={true}          /* small boost to first paint */
   />
 
-  {/* SUMMARY */}
   {headerSummary && (
     <div class="container summary-wrap">
       {SUMMARY_IS_HTML
-        ? <div class="lead" set:html={summaryHtml}></div>
+        ? <div class="lead" set:html={cleanSummary(headerSummary)}></div>
         : <p class="lead">{headerSummary}</p>}
     </div>
   )}
 
-  {/* GRID */}
   <div class="container">
     {error && <p class="err">{error}</p>}
 
     {!error && (
       <div class="grid">
         {items.map((it) => {
-          // ✅ Prefer card_img (Cloudflare /card); else hero_img; accept absolute or local
           const raw = pick(it.card_img || "", it.hero_img || "");
           const img = raw ? (isAbs(raw) ? raw : heroPath(raw)) : "";
 
           return (
-            <a class="card" href={`${PATH_BASE}/${it.slug}`} data-astro-prefetch="hover" aria-label={it.title}>
+            <a class="card" href={`${PATH_BASE}/${it.slug}`} aria-label={it.title}>
               {img && (
                 <img
                   src={img}
@@ -191,35 +195,22 @@ const summaryHtml = SUMMARY_IS_HTML ? stripScripts(headerSummary) : "";
       margin-bottom:35px;
     }
     .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-    .err { color: #b91c1c; background: #fee2e2; padding: .75rem 1rem; border-radius: .5rem; margin-top: 12px; }
+    .lead :where(p, ul, ol){ margin: 0 0 .8rem; }
+    .lead :where(a){ text-decoration: underline; }
+    .err { color:#b91c1c; background:#fee2e2; padding:.75rem 1rem; border-radius:.5rem; margin-top:12px; }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-      margin-top: 18px;
-    }
-    @media (max-width: 1200px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-    @media (max-width: 900px)  { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 560px)  { .grid { grid-template-columns: 1fr; } }
+    .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-top:18px; }
+    @media (max-width:1200px) { .grid { grid-template-columns:repeat(3,1fr); } }
+    @media (max-width:900px)  { .grid { grid-template-columns:repeat(2,1fr); } }
+    @media (max-width:560px)  { .grid { grid-template-columns:1fr; } }
 
-    .card{
-      display:flex; flex-direction:column;
-      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
-      overflow:hidden; text-decoration:none; color:inherit;
-      transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
-    }
-    .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
-
+    .card{ display:flex; flex-direction:column; background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+           overflow:hidden; text-decoration:none; color:inherit;
+           transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease; }
+    .card:hover{ transform:translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
     .card > img{ width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }
-
     .card .body{ padding:12px; }
     .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; color:#111827; }
-
-    .card .body p{
-      margin:0; color:#374151; line-height:1.35;
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-      overflow:hidden; text-overflow:ellipsis;
-    }
+    .card .body p{ margin:0; color:#374151; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis; }
   </style>
 </Site>

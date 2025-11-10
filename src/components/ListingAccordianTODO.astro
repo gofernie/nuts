@@ -1,0 +1,127 @@
+---
+/** Shared white accordion for RealtyVis listings
+ * Props:
+ *  - label?: string                         (headline)
+ *  - subline?: string                       (small line under headline)
+ *  - block?: string                          (RV block id, e.g. MQP2VMLT-HDQLLMRY)
+ *  - cta1?: string                           (optional: cell that may contain the embed or id)
+ *  - open?: boolean                          (default false)
+ *  - container?: boolean                     (wrap in max-width container; default true)
+ */
+import RVEmbed from "./RVEmbed.astro";
+
+export interface Props {
+  label?: string;
+  subline?: string;
+  block?: string;
+  cta1?: string;
+  open?: boolean;
+  container?: boolean;
+}
+
+const {
+  label = "Explore Fernie real estate listings",
+  subline = "(for people considering the lifestyle shift)",
+  block = "",
+  cta1 = "",
+  open = false,
+  container = true,
+} = Astro.props;
+
+/* -------- helpers to extract id from CTA1 cell -------- */
+function extractBlockIdFromCTA1(input:string): string {
+  if (!input) return "";
+  const s = String(input).trim();
+
+  // plain ID like AAA111-BBBB2222
+  const plain = s.match(/\b([A-Z0-9]{6,}-[A-Z0-9-]{6,})\b/i);
+  if (plain?.[1]) return plain[1].toUpperCase();
+
+  // data attributes
+  const dataAttr = s.match(/data-(?:block-)?id=["']\s*([A-Z0-9-]{6,})\s*["']/i);
+  if (dataAttr?.[1]) return dataAttr[1].toUpperCase();
+
+  // prop-style
+  const propAttr = s.match(/\bblockid=["']\s*([A-Z0-9-]{6,})\s*["']/i);
+  if (propAttr?.[1]) return propAttr[1].toUpperCase();
+
+  // URL query/hash
+  const qsBlock = s.match(/[?&](?:block|b)=([A-Z0-9-]{6,})/i);
+  if (qsBlock?.[1]) return qsBlock[1].toUpperCase();
+
+  const hashId = s.match(/#([A-Z0-9-]{6,})\b/i);
+  if (hashId?.[1]) return hashId[1].toUpperCase();
+
+  return "";
+}
+const isValid = (id:string) => !!id && /^[A-Z0-9]{6,}-[A-Z0-9-]{6,}$/i.test(id.trim());
+
+// final id preference: explicit block prop, else parsed from cta1
+const candidateFromCta1 = extractBlockIdFromCTA1(cta1);
+const rvBlockId = isValid(block) ? block.toUpperCase()
+               : isValid(candidateFromCta1) ? candidateFromCta1
+               : "";
+---
+
+<section class={container ? "container listings-card mt-12" : "listings-card mt-12"}>
+  <details class="listing-accordion" {...(open ? {open:true} : {})}>
+    <summary class="listing-summary">
+      <div class="ls-left">
+        <div class="ls-title">
+          {/* thin outline search icon */}
+          <svg class="ls-ico" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" role="presentation">
+            <g fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" opacity=".70">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-3.2-3.2" />
+            </g>
+          </svg>
+          <h3>{label}</h3>
+        </div>
+        {subline && <p>{subline}</p>}
+      </div>
+    </summary>
+
+    <div class="listing-panel">
+      {rvBlockId ? (
+        <RVEmbed block={rvBlockId} />
+      ) : (
+        <div class="ls-missing">
+          <strong>Couldn’t find a valid RealtyVis block id.</strong><br />
+          Pass <code>block</code> or a <code>cta1</code> snippet/plain id to this component.
+        </div>
+      )}
+    </div>
+  </details>
+
+  <style>
+    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
+
+    /* card */
+    .listings-card{
+      border:1px solid #e5e7eb;
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 8px 24px rgba(0,0,0,.06);
+      overflow:hidden;
+    }
+
+    /* hide native marker */
+    .listing-accordion > summary{ list-style:none; }
+    .listing-accordion > summary::-webkit-details-marker{ display:none; }
+
+    /* entire summary is one clickable bar */
+    .listing-summary{ display:block; padding:26px 28px; cursor:pointer; }
+
+    .ls-left{ background:#fff; color:#111; }
+    .ls-title{ display:flex; align-items:center; gap:10px; margin:0 0 10px 0; }
+    .ls-ico{ flex:0 0 auto; width:20px; height:20px; color:#111; opacity:.85; }
+    .ls-left h3{ margin:0; font-size:1.55rem; line-height:1.25; font-weight:700; }
+    .ls-left p{ margin:0; opacity:.95; font-size:.98rem; }
+
+    .listing-panel{ padding:18px 18px 22px; border-top:1px solid #eee; }
+    .ls-missing{
+      font-size:.9rem; opacity:.75; padding:10px 12px;
+      border:1px dashed #ddd; border-radius:10px; background:#fcfcfc;
+    }
+  </style>
+</section>

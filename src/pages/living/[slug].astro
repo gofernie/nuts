@@ -1,5 +1,5 @@
 ---
-// File: src/pages/stay/[slug].astro
+// File: src/pages/living/[slug].astro
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
@@ -7,8 +7,8 @@ import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import sanitizeHtml from "sanitize-html";
-import CTAForm from "../../components/CTAForm.astro";
-import ListingsAccordion from "../../components/ListingsAccordion.astro"; // ✅ NEW (replaces inline RVEmbed)
+import CTAForm3 from "../../components/CTAForm3.astro";
+import ListingsAccordion from "../../components/ListingsAccordion.astro"; // ✅ use shared component
 
 /* ---------- sanitize config ---------- */
 const ALLOWED = {
@@ -30,7 +30,7 @@ const ALLOWED = {
 
 /* ---------- Static paths ---------- */
 export async function getStaticPaths() {
-  const url = import.meta.env.PUBLIC_STAY_JSON;
+  const url = import.meta.env.PUBLIC_LIVING_JSON;
   if (!url) return [];
 
   const getField = (r:any, k:string) =>
@@ -81,9 +81,8 @@ function resolveImgFromCell(v:string): string {
   const s = (v ?? "").trim();
   if (!s) return "";
   if (/^https?:\/\//i.test(s)) return s;
-  if (s.startsWith("/img/hero/")) return s;
-  const rel = s.includes("/") ? s : `stay/${s}`;
-  return heroPath(rel);
+  if (s.startsWith("/")) return s;
+  return heroPath(s);
 }
 
 /* meta cleaner for SEO text (no truncation) */
@@ -97,23 +96,6 @@ const stripMeta = (s:string="") =>
 const isAbs = (s:string="") => /^https?:\/\//i.test(s);
 const isCFHero = (s:string="") => /imagedelivery\.net\/[^/]+\/[^/]+\/hero$/i.test(s);
 
-/* ---------- Pull RV block from cta1/rv_block_id (row first, then index) ---------- */
-const stripScripts = (html:string="") => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
-function extractBlockId(input:string=""): string {
-  const s = stripScripts(String(input||""));
-  // plain looking ID
-  const m1 = s.match(/\b([A-Z0-9]{6,}-[A-Z0-9-]{6,})\b/i);
-  if (m1?.[1]) return m1[1].toUpperCase();
-  // data attributes (various)
-  const m2 = s.match(/data-(?:rv-)?(?:block|block-id|id)=["']\s*([A-Z0-9-]{6,})\s*["']/i);
-  if (m2?.[1]) return m2[1].toUpperCase();
-  // prop-style
-  const m3 = s.match(/\bblockid=["']\s*([A-Z0-9-]{6,})\s*["']/i);
-  if (m3?.[1]) return m3[1].toUpperCase();
-  return "";
-}
-const isValid = (id:string) => /^[A-Z0-9]{6,}-[A-Z0-9-]{6,}$/i.test((id||"").trim());
-
 /* ---------- Page data ---------- */
 type Row = Record<string, any>;
 const { row: rowIn, indexRow: indexRowIn } = Astro.props as { row?: Row; indexRow?: Row | null };
@@ -121,9 +103,8 @@ const row = rowIn ?? {};
 const indexRow = indexRowIn ?? null;
 
 /* basic fields */
-const title    = get(row, "title") || "Where to Stay in Fernie";
-const subhead  = get(row, "subhead","kicker");
-const kicker   = subhead || get(row,"Kicker","KICKER");
+const title    = get(row, "title") || "Living in Fernie";
+const subhead  = get(row, "subhead");
 const heroImg  = get(row, "hero_img","heroImg","HeroImg");
 const seoTitle = get(row, "seo_title","seoTitle") || title;
 
@@ -138,24 +119,14 @@ const seoRaw     = get(row, "seo_description","seoDescription","seo_desc","SEO_D
 const safeSummary = sanitizeHtml(summaryRaw, ALLOWED);
 const safeBody    = sanitizeHtml(bodyRaw, ALLOWED);
 
-/* gallery */
+/* optional gallery from spare_1..3 */
 const gallery = [1,2,3].map(n => {
   const src = resolveImgFromCell(get(row, `spare_${n}`));
   const cap = get(row, `spare_${n}_caption`);
   return src ? { src, cap } : null;
 }).filter(Boolean);
 
-/* CTA form bg image */
-const spare1 = resolveImgFromCell(get(row, "spare_1"));
-
-/* Resolve block from row first, then indexRow */
-const rowBlock   = extractBlockId(get(row, "cta1","CTA1")) || get(row,"rv_block_id","rv_block");
-const indexBlock = extractBlockId(get(indexRow ?? {}, "cta1","CTA1")) || get(indexRow ?? {}, "rv_block_id","rv_block");
-const rvBlockId  = isValid(rowBlock as string) ? rowBlock!.toUpperCase()
-                 : isValid(indexBlock as string) ? indexBlock!.toUpperCase()
-                 : "";
-
-/* ---------- Hero image resolve + preload ---------- */
+/* Hero image resolve + preload (responsive) */
 const heroResolved = heroImg ? (isAbs(heroImg) ? heroImg : heroPath(heroImg)) : "";
 const heroSm = isCFHero(heroResolved) ? heroResolved.replace("/hero", "/public") : "";
 
@@ -174,8 +145,17 @@ const seoDesc = stripMeta(seoRaw || summaryRaw || "");
 /* debug toggle */
 const debug = Astro.url?.searchParams?.get("debug") === "1";
 
-/* Formspree */
-const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdHere");
+/* Formspree for CTA */
+const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "");
+
+/* ----- Listings config (sheet-driven, but delegated to component) ----- */
+const listingsMode  = (get(row, "listings_mode") || "accordion").toLowerCase(); // "open" | "accordion" | "off"
+const listingsLabel = get(row, "listings_label") || "Explore Fernie real estate listings";
+const listingsSub   = get(row, "listings_sub")   || "See the newest listings currently active on the MLS.";
+
+// Pass either/both; the component will extract/validate:
+const cta1Raw   = get(row, "cta1","CTA1");
+const blockId   = get(row, "rv_block_id","rv_block");
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
@@ -185,7 +165,7 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
 
   {debug && (
     <pre style="max-width:1200px;margin:8px auto;padding:8px 12px;border:1px solid #eee;background:#fafafa;overflow:auto">
-      {JSON.stringify({ row, rvBlockId }, null, 2)}
+      {JSON.stringify({ row, derived:{ listingsMode, listingsLabel, cta1Raw, blockId } }, null, 2)}
     </pre>
   )}
 
@@ -194,11 +174,12 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
     imagesrcset={heroSm ? `${heroSm} 1366w, ${heroResolved} 1600w` : ""}
     imagesizes="(max-width: 900px) 100vw, 1200px"
     title={title}
-    kicker={kicker}
+    kicker={subhead}
     containerMax={1200}
     containerPad={12}
   />
 
+  {/* ---- SUMMARY ---- */}
   {safeSummary && (
     <div class="container summary-wrap">
       <div class="lead prose prose-neutral max-w-none" set:html={safeSummary}></div>
@@ -224,35 +205,28 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
     </div>
   )}
 
-  {/* ✅ CTA */}
   <div class="container cta-wrap">
-    <CTAForm
-      formId={formspreeId}
+    <CTAForm3
       pageSlug={Astro.params.slug}
       pageTitle={title}
-      spare_1={spare1}
+      formId={formspreeId}
     />
   </div>
 
-  {/* ✅ Shared Listings Accordion (replaces inline RVEmbed section) */}
-  <ListingsAccordion
-    label="Explore Fernie real estate listings"
-    subline="(for people considering the lifestyle shift)"
-    cta1={get(row,"cta1","CTA1") || get(indexRow ?? {}, "cta1","CTA1")}
-    block={rvBlockId}
-  />
+  {/* ---- LISTINGS (shared component; reads id from cta1 or rv_block_id) ---- */}
+  {listingsMode !== "off" && (
+    <ListingsAccordion
+      label={listingsLabel}
+      subline={listingsSub}
+      cta1={cta1Raw}
+      block={blockId}
+    />
+  )}
 
   <style>
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
-    .summary-wrap{
-      padding-top:10px;
-      padding-bottom:10px;
-      border-bottom:1px solid #e5e7eb;
-      margin-bottom:35px;
-    }
+    .summary-wrap{ padding-top:10px; padding-bottom:10px; border-bottom:1px solid #e5e7eb; margin-bottom:35px; }
     .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-
-    .body-wrap{ padding-top:-12px; }
     .lead.prose p, .lead.prose li { font-size:1.075rem !important; line-height:1.6 !important; color:#111827; }
     .lead.prose :where(h2,h3){ margin-top:1.2em; }
 
@@ -263,6 +237,7 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
     .tile:hover img{ transform: scale(1.06); filter: saturate(1.1) contrast(1.05); }
     .tile figcaption{ position:absolute; left:10px; bottom:10px; padding:4px 8px; background:rgba(0,0,0,.55); color:#fff; font-size:.85rem; border-radius:8px; }
 
-    .cta-wrap{ padding-top:0px; padding-bottom:22px; }
+    .body-wrap{ padding-top:12px; }
+    .cta-wrap{ padding-top:18px; padding-bottom:22px; }
   </style>
 </Site>

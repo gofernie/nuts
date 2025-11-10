@@ -7,6 +7,7 @@ import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import sanitizeHtml from "sanitize-html";
+import ListingsAccordion from "../../components/ListingsAccordion.astro"; // ✅ NEW
 
 const PATH_BASE = "/to_do";
 
@@ -27,50 +28,80 @@ const visible = (r:any) => {
   return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
 
-/* Render-safe utilities for summaries */
-const toHtml = (v:string) => sanitizeHtml(v ?? "", {
-  allowedTags: ["p","strong","em","a","ul","ol","li","br"],
-  allowedAttributes: { a: ["href","target","rel"] },
-  transformTags: { a: (_:any, attr:any) => ({ tagName:"a", attribs:{...attr, rel:"noopener nofollow ugc"} }) }
-});
+/* Pull first http(s) URL out of a possibly-wrapped cell */
+const firstHttp = (s:string="") => {
+  const t = (s || "").replace(/\u00A0/g, " ").trim(); // strip NBSPs
+  const m = t.match(/https?:\/\/[^\s"'<>\u00A0]+/i);
+  return m ? m[0] : t;
+};
+
+const pick = (...vals:string[]) => vals.find(v => v && v.length > 0) || "";
+const isAbs = (s:string="") => /^https?:\/\//i.test(s);
+
+/* summaries */
 const toText = (v:string) =>
   sanitizeHtml(v ?? "", { allowedTags: [], allowedAttributes: {} })
     .replace(/\s+/g, " ")
     .trim();
 
-/* Detect season from common fields; default "all" */
-function detectSeason(r:any): "summer"|"winter"|"all" {
-  const direct = get(r,"season").toLowerCase();
-  if (direct === "summer" || direct === "winter") return direct as any;
+const toHtml = (v:string) => sanitizeHtml(v ?? "", {
+  allowedTags: ["p","strong","em","a","ul","ol","li","br","span"],
+  allowedAttributes: { a:["href","target","rel"] },
+  transformTags: {
+    a: (_:any,attr:any)=>({ tagName:"a", attribs:{...attr, rel:"noopener nofollow ugc"} })
+  }
+});
 
-  const tagsRaw = [
-    get(r,"tags"), get(r,"tag"), get(r,"category"), get(r,"categories"),
-    get(r,"type"), get(r,"types")
-  ].filter(Boolean).join(" ").toLowerCase();
+/* ---------- seasons parsing ---------- */
+const readColumnC = (r:any): string => {
+  try {
+    const vals = Object.values(r);
+    const v = vals.length >= 3 ? (vals[2] ?? "") : "";
+    return (typeof v === "string" ? v : "").toString();
+  } catch { return ""; }
+};
 
-  if (/winter|ski|snow|ice|sled|x-?country|nordic|snowshoe/.test(tagsRaw)) return "winter";
-  if (/summer|hike|bike|swim|lake|golf|paddle|camp|trail/.test(tagsRaw)) return "summer";
+const parseSeasons = (r:any) => {
+  let raw = get(r,"seasons") || get(r,"season") || get(r,"tags");
+  if (!raw) raw = readColumnC(r);
 
-  return "all";
-}
+  raw = (raw || "").toString().toLowerCase().replace(/\u00a0/g," ").trim();
+
+  if (!raw) return ["all"];
+  if (raw === "both" || raw === "both (all)" || raw === "all" || raw === "any" || raw === "year-round" || raw === "year round") {
+    return ["all"];
+  }
+
+  const parts = raw.split(/[\/,|;]+|\s{2,}/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const map: Record<string,string> = {
+    "summer":"summer","winter":"winter","spring":"spring",
+    "fall":"fall","autumn":"fall","yr":"year-round",
+    "year-round":"year-round","year round":"year-round",
+    "both":"all","both (all)":"all","any":"all","all":"all"
+  };
+
+  const canon = Array.from(new Set(parts.map(p => map[p] ?? p)));
+  return canon.length ? canon : ["all"];
+};
 
 type Row = {
   slug?: string;
   title?: string;
   summary?: string;
-  summary_text?: string;   // <- plain-text for cards
-  summary_html?: string;   // <- safe html if you ever want rich card text
   long_copy?: string;
   hero_img?: string;
+  card_img?: string;
   status?: string;
   seo_title?: string;
   seo_description?: string;
   sort?: number|string;
-  season?: "summer"|"winter"|"all";
+  seasons?: string[];
 };
 
-let itemsSorted: Row[] = [];
-let items: Row[] = [];
+let items: (Row & { summary_text?: string })[] = [];
 let header: Row | null = null;
 let error: string | null = null;
 
@@ -100,31 +131,26 @@ try {
     headerCandidates.find(r => get(r,"status").toLowerCase() === "header") ??
     headerCandidates[0] ?? null;
 
-  // ✅ Always-sorted master list
-  itemsSorted = rows
+  items = rows
     .filter(r => visible(r))
     .map(r => {
-      const season = detectSeason(r);
-      const title  = get(r,"title");
-      const slug   = get(r,"slug") || slugify(title);
+      const title = get(r,"title");
       const summaryRaw =
-        get(r,"summary") ||
-        get(r,"description") ||
-        get(r,"seo_description") ||
-        "";
+        get(r,"summary") || get(r,"description") || get(r,"seo_description") || "";
+
+      const hero_raw = firstHttp(get(r,"hero_img"));
+      const card_raw = firstHttp(get(r,"card_img"));
+      const seasons = parseSeasons(r);
 
       return {
-        slug,
+        slug: get(r,"slug") || slugify(title),
         title,
-        hero_img: get(r,"hero_img"),
-        sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
-        seo_title: get(r,"seo_title"),
-        seo_description: get(r,"seo_description"),
-        season,
-        // keep raw (optional), plus prepared versions:
         summary: summaryRaw,
-        summary_text: toText(summaryRaw),  // <- use this in cards
-        summary_html: toHtml(summaryRaw),  // <- available if you want rich text somewhere else
+        summary_text: toText(summaryRaw),
+        hero_img: hero_raw,
+        card_img: card_raw,
+        sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
+        seasons,
       };
     })
     .filter(r => r.slug && r.title)
@@ -141,206 +167,201 @@ const pageSummary =
   get(header,"seo_description") ||
   get(header,"description") ||
   "";
-const heroImg = get(header,"hero_img");
+
+const heroImgRaw = firstHttp(get(header,"hero_img"));
+const heroImg = isAbs(heroImgRaw) ? heroImgRaw : (heroImgRaw ? heroPath(heroImgRaw) : "");
+
 const seoTitle = get(header,"seo_title") || pageTitle;
-const seoDesc  = get(header,"seo_description") || pageSummary;
+const seoDesc  = toText(get(header,"seo_description") || pageSummary);
 
-const SUMMARY_IS_HTML = false;
+const SUMMARY_IS_HTML = true;
+const pageSummaryHtml = SUMMARY_IS_HTML ? toHtml(pageSummary) : "";
 
-// initial season (from query)
-const initialSeason = (Astro.url?.searchParams?.get("season") || "all").toLowerCase();
-const VALID = new Set(["all","summer","winter"]);
-const seasonStart = (VALID.has(initialSeason) ? initialSeason : "all") as "all"|"summer"|"winter";
+/* ---------- filter pills ---------- */
+const core = ["all","summer","winter"];
+const present = new Set(items.flatMap(i => i.seasons ?? []));
+const extra = Array.from(present).filter(s => !core.includes(s)).sort();
+const filterTokens = core.concat(extra);
+const label = (t:string) => (t==="all"?"All":t==="year-round"?"Year-Round":t.replace(/\b\w/g,c=>c.toUpperCase()));
 
-// ⛔️ Do NOT randomize on the server — we randomize "All" once per session on the client
-items = itemsSorted;
+/* ---------- NEW: listings accordion inputs from header ---------- */
+const listingsLabel = "Explore Fernie real estate listings";
+const listingsSub   = "See the newest listings currently active on the MLS.";
+const headerCTA1    = get(header,"cta1") || get(header,"CTA1");
+const headerBlock   = get(header,"rv_block_id") || get(header,"rv_block");
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
   <HeroBleed
-    src={heroImg ? heroPath(heroImg) : ""}
+    src={heroImg}
     title={pageTitle}
     containerMax={1200}
-    flush={false}
     containerPad={12}
+    flush={false}
+    kicker="Things To Do highlights Fernie experiences across seasons, styles, budgets, lifestyles."
+    preload
   />
 
   {pageSummary && (
     <div class="container summary-wrap">
       {SUMMARY_IS_HTML
-        ? <div class="lead" set:html={pageSummary}></div>
+        ? <div class="lead" set:html={pageSummaryHtml}></div>
         : <p class="lead">{pageSummary}</p>}
     </div>
   )}
 
   <div class="container">
+    {/* Filter Pills */}
+    <div class="filters" role="tablist" aria-label="Filter by season">
+      {filterTokens.map((tok) => (
+        <button
+          role="tab"
+          class={`pill ${tok === "all" ? "is-active" : ""}`}
+          data-filter={tok}
+          aria-selected={tok === "all" ? "true" : "false"}
+          aria-controls="todo-grid"
+        >
+          {label(tok)}
+        </button>
+      ))}
+    </div>
+
     {error && <p class="err">{error}</p>}
 
     {!error && (
-      <>
-        <!-- Season filter controls -->
-        <div class="controls" role="tablist" aria-label="Filter activities by season">
-          <button class="pill" data-filter="all" aria-selected={seasonStart==="all"}>All</button>
-          <button class="pill" data-filter="summer" aria-selected={seasonStart==="summer"}>Summer</button>
-          <button class="pill" data-filter="winter" aria-selected={seasonStart==="winter"}>Winter</button>
-        </div>
+      <div id="todo-grid" class="grid" role="tabpanel">
+        {items.map((it) => {
+          const raw = pick(it.card_img || "", it.hero_img || "");
+          const img = raw ? (isAbs(raw) ? raw : heroPath(raw)) : "";
+          const seasonsAttr = (it.seasons ?? []).join(",");
 
-        <div class="grid" data-season={seasonStart}>
-          {items.map((it) => (
+          return (
             <a
               class="card"
               href={`${PATH_BASE}/${it.slug}`}
               data-astro-prefetch="hover"
-              data-season={it.season}
-              data-sort={Number(it.sort) || 9007199254740991}
-              data-title={it.title}
               aria-label={it.title}
+              data-seasons={seasonsAttr}
             >
-              {it.hero_img && (
-                <img src={heroPath(it.hero_img)} alt={it.title} loading="lazy" decoding="async" />
+              {img && (
+                <img
+                  src={img}
+                  alt={it.title}
+                  loading="lazy"
+                  decoding="async"
+                  sizes="(min-width: 1200px) 25vw, (min-width: 900px) 33vw, 50vw"
+                  onerror="this.remove()"
+                />
               )}
               <div class="body">
                 <h2>{it.title}</h2>
-                {/* Use plain text to avoid literal <p>…</p> in the card */}
                 {it.summary_text && <p>{it.summary_text}</p>}
               </div>
             </a>
-          ))}
-        </div>
-      </>
+          );
+        })}
+      </div>
     )}
   </div>
 
-  <script>
-    function shuffleInPlace(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+  {/* ✅ NEW: shared listings accordion after grid */}
+  <ListingsAccordion
+    label={listingsLabel}
+    subline={listingsSub}
+    cta1={headerCTA1}
+    block={headerBlock}
+  />
 
-    function reorder(grid, mode){
-      const cards = Array.from(grid.querySelectorAll('.card'));
+  <script is:inline>
+    // Client-side filter for season pills (supports ?season=summer)
+    (function() {
+      var pills = Array.from(document.querySelectorAll('.filters .pill'));
+      var grid = document.getElementById('todo-grid');
+      var cards = Array.from(grid ? grid.querySelectorAll('.card') : []);
+      if (!pills.length || !grid) return;
 
-      if (mode === 'all') {
-        // ✅ Use cached shuffle if available (one shuffle per session)
-        const KEY = 'todo-shuffle-order';
-        let order = sessionStorage.getItem(KEY);
+      var params = new URLSearchParams(location.search);
+      var initial = (params.get('season') || 'all').toLowerCase();
 
-        if (order) {
-          const hrefOrder = JSON.parse(order);
-          cards.sort((a,b) => hrefOrder.indexOf(a.getAttribute('href')) - hrefOrder.indexOf(b.getAttribute('href')));
-        } else {
-          shuffleInPlace(cards);
-          const hrefOrder = cards.map(c => c.getAttribute('href'));
-          sessionStorage.setItem(KEY, JSON.stringify(hrefOrder));
-        }
-      } else {
-        // Summer/Winter: sort by sort value then title (stable, predictable)
-        cards.sort((a, b) => {
-          const sa = +a.dataset.sort || Number.MAX_SAFE_INTEGER;
-          const sb = +b.dataset.sort || Number.MAX_SAFE_INTEGER;
-          if (sa !== sb) return sa - sb;
-          const ta = (a.dataset.title || '').toLowerCase();
-          const tb = (b.dataset.title || '').toLowerCase();
-          return ta.localeCompare(tb);
+      function applyFilter(token) {
+        pills.forEach(b => {
+          var on = b.getAttribute('data-filter') === token;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-selected', on ? 'true' : 'false');
         });
+
+        cards.forEach(card => {
+          var seasons = (card.getAttribute('data-seasons') || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+          var show = token === 'all' || seasons.includes('all') || seasons.includes('year-round') || seasons.includes(token);
+          card.style.display = show ? '' : 'none';
+        });
+
+        var url = new URL(location.href);
+        if (token === 'all') { url.searchParams.delete('season'); }
+        else { url.searchParams.set('season', token); }
+        history.replaceState(null, '', url.toString());
       }
 
-      // Re-append in the new order
-      cards.forEach(c => grid.appendChild(c));
-    }
+      pills.forEach(b => b.addEventListener('click', function() {
+        applyFilter(b.getAttribute('data-filter'));
+      }));
 
-    function applyFilter(next){
-      const grid = document.querySelector('.grid');
-      const pills = Array.from(document.querySelectorAll('.controls .pill'));
-      if (!grid) return;
-
-      const wanted = (next || 'all').toLowerCase();
-      grid.setAttribute('data-season', wanted);
-
-      // Update selected state
-      pills.forEach(btn => btn.setAttribute('aria-selected', String(btn.dataset.filter === wanted)));
-
-      // Reorder DOM to match desired order
-      reorder(grid, wanted);
-
-      // Update query param without scrolling
-      const url = new URL(location.href);
-      if (wanted === 'all') url.searchParams.delete('season');
-      else url.searchParams.set('season', wanted);
-      history.replaceState({}, "", url);
-    }
-
-    function initSeasonFilter(){
-      const pills = Array.from(document.querySelectorAll('.controls .pill'));
-      if (!pills.length) return;
-
-      pills.forEach(btn => btn.addEventListener('click', () => applyFilter(btn.dataset.filter || 'all'), { passive: true }));
-
-      // Ensure initial state and ordering on load
-      const start = document.querySelector('.grid')?.getAttribute('data-season') || 'all';
-      applyFilter(start);
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initSeasonFilter, { once: true });
-    } else {
-      initSeasonFilter();
-    }
-    window.addEventListener('pageshow', (e) => { if (e.persisted) initSeasonFilter(); });
+      var hasInitial = pills.some(b => b.getAttribute('data-filter') === initial);
+      applyFilter(hasInitial ? initial : 'all');
+    })();
   </script>
 
   <style>
     .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
-    .summary-wrap{ padding-top:16px; padding-bottom:8px; }
-    .lead{ margin: 0; font-size: 1.075rem; line-height: 1.6; color:#111827; }
+
+    .summary-wrap{
+      padding-top:10px;
+      padding-bottom:10px;
+      border-bottom:1px solid #e5e7eb;
+      margin-bottom:35px;
+    }
+    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
+    .lead :is(p,ul,ol,a,strong,em){ color:inherit; line-height:1.6; }
+
     .err{ color:#b91c1c; background:#fee2e2; padding:.75rem 1rem; border-radius:.5rem; margin-top:12px; }
 
-    /* Controls */
-    .controls{
-      display:flex; gap:8px; align-items:center;
-      margin-top: 10px; margin-bottom: 10px;
-      flex-wrap: wrap;
-    }
+    /* Pills */
+    .filters{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; margin-bottom:10px; }
     .pill{
-      appearance:none; border:1px solid #e5e7eb; background:#fff;
-      padding:8px 12px; border-radius:9999px; cursor:pointer;
-      font-weight:700; font-size:.9rem; letter-spacing:.2px;
-      transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background-color .12s ease;
+      appearance:none; border:1px solid #e5e7eb; background:#fff; color:#111827;
+      padding:.4rem .7rem; border-radius:999px; font-size:.92rem; line-height:1; cursor:pointer;
+      transition: background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease;
     }
-    .pill[aria-selected="true"]{
-      border-color:#111827; background:#111827; color:#fff; box-shadow:0 4px 12px rgba(0,0,0,.08);
-    }
-    .pill:hover{ transform: translateY(-1px); }
-    .pill:active{ transform: translateY(0); }
+    .pill:hover{ border-color:#d1d5db; box-shadow:0 1px 6px rgba(0,0,0,.05); }
+    .pill.is-active{ background:#0ea5e9; border-color:#0ea5e9; color:white; }
 
-    /* Grid + cards */
     .grid{
       display:grid;
       grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 16px;
-      margin-top: 8px;
+      gap:16px;
+      margin-top:12px;
+      margin-bottom:52px; /* space before accordion */
     }
     @media (max-width:1200px){ .grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
     @media (max-width:900px){  .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
     @media (max-width:560px){  .grid{ grid-template-columns: 1fr; } }
 
     .card{
-      display:flex; flex-direction:column;
-      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
-      overflow:hidden; text-decoration:none; color:inherit;
+      display:flex; flex-direction:column; background:#fff; border:1px solid #e5e7eb; border-radius:14px; overflow:hidden;
+      text-decoration:none; color:inherit;
       transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
     }
     .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
-    .card img{ width:100%; aspect-ratio:16/9; object-fit: cover; display:block; }
+
+    .card img{ width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }
     .card .body{ padding:12px; }
     .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; }
 
     /* 2-line clamp */
     .card .body p{
       margin:0; color:#374151; line-height:1.35;
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+      overflow:hidden; text-overflow:ellipsis;
     }
-
-    /* Visibility (ordering handled in JS) */
-    .grid[data-season="summer"] .card:not([data-season="summer"]):not([data-season="all"]) { display:none; }
-    .grid[data-season="winter"] .card:not([data-season="winter"]):not([data-season="all"]) { display:none; }
-    .grid[data-season="all"]    .card { display:flex; }
   </style>
 </Site>

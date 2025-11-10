@@ -1,5 +1,5 @@
 ---
-// File: src/pages/types/[slug].astro
+// File: src/pages/areas /[slug].astro
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
@@ -9,41 +9,54 @@ import CTAForm from "../../components/CTAForm.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
-/* ---------- tiny util ---------- */
-const slugify = (v:string) =>
-  (v ?? "").toLowerCase().trim()
-    .replace(/&/g,"-and-")
-    .replace(/[^a-z0-9]+/g,"-")
-    .replace(/^-+|-+$/g,"");
-
-/* ✅ Clean SEO text (no truncation) */
-const stripMeta = (s:string="") =>
-  s.replace(/<[^>]+>/g," ")
-   .replace(/&[^;\s]+;/g," ")
-   .replace(/\s+/g," ")
-   .trim();
-
 /* ---------- static paths ---------- */
 export async function getStaticPaths() {
-  const url = import.meta.env.PUBLIC_TYPES_JSON;
+  const url = import.meta.env.PUBLIC_AREAS_JSON;
   if (!url) return [];
-  let rows:any[] = [];
+
+  let rows: any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch { return []; }
+    rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
+  } catch {
+    return [];
+  }
 
-  const items = rows.map((r:any) => {
-    const status  = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
-    const rawSlug = String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase();
-    const hidden = status === "hidden" || status === "inactive" || rawSlug === "index";
-    if (hidden) return null;
-    const title  = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    const slug   = (rawSlug || slugify(title)).toLowerCase();
-    return slug ? { params: { slug }, props: { row: r } } : null;
-  }).filter(Boolean) as any[];
+  const items = rows
+    .map((r: any) => {
+      const status = String(r?.status ?? r?.Status ?? r?.STATUS ?? "")
+        .trim()
+        .toLowerCase();
+      const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "")
+        .trim()
+        .toLowerCase();
+      const hidden =
+        status === "hidden" || status === "inactive" || rawSlug === "index";
+      if (hidden) return null;
+
+      const title = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
+
+      // ✅ inline slug logic — no helper needed
+      const safeSlug =
+        rawSlug ||
+        title
+          .toLowerCase()
+          .trim()
+          .replace(/&/g, "-and-")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+
+      return safeSlug
+        ? { params: { slug: safeSlug }, props: { row: r } }
+        : null;
+    })
+    .filter(Boolean) as any[];
 
   return items;
 }
@@ -62,49 +75,49 @@ type Row = {
 const { row: rowIn } = Astro.props as { row?: Row };
 const row = rowIn ?? ({} as Row);
 
-const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Property Type").trim();
+const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Area").trim();
 const summary  = String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
 const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
 const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
 const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
+
+/* ✅ Clean SEO text (no truncation, prefer explicit field) */
+const stripMeta = (s:string="") =>
+  s.replace(/<[^>]+>/g," ")
+   .replace(/&[^;\s]+;/g," ")
+   .replace(/\s+/g," ")
+   .trim();
+
 const seoDesc  = stripMeta(String(row?.seo_description ?? row?.seoDescription ?? summary ?? ""));
 
 /* ---------- kicker/subhead ---------- */
-const kicker = String(
-  row?.kicker ?? row?.Kicker ?? row?.KICKER ??
-  row?.subhead ?? row?.Subhead ?? row?.SUBHEAD ?? ""
-).trim() || "Fernie, BC";
+const kicker = (
+  String(row?.kicker ?? row?.Kicker ?? row?.KICKER ?? "") ||
+  String(row?.subhead ?? row?.Subhead ?? row?.SUBHEAD ?? "")
+).trim() || "Around Fernie";
 
-/* Rich text guards */
-function stripScripts(html:string){ return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,""); }
+/* ---------- strip scripts ---------- */
+function stripScripts(html: string) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+}
 const SUMMARY_IS_HTML = true;
 const BODY_IS_HTML = true;
 const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summary) : "";
 const bodyHtml = BODY_IS_HTML ? stripScripts(body) : "";
 
-/* ---------- listings (RealtyVis) — robust parsing ---------- */
+/* ---------- RealtyVis listings ---------- */
 const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
-const LOOSE_ID_RE = /([A-Z0-9]{8}-[A-Z0-9]{8})/i;
-function extractRvId(anyHtmlOrUrl: string) {
-  const s = String(anyHtmlOrUrl || "");
-  if (!s) return "";
-  // data-rv-block="XXXX-XXXX"
-  let m = s.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
-           .match(/data-?rv-?block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
-  if (m?.[1]) return m[1];
-  // ?block=XXXX-XXXX (handles embed URLs)
-  m = s.match(/[?&]block=([A-Z0-9]{8}-[A-Z0-9]{8})/i);
-  if (m?.[1]) return m[1];
-  // last resort: first token that looks like an ID anywhere
-  m = s.match(LOOSE_ID_RE);
+const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
+function extractRvId(html: string) {
+  const clean = stripScripts(html);
+  const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
   return m?.[1] || "";
 }
-const rvBlockId =
-  (LOOSE_ID_RE.test(rawCta) ? (rawCta.match(LOOSE_ID_RE)?.[1] || "") : extractRvId(rawCta));
-const hasValidBlock = !!rvBlockId;
+const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
+const hasValidBlock = ID_RE.test(rvBlockId);
 
 /* ---------- hero preload ---------- */
 const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
@@ -113,7 +126,12 @@ const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
 const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdHere");
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  heroPreload={heroPreload}
+>
   <HeroBleed
     src={heroImg ? heroPath(heroImg) : ""}
     title={title}
@@ -124,20 +142,20 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
     preload={false}
   />
 
-  {summary && (
-    <section>
-      <div class="container summary-wrap">
-        {SUMMARY_IS_HTML
-          ? <div class="lead" set:html={summaryHtml}></div>
-          : <p class="lead">{summary}</p>}
-      </div>
-    </section>
-  )}
+{summary && (
+  <section>
+    <div class="container summary-wrap">
+      {SUMMARY_IS_HTML
+        ? <div class="lead" set:html={summaryHtml}></div>
+        : <p class="lead">{summary}</p>}
+    </div>
+  </section>
+)}
+
 
   {/* ✅ Listings — matches the gold page */}
   <div class="container listings-wrap">
     <h2 class="h2">Current {title} Listings</h2>
-
     {hasValidBlock ? (
       <div class="rv-host">
         <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
@@ -175,13 +193,14 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
 
   {body && (
     <div class="container body-wrap">
-      {BODY_IS_HTML
-        ? <div class="lead" set:html={bodyHtml}></div>
-        : <p class="lead">{body}</p>}
+      {BODY_IS_HTML ? (
+        <div class="lead" set:html={bodyHtml}></div>
+      ) : (
+        <p class="lead">{body}</p>
+      )}
     </div>
   )}
 
-  <!-- CTA lives outside .lead -->
   <div class="container cta-bottom-wrap">
     <CTAForm formId={formspreeId} pageSlug={Astro.params.slug} pageTitle={title} />
   </div>
@@ -189,8 +208,7 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
   <style>
     .container { max-width: 1200px; margin-inline: auto; padding-inline: 12px; }
 
-    /* unified summary (underline, no card) */
-    .summary-wrap{
+      .summary-wrap{
       padding-top:10px;
       padding-bottom:10px;
       border-bottom:1px solid #e5e7eb;
@@ -202,11 +220,17 @@ const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdH
     .h2 { font-size: clamp(20px, 2.6vw, 28px); margin: 0 0 10px; }
 
     .rv-fallback {
-      margin-top: 12px; padding: 12px 16px;
-      background: #fff3cd; border: 1px solid #ffe69c; border-radius: 10px; color: #5c3c00;
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: #fff3cd;
+      border: 1px solid #ffe69c;
+      border-radius: 10px;
+      color: #5c3c00;
     }
 
-    .body-wrap::after { content:""; display:block; clear:both; }
+    .summary-section::after,
+    .body-wrap::after { content: ""; display: block; clear: both; }
+
     .cta-bottom-wrap { padding: 18px 0 28px; clear: both; }
 
     .rv-host { min-height: 1000px; }

@@ -1,0 +1,336 @@
+---
+// File: src/pages/blog/index.astro
+export const prerender = true;
+
+import Site from "../../layouts/Site.astro";
+import HeroBleed from "../../components/HeroBleed.astro";
+import { getJson } from "../../lib/fetchJson";
+import { heroPath } from "../../lib/paths";
+
+const PATH_BASE = "/blog";
+
+/* ---------- helpers ---------- */
+const RESERVED = new Set(["index","page","pages","all","view","list"]);
+const get = (r:any, k:string) =>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+
+const slugify = (v:string) =>
+  (v ?? "").toLowerCase().trim()
+    .replace(/&/g,"-and-")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"");
+
+const visible = (r:any) => {
+  const s = get(r,"status").toLowerCase();
+  const rawSlug = get(r,"slug").toLowerCase();
+  return s !== "hidden" && s !== "inactive" && !RESERVED.has(rawSlug);
+};
+
+const stripMeta = (s:string="") =>
+  s.replace(/<[^>]*>/g, " ").replace(/&[^;\s]+;/g, " ").replace(/\s+/g, " ").trim();
+const stripScripts = (html:string) =>
+  html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+const stripTags = (s:string="") =>
+  s.replace(/<[^>]*>/g, " ").replace(/&[^;\s]+;/g," ").replace(/\s+/g," ").trim();
+const excerpt = (s:string, n=260) => {
+  const t = stripTags(s);
+  return t.length > n ? t.slice(0, n-1).trimEnd() + "…" : t;
+};
+
+const isAbs = (s:string="") => /^https?:\/\//i.test(s);
+const pick = (...vals:string[]) => vals.find(v => v && v.length > 0) || "";
+const fmtDate = (ms:number) =>
+  ms ? new Date(ms).toLocaleDateString("en-CA", { year:"numeric", month:"short", day:"numeric" }) : "";
+
+/* ---------- types ---------- */
+type Row = Record<string, any>;
+type Item = {
+  slug: string;
+  title: string;
+  summary: string;
+  hero_img?: string;
+  card_img?: string;
+  sort: number;
+  categories: string[];
+  dateMs: number;
+  dateISO: string;
+};
+
+/* ---------- fetch ---------- */
+let items: Item[] = [];
+let header: Row | null = null;
+let error: string | null = null;
+
+try {
+  const url = import.meta.env.PUBLIC_BLOG_JSON;
+  if (!url) throw new Error("Missing PUBLIC_BLOG_JSON in .env (restart dev).");
+
+  const raw = await getJson<any>(url);
+  const rows:any[] =
+    Array.isArray(raw) ? raw :
+    Array.isArray(raw?.data) ? raw.data :
+    Array.isArray(raw?.rows) ? raw.rows : [];
+
+  // header row is slug === "index"
+  header = rows.find(r => get(r,"slug").toLowerCase() === "index") ?? null;
+
+  items = rows
+    .filter((r:any) => {
+      if (!visible(r)) return false;
+      return get(r,"slug").toLowerCase() !== "index";
+    })
+    .map((r:any): Item => {
+      const catRaw = get(r,"category");
+      const categories = catRaw
+        ? catRaw.split(/[,/|]+/g).map((c:string)=>c.trim()).filter(Boolean)
+            .map((c:string)=>c.replace(/\s+/g," ").replace(/[–—]/g,"-").trim())
+        : [];
+
+      // accept "date" or "publish_date"
+      const pd = get(r,"date") || get(r,"publish_date");
+      const parsed = pd ? Date.parse(pd) : NaN;
+      const dateMs = Number.isFinite(parsed) ? parsed : 0;
+      const dateISO = dateMs ? new Date(dateMs).toISOString() : "";
+
+      return {
+        slug: get(r,"slug") || slugify(get(r,"title")),
+        title: get(r,"title"),
+        summary: get(r,"summary"),
+        hero_img: get(r,"hero_img"),
+        card_img: get(r,"card_img"),
+        sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
+        categories,
+        dateMs,
+        dateISO
+      };
+    })
+    .filter(r => r.slug && r.title)
+    // Default: manual sort then title
+// NEW: sort newest first (dateMs desc), fallback to manual sort, fallback to title
+.sort((a,b) => (b.dateMs - a.dateMs) || (Number(a.sort)-Number(b.sort)) || a.title.localeCompare(b.title));
+
+} catch (e:any) {
+  error = e?.message || "Failed to load data.";
+}
+
+/* ---------- header fields (sheet-driven) ---------- */
+const pageTitle     = header ? get(header,"page_title") || "Fernie Blog" : "Fernie Blog";
+const h1            = header ? get(header,"h1")         || "Fernie Blog" : "Fernie Blog";
+const subhead       = header ? get(header,"subhead")    || get(header,"kicker") : "";
+const headerSummary = header ? get(header,"summary")    : "";
+const heroImgRaw    = header ? get(header,"hero_img")   : "";
+const heroImg       = heroImgRaw ? (isAbs(heroImgRaw) ? heroImgRaw : heroPath(heroImgRaw)) : "";
+
+const rawSeoDesc = header ? get(header,"seo_description") || headerSummary : "";
+const seoDesc    = stripMeta(rawSeoDesc);
+
+const SUMMARY_IS_HTML = true;
+const summaryHtml = SUMMARY_IS_HTML ? stripScripts(headerSummary) : "";
+
+/* ---------- categories for filter UI ---------- */
+const allCats = Array.from(
+  new Set(items.flatMap(it => it.categories.map(c => c.trim())))
+).sort((a,b) => a.localeCompare(b));
+const hasCategories = allCats.length > 0;
+---
+
+<Site title={pageTitle} seo_title={pageTitle} seo_description={seoDesc}>
+  {/* HERO */}
+  <HeroBleed
+    src={heroImg}
+    title={h1}
+    kicker={subhead}
+    containerMax={1200}
+    containerPad={12}
+    flush={false}
+  />
+
+  {/* SUMMARY */}
+  {headerSummary && (
+    <div class="container summary-wrap">
+      {SUMMARY_IS_HTML
+        ? <div class="lead" set:html={summaryHtml}></div>
+        : <p class="lead">{headerSummary}</p>}
+    </div>
+  )}
+
+  {/* CATEGORY FILTERS ONLY */}
+  {hasCategories && (
+    <div class="container filters">
+      <div class="chips" role="tablist" aria-label="Filter by category">
+        <button class="chip active" data-cat="__all" role="tab" aria-selected="true">All</button>
+        {allCats.map((c) => (
+          <button class="chip" data-cat={c} role="tab" aria-selected="false">{c}</button>
+        ))}
+      </div>
+    </div>
+  )}
+
+  {/* GRID */}
+  <div class="container">
+    {error && <p class="err">{error}</p>}
+
+    {!error && (
+      <div class="grid" id="blogGrid">
+        {items.map((it) => {
+          const raw = pick(it.card_img || "", it.hero_img || "");
+          const img = raw ? (isAbs(raw) ? raw : heroPath(raw)) : "";
+          const cats = it.categories;
+          const catAttr = cats.join("|");
+
+          return (
+            <a
+              class="card"
+              href={`${PATH_BASE}/${it.slug}`}
+              data-astro-prefetch="hover"
+              aria-label={it.title}
+              data-cats={catAttr}
+              data-date={String(it.dateMs)}
+            >
+              {img && (
+                <img
+                  src={img}
+                  alt={it.title}
+                  loading="lazy"
+                  decoding="async"
+                  sizes="(min-width: 900px) 33vw, 50vw"
+                />
+              )}
+              <div class="body">
+                {/* DATE ABOVE TITLE */}
+                {it.dateMs > 0 && (
+                  <time class="meta-date" datetime={it.dateISO}>{fmtDate(it.dateMs)}</time>
+                )}
+                <h2>{it.title}</h2>
+
+                {/* Category badges */}
+                {cats.length > 0 && (
+                  <div class="badges" aria-label="Categories">
+                    {cats.map((c) => <span class="badge">{c}</span>)}
+                  </div>
+                )}
+
+                {it.summary && <p class="summary">{excerpt(it.summary, 260)}</p>}
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    )}
+  </div>
+
+  {/* client-only category filter */}
+  <script>
+    (() => {
+      const grid = document.getElementById("blogGrid");
+      const chips = document.querySelectorAll(".chip");
+      if (!grid || !chips.length) return;
+
+      function setActive(btn) {
+        chips.forEach((b) => {
+          b.classList.toggle("active", b === btn);
+          b.setAttribute("aria-selected", b === btn ? "true" : "false");
+        });
+      }
+
+      function applyFilter(cat) {
+        const cards = grid.querySelectorAll(".card");
+        cards.forEach((card) => {
+          const attr = card.getAttribute("data-cats") || "";
+          const list = attr ? attr.split("|").map(s => s.trim()) : [];
+          const show = (cat === "__all") || list.includes(cat);
+          (card as HTMLElement).style.display = show ? "" : "none";
+        });
+      }
+
+      chips.forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          const cat = btn.getAttribute("data-cat") || "__all";
+          setActive(btn);
+          applyFilter(cat);
+        });
+      });
+    })();
+  </script>
+
+  <style>
+    .container { max-width: 1200px; margin-inline: auto; padding-inline: 12px; }
+    .summary-wrap{
+      padding-top:10px;
+      padding-bottom:10px;
+      border-bottom:1px solid #e5e7eb;
+      margin-bottom:35px;
+    }
+    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
+    .err { color: #b91c1c; background: #fee2e2; padding: .75rem 1rem; border-radius: .5rem; margin-top: 12px; }
+
+    /* category chips */
+    .filters { margin-top: 8px; }
+    .chips { display:flex; flex-wrap:wrap; gap: 8px; }
+    .chip{
+      appearance:none; border:none; cursor:pointer;
+      font: inherit; padding: .4rem .66rem; border-radius: 999px;
+      background:#f3f4f6; color:#111827; border:1px solid #e5e7eb;
+      transition: background .12s ease, border-color .12s ease, transform .08s ease;
+      white-space: nowrap;
+    }
+    .chip:hover{ background:#eef2ff; border-color:#c7d2fe; transform: translateY(-1px); }
+    .chip.active{ background:#e0e7ff; border-color:#a5b4fc; }
+
+    /* 3-up grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+    @media (max-width: 900px)  { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px)  { .grid { grid-template-columns: 1fr; } }
+
+    .card{
+      display:flex; flex-direction:column;
+      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+      overflow:hidden; text-decoration:none; color:inherit;
+      transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+    }
+    .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
+
+    .card > img{
+      width:100%;
+      aspect-ratio:5 / 3;
+      object-fit:cover;
+      display:block;
+    }
+
+    .card .body{ padding:12px; }
+    .card .body .meta-date{
+      display:block;
+      font-size:.8rem;
+      color:#6b7280;   /* slate-500 */
+      margin: 2px 0 6px;
+    }
+    .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; color:#111827; }
+
+    /* badges */
+    .badges { display:flex; flex-wrap:wrap; gap:6px; margin: 4px 0 8px; }
+    .badge{
+      display:inline-block; font-size:.75rem; line-height:1;
+      padding:.28rem .5rem; border-radius:999px; background:#f3f4f6; color:#374151; border:1px solid #e5e7eb;
+    }
+
+    /* clamp summary to 4 lines */
+    .card .body p.summary{
+      margin:0;
+      color:#374151;
+      font-size:.95rem;
+      line-height:1.32;
+      display:-webkit-box;
+      -webkit-line-clamp:4;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-height: calc(1.32em * 4);
+    }
+  </style>
+</Site>

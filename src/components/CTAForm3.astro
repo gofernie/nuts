@@ -1,0 +1,199 @@
+---
+// File: src/components/CTAForm.astro
+export interface Props {
+  formId?: string;       // optional; falls back to xzzklnlw
+  pageSlug?: string;
+  pageTitle?: string;    // e.g., "Groceries and Essentials in Fernie"
+}
+
+const {
+  formId,
+  pageSlug = "",
+  pageTitle = "spending time",
+} = Astro.props;
+
+const workingFormId = formId || "xzzklnlw";
+
+// Keep for hidden fields consistency
+const base = (pageTitle ?? "spending time").toString().trim();
+const prettyTitle = base
+  ? base.toLowerCase().split(/\s+/).map((w) => (w === "and" ? "and" : w.charAt(0).toUpperCase() + w.slice(1))).join(" ")
+  : "Spending Time";
+---
+
+<section class="cta" data-activity={prettyTitle}>
+  <!-- LEFT: copy with solid orange bg -->
+  <div class="cta__text">
+    <div class="cta__text-inner">
+      <h2 class="cta__title">Thinking of moving to Fernie?</h2><br />
+      <p class="cta__intro">
+        If you’re curious whether living here would actually fit your life — I can help you understand neighbourhoods,
+        rhythms, and what a realistic move could look like. No rush, no pressure.
+      </p>
+    </div>
+  </div>
+
+  <!-- RIGHT: minimal form -->
+  <form action={`https://formspree.io/f/${workingFormId}`} method="POST" class="cta__form" novalidate>
+    <!-- Hidden context -->
+    <input type="hidden" name="page_slug" value={pageSlug} />
+    <input type="hidden" name="page_title" value={base} />
+    <input type="hidden" name="activity" value={prettyTitle} />
+    <input type="hidden" name="cta_variant" value="living-soft-v1" />
+    <input type="hidden" name="_subject" value={`Fernie Quiet List • ${prettyTitle}`} />
+
+    <!-- Honeypot -->
+    <input type="text" name="_gotcha" class="hp" tabindex="-1" autocomplete="off" />
+
+    <div class="fld">
+      <label for="name">Name</label>
+      <input id="name" name="name" type="text" placeholder="Name" autocomplete="name" required />
+    </div>
+
+    <div class="fld">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" placeholder="Enter email" autocomplete="email" required />
+    </div>
+
+    <div class="fld">
+      <label for="phone">Phone <span class="muted">(optional)</span></label>
+      <input id="phone" name="phone" type="tel" placeholder="Optional" autocomplete="tel" />
+    </div>
+
+    <div class="fld fld--full">
+      <label for="message">Message <span class="muted">(optional)</span></label>
+      <textarea id="message" name="message" rows="3" placeholder="Anything specific? (optional)"></textarea>
+    </div>
+
+    <button type="submit" class="cta__btn">Start the conversation →</button>
+  </form>
+
+  <!-- Plain inline JS (no backticks) -->
+  <script is:inline>
+    document.addEventListener('DOMContentLoaded', function () {
+      var form = document.querySelector('form.cta__form');
+      if (!form) return;
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        try {
+          var r = await fetch(form.action, {
+            method: form.method,
+            body: new FormData(form),
+            mode: 'cors',
+            headers: { 'Accept': 'application/json' }
+          });
+
+          var payload = {};
+          try { payload = await r.json(); } catch (_) {}
+
+          if (r.ok) {
+            form.innerHTML =
+              '<div class="p-4 text-center">' +
+                '<h3 class="text-xl font-semibold mb-2">Thanks!</h3>' +
+                '<p class="text-neutral-600">I’ll follow up shortly. No pressure — just helpful info.</p>' +
+              '</div>';
+          } else {
+            var errors = (payload && payload.errors)
+              ? payload.errors.map(function (e) { return e.message; }).join('\n')
+              : '';
+            var msg = errors || ('HTTP ' + r.status);
+            alert('Form error:\n' + msg);
+            console.error('Formspree error details:', payload);
+          }
+        } catch (err) {
+          alert('Network error submitting the form. Please try again.');
+          console.error(err);
+        }
+      });
+    });
+  </script>
+
+  <style>
+    /* Container */
+    .cta {
+      width: 100%;
+      max-width: var(--site-max, 1300px);
+      margin: 3rem auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,.05);
+      display: grid;
+      grid-template-columns: 1fr;
+      overflow: hidden;
+      position: relative;
+      z-index: 10;
+      isolation: isolate;
+      contain: paint;
+    }
+    @media (min-width: 900px) { .cta { grid-template-columns: 1fr 1fr; } }
+
+    /* LEFT: copy with solid orange bg */
+    .cta__text {
+      position: relative;
+      z-index: 2;
+      background: #e9771a; /* Living orange */
+      color: #fff;
+      min-height: 380px;
+      display: flex;
+      align-items: center;
+    }
+    .cta__text-inner { padding: 2rem; width: 100%; max-width: 680px; }
+    .cta__title { font-size: clamp(26px, 2.2vw, 38px); font-weight: 600; line-height: 1.25; margin: 0 0 .6rem; color:#fff; }
+    .cta__intro { font-weight: 500; margin: 0; font-size: 1rem; line-height: 1.65; color: rgba(255,255,255,.95); }
+
+    /* RIGHT: form panel */
+    .cta__form {
+      background: #f4f5f7;
+      padding: 1.25rem;
+      border-left: 1px solid #e9eaef;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      position: relative;
+      z-index: 2;
+    }
+    @media (max-width: 700px) {
+      .cta__form { grid-template-columns: 1fr; border-left: none; border-top: 1px solid #e9eaef; }
+    }
+
+    .fld { display: flex; flex-direction: column; min-width: 0; }
+    .fld--full { grid-column: 1 / -1; }
+    .fld label { font-weight: 600; font-size: .92rem; margin-bottom: .32rem; color: #333; }
+    .muted { color: #6b7280; font-weight: 500; }
+
+    .fld input,
+    .fld textarea {
+      padding: .62rem .72rem;
+      border: 1px solid #cfd4dc;
+      border-radius: 8px;
+      font-size: .96rem;
+      line-height: 1.35;
+      background: #fff;
+      width: 100%;
+      outline: none;
+      resize: vertical;
+    }
+    .fld input:focus,
+    .fld textarea:focus { border-color: #111; box-shadow: 0 0 0 2px rgba(0,0,0,.08); }
+
+    .cta__btn {
+      grid-column: 1 / -1;
+      background: #111;
+      color: #fff;
+      padding: .9rem 1rem;
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .2s ease;
+      width: 100%;
+    }
+    .cta__btn:hover { background: #222; }
+
+    /* Honeypot hide */
+    .hp { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+  </style>
+</section>

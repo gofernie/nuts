@@ -1,14 +1,14 @@
 ---
-// File: src/pages/stay/index.astro
+// File: src/pages/living/index.astro
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths"; // ⟵ keep only heroPath
-import ListingsAccordion from "../../components/ListingsAccordion.astro"; // ✅ NEW
+import ListingsAccordion from "../../components/ListingsAccordion.astro"; // ⟵ NEW
 
-const PATH_BASE = "/stay";
+const PATH_BASE = "/living";
 
 /* helpers */
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
@@ -42,9 +42,9 @@ const pickCardImg = (r:any) =>
 const resolveCard = (v:string) => {
   const s = (v ?? "").trim();
   if (!s) return "";
-  if (/^https?:\/\//i.test(s)) return s;
-  if (s.startsWith("/")) return s;
-  return heroPath(s);
+  if (/^https?:\/\//i.test(s)) return s;   // already a full URL (Cloudflare, etc.)
+  if (s.startsWith("/")) return s;         // site-relative path
+  return heroPath(s);                      // fallback for legacy relative names
 };
 
 /** Types */
@@ -53,6 +53,7 @@ type Row={
   title?:string;
   summary?:string;
   long_copy?:string;
+  subhead?:string;
   hero_img?:string;
   card_img?:string;
   status?:string;
@@ -64,15 +65,17 @@ type Row={
 let items:Row[]=[]; let header:Row|null=null; let error:string|null=null;
 
 try{
-  const url=import.meta.env.PUBLIC_STAY_JSON;
-  if(!url) throw new Error("Missing PUBLIC_STAY_JSON");
+  const url=import.meta.env.PUBLIC_LIVING_JSON;
+  if(!url) throw new Error("Missing PUBLIC_LIVING_JSON");
 
   const raw=await getJson<any>(url);
   const rows:any[]=Array.isArray(raw)?raw:Array.isArray(raw?.data)?raw.data:Array.isArray(raw?.rows)?raw.rows:[];
+
+  // header detection prioritizes slug=index, else status=header, else first row with meaningful header fields
   const headerCandidates=rows.filter(r=>{
     const slug=get(r,"slug").toLowerCase();
     const status=get(r,"status").toLowerCase();
-    const has=!!get(r,"summary")||!!get(r,"long_copy")||!!get(r,"seo_description")||!!get(r,"description");
+    const has=!!get(r,"summary")||!!get(r,"long_copy")||!!get(r,"seo_description")||!!get(r,"description")||!!get(r,"subhead");
     return slug==="index"||status==="header"||has;
   });
   header=headerCandidates.find(r=>get(r,"slug").toLowerCase()==="index")
@@ -95,20 +98,20 @@ try{
     .sort((a,b)=>(Number(a.sort)-Number(b.sort))||a.title!.localeCompare(b.title!));
 }catch(e:any){ error=e?.message||"Failed to load data."; }
 
-const pageTitle=get(header,"title")||"Where to Stay in Fernie";
-const pageSummary=get(header,"summary")||get(header,"long_copy")||get(header,"seo_description")||get(header,"description")||"";
-const heroImg=get(header,"hero_img");
-const seoTitle=get(header,"seo_title")||pageTitle;
-const rawSeoDesc=get(header,"seo_description")||pageSummary||"";
-const seoDesc=stripMeta(rawSeoDesc);
+const pageTitle = get(header,"title") || "";
+const pageSubhead = get(header,"subhead") || "";
+const pageSummary = get(header,"summary") || get(header,"long_copy") || get(header,"seo_description") || get(header,"description") || "";
+const heroImg = get(header,"hero_img");
+const seoTitle = get(header,"seo_title") || pageTitle;
+const rawSeoDesc = get(header,"seo_description") || pageSummary || "";
+const seoDesc = stripMeta(rawSeoDesc);
 
-/* render summary as HTML */
-const SUMMARY_IS_HTML = true;
+/* summary rendering */
 const summaryHtml = stripScripts(pageSummary);
 
-/* 🔗 Pull accordion inputs from header row (like other sections) */
+/* --- NEW: listings accordion copy + block sources (from header row) --- */
 const listingsLabel = "Explore Fernie real estate listings";
-const listingsSub   = "(for people considering the lifestyle shift)"; // you can keep generic here if you prefer
+const listingsSub   = "See the newest listings currently active on the MLS.";
 const headerCTA1    = get(header,"cta1") || get(header,"CTA1");
 const headerBlock   = get(header,"rv_block_id") || get(header,"rv_block");
 ---
@@ -120,7 +123,7 @@ const headerBlock   = get(header,"rv_block_id") || get(header,"rv_block");
     containerMax={1200}
     flush={false}
     containerPad={12}
-    kicker="Stay in Fernie offers lodging options for every budget, style, and season."
+    kicker={pageSubhead}   /* pulled from sheet 'subhead' */
   />
 
   {pageSummary && (
@@ -156,7 +159,7 @@ const headerBlock   = get(header,"rv_block_id") || get(header,"rv_block");
     )}
   </div>
 
-  {/* ✅ NEW: shared listings accordion after grid */}
+  {/* ---- NEW: shared listings accordion (after cards, before footer) ---- */}
   <ListingsAccordion
     label={listingsLabel}
     subline={listingsSub}
@@ -166,19 +169,24 @@ const headerBlock   = get(header,"rv_block_id") || get(header,"rv_block");
 
   <style>
     .container{max-width:1200px;margin-inline:auto;padding-inline:12px;}
+
+    /* Header summary as plain text (no card) */
     .summary-wrap{
       padding-top:10px;
       padding-bottom:10px;
       border-bottom:1px solid #e5e7eb;
       margin-bottom:35px;
     }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-    .err{color:#b91c1c;background:#fee2e2;padding:.75rem 1rem;border-radius:.5rem;margin-top:12px;}
-
-    .grid{
-      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;
-      margin-top:18px; margin-bottom:52px; /* ⟵ space before accordion */
+    .lead{
+      margin:0;
+      font-size:1.075rem;
+      line-height:1.6;
+      color:#111827;
     }
+
+    .err{color:#b91c1c;background:#fee2e2;padding:.75rem 1rem;border-radius:.5rem;margin-top:12px; }
+
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:18px;margin-bottom:52px;}
     @media(max-width:1200px){.grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
     @media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
     @media(max-width:560px){.grid{grid-template-columns:1fr;}}

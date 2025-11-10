@@ -1,70 +1,145 @@
 ---
+/**
+ * HeroBleed
+ * - Renders hero image as <img> for proper LCP discovery
+ * - Defaults to 1200 × 800 intrinsic dimensions
+ * - Title first, then kicker; soft scrim for readability
+ * - Preload handled by Site.astro (heroPreload)
+ */
+
 const {
   src = "",
+  alt = "",
+
+  // Accept BOTH conventions; prefer short names if present
+  srcset: srcsetProp = "",
+  sizes: sizesProp = "100vw",
+  imagesrcset: imageSrcsetProp = "",
+  imagesizes: imageSizesProp = "",
+
+  width = 1200,
+  height = 800,
   title = "",
   kicker = "",
   containerMax = 1200,
   containerPad = 12,
   flush = false,
-  preload = false
+  position = "top-left",
+  titleInset = 15
 } = Astro.props;
+
+// Resolve responsive attributes with backwards-compat aliases
+const resolvedSrcset = srcsetProp || imageSrcsetProp || "";
+const resolvedSizes  = sizesProp   || imageSizesProp   || "100vw";
+
+const hasImage = Boolean(src);
+const styleVars = `
+  --container-max:${containerMax}px;
+  --container-pad:${containerPad}px;
+  --title-inset:${titleInset}px;
+`;
 ---
 
-<section class={`hero-bleed${flush ? " hero-flush" : ""}`} style={src ? `--hero-bg:url(${src})` : ""}>
-  <div class="overlay">
-    <div class="inner" style={`max-width:${containerMax}px;padding-inline:${containerPad}px`}>
-      {title && <h1 class="hero-title fade-in-up">{title}</h1>}
-      {kicker && <p class="hero-kicker fade-in-up delay-1">{kicker}</p>}
-    </div>
+<section class={`hero-bleed${flush ? " hero-bleed--flush" : ""}`} style={styleVars}>
+  {hasImage && (
+    <picture class="hero-bleed__media" aria-hidden="true">
+      <img
+        src={src}
+        {...(resolvedSrcset ? { srcset: resolvedSrcset } : {})}
+        sizes={resolvedSizes}
+        alt={alt || ""}
+        width={width}
+        height={height}
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+        class="hero-bleed__img"
+      />
+    </picture>
+  )}
+
+  <div class={`hero-bleed__scrim hero-bleed__scrim--${position}`} aria-hidden="true"></div>
+
+  <div class={`hero-bleed__content hero-bleed__content--${position}`}>
+    {title && <h1 class="hero-bleed__title">{title}</h1>}
+    {kicker && <p class="hero-bleed__kicker">{kicker}</p>}
+    <slot />
   </div>
-
-  <style>
-    .hero-bleed {
-      position: relative;
-      min-height: 58vh;
-      display: flex;
-      align-items: flex-end;
-      background: var(--hero-bg, none) center/cover no-repeat;
-      isolation: isolate;
-    }
-    .hero-flush { min-height: 38vh; }
-
-    .overlay {
-      width: 100%;
-      background: linear-gradient(to top, rgba(0,0,0,.48), rgba(0,0,0,.20) 40%, transparent 75%);
-      padding-block: clamp(16px, 4vw, 28px);
-    }
-
-    .inner { width: 100%; margin-inline: auto; }
-
-    .hero-title {
-      color: #fff;
-      margin: 0;
-      font-size: clamp(28px, 5vw, 48px);
-      line-height: 1.08;
-      text-shadow: 0 1px 10px rgba(0,0,0,.28);
-    }
-
-    .hero-kicker {
-      margin: .4rem 0 0 0;
-      color: #e5e7eb;
-font-size: clamp(15px, 2vw, 20px);
-      letter-spacing: .05em;
-      text-transform: uppercase;
-      opacity: .95;
-      text-shadow: 0 1px 6px rgba(0,0,0,.22);
-    }
-
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    .fade-in-up { opacity: 0; animation: fadeInUp 420ms ease-out 40ms both; }
-    .delay-1 { animation-delay: 140ms; }
-
-    @media (prefers-reduced-motion: reduce) {
-      .fade-in-up, .delay-1 { animation: none !important; opacity: 1 !important; transform: none !important; }
-    }
-    @media (max-width: 640px) { .hero-bleed { min-height: 42vh; } }
-  </style>
 </section>
+
+<style>
+  .hero-bleed {
+    position: relative;
+    background: none;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .hero-bleed__media {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: clamp(280px, 55vh, 640px);
+    background: #111;
+  }
+  .hero-bleed__img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .hero-bleed__scrim {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: .95;
+    transition: opacity .6s ease;
+  }
+  .hero-bleed__scrim--top-left {
+    background: radial-gradient(140% 100% at 4% 6%, rgba(0,0,0,.45) 0%, rgba(0,0,0,.22) 35%, rgba(0,0,0,0) 70%);
+  }
+  .hero-bleed__scrim--bottom-left {
+    background: radial-gradient(140% 100% at 6% 94%, rgba(0,0,0,.45) 0%, rgba(0,0,0,.22) 35%, rgba(0,0,0,0) 70%);
+  }
+
+  .hero-bleed__content {
+    position: absolute;
+    inset-inline-start: var(--title-inset);
+    max-width: min(var(--container-max), 92vw);
+    padding-inline: var(--container-pad);
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,.35);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-bleed__content {
+      opacity: 0;
+      transform: translateY(6px);
+      animation: heroFade .6s ease .05s forwards;
+    }
+    @keyframes heroFade {
+      to { opacity: 1; transform: translateY(0); }
+    }
+  }
+
+  .hero-bleed__content--top-left { inset-block-start: var(--title-inset); }
+  .hero-bleed__content--bottom-left { inset-block-end: var(--title-inset); }
+
+  .hero-bleed--flush .hero-bleed__content {
+    max-width: 100%;
+    padding-inline: clamp(12px, 4vw, 28px);
+  }
+
+  .hero-bleed__title {
+    margin: 0 0 6px 0;
+    line-height: 1.05;
+    font-size: clamp(28px, 5.2vw, 52px);
+    font-weight: 700;
+  }
+  .hero-bleed__kicker {
+    margin: 0;
+    font-weight: 600;
+    letter-spacing: .02em;
+    opacity: .95;
+  }
+</style>

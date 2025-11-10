@@ -1,18 +1,51 @@
 ---
 // File: src/components/RVEmbed.astro
+/**
+ * Props:
+ * - block (string)  : required RealtyVis block ID (AAAA1111-BBBB2222)
+ * - className       : extra classes
+ * - minHeight       : space to reserve for layout stability
+ * - showSkeleton    : show our local shimmer (we still nuke RV's own)
+ * - lazy            : "auto" (default), "eager" (load immediately), or "interaction"
+ * - rootMargin      : IO rootMargin for earlier/later loading
+ * - scriptUrl       : override RV script URL if needed
+ */
 const {
   block,
   className = "",
   minHeight = "1000px",
-  showSkeleton = true, // 🆕 control whether skeleton shimmer shows
+  showSkeleton = true,
+  lazy = "auto",                    // "auto" | "eager" | "interaction"
+  rootMargin = "600px 0px",         // when to begin loading before in-view
+  scriptUrl = "https://cdn.realtyvis.com/js/embed.js",
 } = Astro.props;
 
-if (!block) {
-  throw new Error("[RVEmbed] Missing block id");
-}
+if (!block) throw new Error("[RVEmbed] Missing block id");
+
+const noPlaceholders = !showSkeleton;
+
+// derive origin for <link rel=preconnect> (cheap; no JS execution)
+let ORIGIN = "";
+try { ORIGIN = new URL(scriptUrl).origin; } catch { ORIGIN = ""; }
 ---
 
-<section class={`rv-wrap ${className}`} style={`min-height:${minHeight};`}>
+{ORIGIN && (
+  <astro:head>
+    <link rel="dns-prefetch" href={ORIGIN} />
+    <link rel="preconnect" href={ORIGIN} crossorigin />
+  </astro:head>
+)}
+
+<section
+  class={`rv-wrap ${className}`}
+  style={`min-height:${minHeight};`}
+  data-rv-block={block}
+  data-no-placeholders={noPlaceholders ? "true" : "false"}
+  data-lazy={lazy}
+  data-root-margin={rootMargin}
+  data-script={scriptUrl}
+  aria-busy="true"
+>
   {showSkeleton && (
     <div class="rv-skel-grid" aria-hidden="true">
       <div class="rv-skel-card"></div>
@@ -21,15 +54,12 @@ if (!block) {
       <div class="rv-skel-card"></div>
     </div>
   )}
-
-  <div class="rv-target" data-rv-block={block}></div>
 </section>
 
 <style>
-  .rv-wrap {
-    position: relative;
-    width: 100%;
-  }
+  .rv-wrap { position: relative; width: 100%; }
+
+  /* Our local shimmer (optional) */
   .rv-skel-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -43,39 +73,136 @@ if (!block) {
     background-size: 400% 100%;
     animation: shimmer 1.4s infinite linear;
   }
-  @keyframes shimmer {
-    0% { background-position: 100% 0 }
-    100% { background-position: -100% 0 }
+  @keyframes shimmer { 0% { background-position: 100% 0 } 100% { background-position: -100% 0 } }
+  @media (max-width:1100px){ .rv-skel-grid{ grid-template-columns:repeat(3,1fr) } }
+  @media (max-width:800px) { .rv-skel-grid{ grid-template-columns:repeat(2,1fr) } }
+  @media (max-width:520px) { .rv-skel-grid{ grid-template-columns:1fr } }
+
+  /* HARD KILL of any RV placeholders (prevents the bottom gap) */
+  .rv-wrap [data-placeholder],
+  .rv-wrap [data-skeleton],
+  .rv-wrap .rv-placeholder,
+  .rv-wrap .rv-card-placeholder,
+  .rv-wrap .rv-skeleton,
+  .rv-wrap .rv-loading,
+  .rv-wrap .rv-loader,
+  .rv-wrap .loading-skeleton,
+  .rv-wrap .rv-loading-skeleton,
+  .rv-wrap [class*="placeholder"],
+  .rv-wrap [class*="Skeleton"],
+  .rv-wrap [class*="skeleton"] {
+    animation: none !important;
+    background: none !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    display: none !important;
   }
-  @media (max-width: 1100px) {
-    .rv-skel-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  }
-  @media (max-width: 800px) {
-    .rv-skel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  }
-  @media (max-width: 520px) {
-    .rv-skel-grid { grid-template-columns: 1fr; }
+  .rv-wrap * { animation-duration: 0s !important; transition: none !important; }
+
+  /* Hide RV grid/row until real content detected (when data-no-placeholders=true) */
+  .rv-wrap[data-no-placeholders="true"] .rv-grid,
+  .rv-wrap[data-no-placeholders="true"] .rv-row { visibility: hidden; }
+  .rv-wrap[data-ready="true"] .rv-grid,
+  .rv-wrap[data-ready="true"] .rv-row { visibility: visible; }
+
+  /* Extra backstop: hide empty card containers */
+  .rv-wrap[data-no-placeholders="true"] :is(.rv-grid > div, .rv-row > div, .rv-card):empty {
+    display: none !important;
   }
 </style>
 
 <script>
   (function(){
-    if (!window.RealtyVis) {
-      const s = document.createElement("script");
-      s.src = "https://cdn.realtyvis.com/js/embed.js";
-      s.async = true;
-      s.onload = () => {
-        try {
-          window.RealtyVis?.init?.();
-          window.RealtyVis?.scan?.();
-        } catch(e){ console.error("[RVEmbed] init error", e); }
-      };
-      s.onerror = (e) => console.error("[RVEmbed] script load failed", e);
-      document.head.appendChild(s);
-    } else {
+    const root = document.currentScript.closest(".rv-wrap");
+    if (!root) return;
+
+    var loaded = false, warmed = false;
+    const scriptURL   = root.getAttribute("data-script") || "https://cdn.realtyvis.com/js/embed.js";
+    const lazyMode    = (root.getAttribute("data-lazy") || "auto").toLowerCase();
+    const rootMargin  = root.getAttribute("data-root-margin") || "600px 0px";
+    let origin = "";
+    try { origin = new URL(scriptURL).origin } catch(_) { origin = "" }
+
+    function warm(){
+      if (warmed) return; warmed = true;
+      if (!origin) return;
       try {
-        window.RealtyVis?.scan?.();
-      } catch(e){ console.error("[RVEmbed] scan error", e); }
+        new Image().src = origin + "/favicon.ico";
+        // Small, no-cors fetches to establish TLS/HTTP2
+        fetch(origin + "/js/site.min.js", { mode: "no-cors" }).catch(()=>{});
+        fetch(origin + "/css/site.min.css", { mode: "no-cors" }).catch(()=>{});
+      } catch(_) {}
+    }
+
+    function bootRV(){
+      try { window.RealtyVis?.init?.(); window.RealtyVis?.scan?.(); } catch(e){}
+      sweep(); // clean on first mount too
+      root.removeAttribute("aria-busy");
+      root.setAttribute("data-ready","true");
+    }
+
+    function loadScript(){
+      if (loaded) return; loaded = true;
+      const s = document.createElement("script");
+      s.src = scriptURL; s.async = true;
+      s.onload = bootRV;
+      s.onerror = e => console.error("[RVEmbed] script load failed", e);
+      document.head.appendChild(s);
+    }
+
+    function mount(){ warm(); loadScript(); }
+
+    // Remove RV placeholders & show real content only
+    const killSelectors = [
+      "[data-placeholder]","[data-skeleton]",
+      ".rv-placeholder",".rv-card-placeholder",".rv-skeleton",
+      ".rv-loading",".rv-loader",".loading-skeleton",".rv-loading-skeleton",
+      '[class*="placeholder"]','[class*="Skeleton"]','[class*="skeleton"]'
+    ].join(",");
+
+    const hidePlaceholders = root.getAttribute("data-no-placeholders") === "true";
+    function sweep(){
+      root.querySelectorAll(killSelectors).forEach(n => (n.remove ? n.remove() : (n.style.display="none")));
+      if (!hidePlaceholders) return;
+      const real = root.querySelector('.rv-card img, .rv-card a[href*="/listing"], .rv-card [data-price], .rv-card [class*="price"]');
+      if (real) root.setAttribute("data-ready","true"); else root.removeAttribute("data-ready");
+      root.querySelectorAll(".rv-grid > div, .rv-row > div, .rv-card").forEach(el=>{
+        const hasContent = el.querySelector("img, a[href], [data-price], [class*='price'], [class*='listing']");
+        if (!hasContent && !el.textContent.trim()) el.style.display="none";
+      });
+    }
+
+    const mo = new MutationObserver(sweep);
+    mo.observe(root, { childList: true, subtree: true });
+
+    // === Lazy strategies ===
+    if (lazyMode === "eager") {
+      mount();
+    } else if (lazyMode === "interaction") {
+      // only on explicit intent
+      ["pointerover","touchstart","focusin"].forEach(ev=>{
+        root.addEventListener(ev, function once(){ mount(); root.removeEventListener(ev, once); }, { passive:true, once:true });
+      });
+    } else {
+      // "auto": IntersectionObserver with generous rootMargin + intent warm
+      try {
+        const io = new IntersectionObserver((entries)=>{
+          entries.forEach(ent=>{
+            if (ent.isIntersecting) { mount(); io.disconnect(); }
+          });
+        }, { rootMargin, threshold: 0.01 });
+        io.observe(root);
+      } catch(_) {
+        // Fallback if IO unsupported
+        ["scroll","pointerover","touchstart"].forEach(ev=>{
+          window.addEventListener(ev, function once(){ mount(); window.removeEventListener(ev, once); }, { passive:true, once:true });
+        });
+      }
+      ["pointerover","touchstart","focusin"].forEach(ev=>{
+        root.addEventListener(ev, warm, { once:true, passive:true });
+      });
     }
   })();
 </script>
