@@ -3,214 +3,454 @@
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
+import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../../lib/categoryColours";
+
+/* ✅ use the shared strip */
+import MountainStrip from "../../components/MountainStrip.astro";
 
 const PATH_BASE = "/areas";
 
-/* ---------- tiny helpers (same as snappy pages) ---------- */
-const RESERVED = new Set(["index","page","pages","all","view","list"]);
-const get = (r:any, k:string) =>
-  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+/* helpers */
+const RESERVED = new Set(["index", "page", "pages", "all", "view", "list"]);
+const get = (r: any, k: string) =>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+    .toString()
+    .trim();
 
-const slugify = (v:string) =>
-  (v ?? "").toLowerCase().trim()
-    .replace(/&/g,"-and-")
-    .replace(/[^a-z0-9]+/g,"-")
-    .replace(/^-+|-+$/g,"");
+const slugify = (v: string) =>
+  (v ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
-const visible = (r:any) => {
-  const s = get(r,"status").toLowerCase();
-  const rawSlug = get(r,"slug").toLowerCase();
-  return s !== "hidden" && s !== "inactive" && !RESERVED.has(rawSlug);
+const visible = (r: any) => {
+  const s = get(r, "status").toLowerCase();
+  const rawSlug = get(r, "slug").toLowerCase();
+  return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
 
-const stripMeta = (s:string="") =>
-  s.replace(/<[^>]*>/g, " ").replace(/&[^;\s]+;/g, " ").replace(/\s+/g, " ").trim();
-const stripTags = (s:string="") =>
-  s.replace(/<[^>]*>/g, " ").replace(/&[^;\s]+;/g," ").replace(/\s+/g," ").trim();
-const excerpt = (s:string, n=140) => {
-  const t = stripTags(s);
-  return t.length > n ? t.slice(0, n-1).trimEnd() + "…" : t;
-};
+/* meta + HTML helpers */
+const stripMeta = (s: string = "") =>
+  s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-const isAbs = (s:string="") => /^https?:\/\//i.test(s);
-const pick = (...vals:string[]) => vals.find(v => v && v.length > 0) || "";
-
-/* keep HTML safe in summary: strip scripts, harden links */
-const stripScripts = (html:string="") =>
+const stripScripts = (html: string = "") =>
   html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
 
-const cleanSummary = (html:string="") =>
-  stripScripts(html).replace(
-    /<a\b([^>]*)>/gi,
-    '<a$1 target="_blank" rel="noopener nofollow">'
-  );
+const stripTags = (s: string = "") =>
+  s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-/* ---------- types ---------- */
-type Row = {
-  slug?: string; title?: string; Title?: string; TITLE?: string;
-  summary?: string; Summary?: string; SUMMARY?: string;
-  long_copy?: string; longcopy?: string; LongCopy?: string;
-  hero_img?: string; heroImg?: string; HeroImg?: string;
-  card_img?: string;
-  status?: string;
-  seo_title?: string; seoTitle?: string;
-  seo_description?: string; seoDescription?: string;
-  sort?: number | string;
+const excerpt = (s: string, n = 240) => {
+  const t = stripTags(s);
+  return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
 };
 
-/* ---------- fetch (static) ---------- */
-const url = import.meta.env.PUBLIC_AREAS_JSON;
-if (!url) throw new Error("Missing PUBLIC_AREAS_JSON in .env");
+const titleCase = (s: string) =>
+  (s ?? "").replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+
+/* url helpers */
+const isAbs = (s: string = "") => /^https?:\/\//i.test(s);
+const pick = (...vals: string[]) => vals.find((v) => v && v.length > 0) || "";
+
+/** Areas */
+type Row = {
+  slug?: string;
+  title?: string;
+  summary?: string;
+  long_copy?: string;
+  hero_img?: string;
+  card_img?: string;
+  status?: string;
+  seo_title?: string;
+  seo_description?: string;
+  description?: string;
+  subhead?: string;
+  sort?: number | string;
+};
 
 let items: Row[] = [];
 let header: Row | null = null;
 let error: string | null = null;
 
 try {
+  const url = import.meta.env.PUBLIC_AREAS_JSON;
+  if (!url) throw new Error("Missing PUBLIC_AREAS_JSON");
+
   const raw = await getJson<any>(url);
-  const rows:any[] =
-    Array.isArray(raw) ? raw :
-    Array.isArray(raw?.data) ? raw.data :
-    Array.isArray(raw?.rows) ? raw.rows : [];
+  const rows: any[] = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.data)
+    ? raw.data
+    : Array.isArray(raw?.rows)
+    ? raw.rows
+    : [];
 
-  // match the snappy pattern: header = slug=index OR status=header
-  const pickHeader = (rs:any[]) => {
-    const bySlug = rs.find(r => get(r,"slug").toLowerCase() === "index");
-    if (bySlug) return bySlug;
-    const byStatus = rs.find(r => get(r,"status").toLowerCase() === "header");
-    return byStatus ?? null;
-  };
-  header = pickHeader(rows);
+  const headerCandidates = rows.filter((r: any) => {
+    const slug = get(r, "slug").toLowerCase();
+    const status = get(r, "status").toLowerCase();
+    const has =
+      !!get(r, "summary") ||
+      !!get(r, "long_copy") ||
+      !!get(r, "seo_description") ||
+      !!get(r, "description") ||
+      !!get(r, "subhead");
+    return slug === "index" || status === "header" || has;
+  });
 
-  const headerTitle = header ? (get(header,"title") || get(header,"Title") || get(header,"TITLE")) : "";
+  header =
+    headerCandidates.find((r) => get(r, "slug").toLowerCase() === "index") ??
+    headerCandidates.find((r) => get(r, "status").toLowerCase() === "header") ??
+    headerCandidates[0] ??
+    null;
 
   items = rows
-    .filter((r:any) => {
-      if (!visible(r)) return false;
-      const slug = get(r,"slug").toLowerCase();
-      const title = get(r,"title") || get(r,"Title") || get(r,"TITLE");
-      if (slug === "index") return false;          // exclude header row from grid
-      if (header && title && title === headerTitle) return false;
-      return true;
-    })
-    .map((r:any) => ({
-      slug: get(r,"slug") || slugify(get(r,"title") || get(r,"Title") || get(r,"TITLE")),
-      title: get(r,"title") || get(r,"Title") || get(r,"TITLE"),
-      summary: get(r,"summary") || get(r,"Summary") || get(r,"SUMMARY"),
-      hero_img: get(r,"hero_img") || get(r,"heroImg") || get(r,"HeroImg"),
-      card_img: get(r,"card_img"),
-      sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
+    .filter((r) => visible(r))
+    .map((r) => ({
+      slug: get(r, "slug") || slugify(get(r, "title")),
+      title: get(r, "title"),
+      summary: get(r, "summary"),
+      hero_img: get(r, "hero_img") || get(r, "heroImg") || get(r, "HeroImg"),
+      card_img: get(r, "card_img"),
+      sort: +get(r, "sort") || Number.MAX_SAFE_INTEGER,
     }))
-    .filter((r:Row) => r.slug && r.title)
-    .sort((a:Row,b:Row) => (Number(a.sort) - Number(b.sort)) || a.title!.localeCompare(b.title!));
-
-} catch (e:any) {
+    .filter((r) => r.slug && r.title)
+    .sort((a, b) => Number(a.sort) - Number(b.sort) || a.title!.localeCompare(b.title!));
+} catch (e: any) {
   error = e?.message || "Failed to load data.";
 }
 
-/* ---------- header/meta ---------- */
-const headerTitle =
-  header ? (get(header,"title") || get(header,"Title") || get(header,"TITLE")) : "";
-const headerSummary =
-  header ? (
-    get(header,"summary") || get(header,"Summary") || get(header,"SUMMARY") ||
-    get(header,"long_copy") || get(header,"longcopy") || get(header,"LongCopy") ||
-    get(header,"seo_description") || get(header,"seoDescription") || ""
-  ) : "";
+/* header / hero / SEO */
+const pageTitle = get(header, "title") || "Areas Around Fernie";
+const pageSubhead = get(header, "subhead") || "Expand Fernie search range";
 
-const headerHeroImg =
-  header ? (get(header,"hero_img") || get(header,"heroImg") || get(header,"HeroImg")) : "";
+const pageSummary =
+  get(header, "summary") ||
+  get(header, "long_copy") ||
+  get(header, "seo_description") ||
+  get(header, "description") ||
+  "";
 
-const pageTitle = headerTitle || "Other Areas Near Fernie";
-const heroImgRaw = headerHeroImg || "";
-const heroImg = heroImgRaw ? (isAbs(heroImgRaw) ? heroImgRaw : heroPath(heroImgRaw)) : "";
+/* ✅ default hero behaviour (like Browse): try header hero, else fallback, and allow overriding to your “default hero” */
+const rawHeroImg = get(header, "hero_img");
+const heroSrc = rawHeroImg ? heroPath(rawHeroImg) : heroPath("fallback-hero.jpg");
 
-const seoTitle  = (header ? (get(header,"seo_title") || get(header,"seoTitle")) : "") || pageTitle;
-const rawSeoDesc = (header ? (get(header,"seo_description") || get(header,"seoDescription")) : "") || headerSummary || "";
-const seoDesc  = stripMeta(rawSeoDesc);
+/* (optional) if you want Areas to always use the same “default hero” image like Browse, drop it in here: */
+// const heroSrc = "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/bd399b93-90ac-4859-de40-80f4fdcef800/hero";
 
-/* render summary as HTML */
+const seoTitle = get(header, "seo_title") || pageTitle;
+const rawSeoDesc = get(header, "seo_description") || pageSummary || "";
+const seoDesc = stripMeta(rawSeoDesc);
+
 const SUMMARY_IS_HTML = true;
+const summaryHtml = stripScripts(pageSummary);
+
+const heroPreload = { href: heroSrc, imagesizes: "100vw" };
+
+/* header accent */
+const headerAccent = CATEGORY_COLOURS.areas ?? DEFAULT_ACCENT;
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
-  <HeroBleed
-    src={heroImg}
-    title={pageTitle}
-    kicker="Extra Areas around Fernie for day trips and stays."
-    containerMax={1200}
-    containerPad={12}
-    flush={false}
-    preload={true}          /* small boost to first paint */
-  />
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  wrapContent={false}
+  heroPreload={heroPreload}
+>
+  <div class="page-shell pad-x areas-page">
+    {/* HERO / INTRO – match slug layout */}
+    <section class="page-intro" style={`--accent:${headerAccent};`}>
+      <nav class="area-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <span class="area-breadcrumb-current">Areas</span>
+      </nav>
 
-  {headerSummary && (
-    <div class="container summary-wrap">
-      {SUMMARY_IS_HTML
-        ? <div class="lead" set:html={cleanSummary(headerSummary)}></div>
-        : <p class="lead">{headerSummary}</p>}
+      <div class="area-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
+
+        <div class="title-row">
+          <h1 class="page-title">{pageTitle}</h1>
+        </div>
+
+        {pageSubhead && <p class="page-subhead">{pageSubhead}</p>}
+      </div>
+    </section>
+
+    {/* ✅ default mountain strip component (same as Browse) */}
+    <MountainStrip preset="default" opacity={0.11} />
+
+    {/* ✅ default hero image block (same pattern as Browse) */}
+    <div class="areas-photo">
+      <img
+        src={heroSrc}
+        alt="Areas around Fernie"
+        loading="eager"
+        decoding="async"
+      />
     </div>
-  )}
 
-  <div class="container">
+    {pageSummary && (
+      <section class="summary-wrap">
+        {SUMMARY_IS_HTML ? (
+          <div class="lead" set:html={summaryHtml}></div>
+        ) : (
+          <p class="lead">{pageSummary}</p>
+        )}
+      </section>
+    )}
+
     {error && <p class="err">{error}</p>}
 
     {!error && (
-      <div class="grid">
+      <section class="posts-grid" id="areasGrid">
         {items.map((it) => {
           const raw = pick(it.card_img || "", it.hero_img || "");
           const img = raw ? (isAbs(raw) ? raw : heroPath(raw)) : "";
+          const slug = (it.slug || "").replace(/^\/+|\/+$/g, "");
+          const accent = headerAccent; // ✅ single accent, no rainbow
+          const cta = `Explore ${titleCase(it.title || "Area")}`;
 
           return (
-            <a class="card" href={`${PATH_BASE}/${it.slug}`} aria-label={it.title}>
+            <a
+              class="post-card"
+              href={`${PATH_BASE}/${slug}`}
+              data-astro-prefetch="hover"
+              aria-label={it.title}
+              style={`--accent:${accent};`}
+            >
               {img && (
-                <img
-                  src={img}
-                  alt={it.title}
-                  loading="lazy"
-                  decoding="async"
-                  sizes="(min-width: 1200px) 25vw, (min-width: 900px) 33vw, 50vw"
-                />
+                <div class="pc-media">
+                  <img src={img} alt={it.title} loading="lazy" decoding="async" />
+                </div>
               )}
-              <div class="body">
-                <h2>{it.title}</h2>
-                {it.summary && <p>{excerpt(it.summary, 140)}</p>}
+
+              <div class="pc-body">
+                <h3 class="pc-title">{it.title}</h3>
+                {it.summary && <p class="pc-excerpt">{excerpt(it.summary, 240)}</p>}
+                <span class="pc-cta">
+                  {cta} <span aria-hidden="true">→</span>
+                </span>
               </div>
             </a>
           );
         })}
-      </div>
+      </section>
     )}
   </div>
 
   <style>
-    .container { max-width: 1200px; margin-inline: auto; padding-inline: 12px; }
-    .summary-wrap{
-      padding-top:10px;
-      padding-bottom:10px;
-      border-bottom:1px solid #e5e7eb;
-      margin-bottom:35px;
+    .areas-page.page-shell{ max-width:1280px; margin-inline:auto; margin-top:14px; margin-bottom:40px; }
+    .areas-page.pad-x{ padding-inline: var(--edge-pad) !important; }
+    @media (min-width: 900px){ .areas-page.pad-x{ padding-inline: var(--edge-pad-lg) !important; } }
+
+    /* INTRO – same as slug */
+    .areas-page .page-intro{
+      max-width: var(--container-max);
+      margin: 0 auto 10px;
+      padding-top: 28px;
     }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-    .lead :where(p, ul, ol){ margin: 0 0 .8rem; }
-    .lead :where(a){ text-decoration: underline; }
-    .err { color:#b91c1c; background:#fee2e2; padding:.75rem 1rem; border-radius:.5rem; margin-top:12px; }
 
-    .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-top:18px; }
-    @media (max-width:1200px) { .grid { grid-template-columns:repeat(3,1fr); } }
-    @media (max-width:900px)  { .grid { grid-template-columns:repeat(2,1fr); } }
-    @media (max-width:560px)  { .grid { grid-template-columns:1fr; } }
+    .areas-page .area-breadcrumb{
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .areas-page .area-breadcrumb a{ text-decoration: none; border-bottom: 1px solid transparent; color: inherit; }
+    .areas-page .area-breadcrumb a:hover{ border-bottom-color: var(--accent); }
+    .areas-page .area-breadcrumb-current{ opacity: 0.7; }
 
-    .card{ display:flex; flex-direction:column; background:#fff; border:1px solid #e5e7eb; border-radius:14px;
-           overflow:hidden; text-decoration:none; color:inherit;
-           transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease; }
-    .card:hover{ transform:translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
-    .card > img{ width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }
-    .card .body{ padding:12px; }
-    .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; color:#111827; }
-    .card .body p{ margin:0; color:#374151; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis; }
+    .areas-page .area-title-block{ max-width: 48rem; }
+
+    .areas-page .accent-bars{ display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+    .areas-page .accent-bar{ height: 4px; border-radius: 999px; background: var(--accent); }
+    .areas-page .accent-bar.primary{ width: 80px; opacity: 0.9; }
+    .areas-page .accent-bar.secondary{ width: 40px; opacity: 0.45; }
+
+    .areas-page .title-row{ display: flex; align-items: flex-start; gap: 0.75rem; }
+
+    .areas-page .page-title{
+      margin: 0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height: 1.08;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #111827;
+    }
+
+    /* subhead / kicker – EXACT slug style */
+    .areas-page .page-subhead{
+      margin: 6px 0 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      max-width: 52rem;
+    }
+
+    /* ✅ MAIN HERO IMAGE (21:9) – match Browse */
+    .areas-page .areas-photo{
+      margin: 12px 0 28px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 18px 46px rgba(0,0,0,0.14);
+    }
+    .areas-page .areas-photo img{
+      width: 100%;
+      aspect-ratio: 21 / 9;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* ✅ spacing fix - match slug */
+    .areas-page .summary-wrap{
+      padding-top: 12px;
+      padding-bottom: 25px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 50px;
+    }
+
+    .areas-page .lead{ margin: 0; font-size: 1.075rem; line-height: 1.6; color: #111827; }
+    .areas-page .lead :where(p, ul, ol){ margin: 0 0 .8rem; }
+    .areas-page .lead :where(a){ text-decoration: underline; }
+
+    .areas-page .err{
+      color: #b91c1c;
+      background: #fee2e2;
+      padding: .75rem 1rem;
+      border-radius: .5rem;
+      margin-top: 12px;
+    }
+
+    .areas-page .posts-grid{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 12px;
+      margin-bottom: 52px;
+    }
+    @media(max-width:900px){ .areas-page .posts-grid{ grid-template-columns: repeat(2,minmax(0,1fr)); } }
+    @media(max-width:560px){ .areas-page .posts-grid{ grid-template-columns: 1fr; } }
+
+    .areas-page .post-card{
+      --accent: #4b5563;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border: 1px solid #e2e4e8;
+      border-radius: 16px;
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 6px 18px rgba(0,0,0,.06);
+      transition: transform .12s ease, box-shadow .15s ease, border-color .15s ease, background-color .15s ease;
+    }
+
+    .areas-page .post-card:hover{
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(0,0,0,.12);
+      border-color: var(--accent);
+      background: color-mix(in srgb, #ffffff 94%, var(--accent) 6%);
+    }
+
+    .areas-page .post-card:focus-visible{
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    .areas-page .pc-media{ position: relative; width: 100%; aspect-ratio: 16 / 9; }
+    .areas-page .pc-media > img{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    .areas-page .pc-body{ padding: 12px 14px 14px; position: relative; z-index: 2; }
+
+    .areas-page .pc-title{
+      margin: 2px 0 6px;
+      font-size: 1.25rem;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-height: calc(2 * .3em);
+      margin-bottom: 10px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .areas-page .pc-excerpt{
+      margin: 0 0 10px;
+      color: #4b5563;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-height: calc(2 * 1.45em);
+    }
+
+    .areas-page .pc-cta{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.95rem;
+      font-weight: 650;
+      color: #111827;
+      text-decoration: none;
+    }
+    .areas-page .pc-cta span[aria-hidden="true"]{ transition: transform .14s ease; }
+
+    .areas-page .post-card:hover .pc-cta{
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: .18em;
+    }
+    .areas-page .post-card:hover .pc-cta span[aria-hidden="true"]{ transform: translateX(2px); }
+
+    @media (max-width: 900px){
+      .areas-page .post-card{
+        background: color-mix(in srgb, #ffffff 96%, var(--accent) 4%);
+        border-color: color-mix(in srgb, #e2e4e8 70%, var(--accent) 30%);
+      }
+      .areas-page .post-card::after{
+        content:"";
+        position:absolute;
+        inset:0;
+        background: color-mix(in srgb, #ffffff 88%, var(--accent) 12%);
+        opacity: 0;
+        transition: opacity .18s ease;
+        pointer-events:none;
+        z-index: 2;
+      }
+      .areas-page .post-card:active::after{ opacity: 1; }
+      .areas-page .post-card:active{
+        transform: scale(0.992);
+        box-shadow: 0 8px 18px rgba(0,0,0,.10);
+      }
+      .areas-page .post-card:focus-visible::after{ opacity: 0.85; }
+      .areas-page .pc-body{ position: relative; z-index: 3; }
+      .areas-page .pc-media{ position: relative; z-index: 1; }
+    }
   </style>
 </Site>

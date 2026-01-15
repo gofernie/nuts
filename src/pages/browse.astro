@@ -1,0 +1,545 @@
+---
+// File: src/pages/browse.astro
+export const prerender = true;
+
+import Site from "../layouts/Site.astro";
+import {
+  CATEGORY_COLOURS,
+  DEFAULT_ACCENT,
+  accentForTypeSlug,
+  accentForNeighbourhoodSlug,
+} from "../lib/categoryColours";
+
+/* ✅ add this */
+import MountainStrip from "../components/MountainStrip.astro";
+
+const pageTitle = "Browse Fernie Real Estate Listings";
+const seoTitle = pageTitle;
+const seoDesc =
+  "Quickly browse Fernie real estate listings by category: houses, condos, ski hill properties, downtown condos, land, commercial, and more.";
+
+const pageSubhead = "Jump straight to the category you care about.";
+
+const summaryText =
+  "Choose a category to jump straight into Fernie listings that match how most buyers actually search: by property type, area, or lifestyle. No fluff - just clear paths into the right inventory.";
+
+/* header accent */
+const headerAccent = CATEGORY_COLOURS.browse ?? DEFAULT_ACCENT;
+
+/* cards */
+const cards = [
+  {
+    href: "/types/new-listings-fernie",
+    icon: "🆕",
+    title: "New & Just-Listed",
+    desc:
+      "The freshest inventory in Fernie. Helpful if you’re watching the market closely and don’t want to miss new opportunities.",
+    cta: "Browse new listings",
+    tier: "secondary",
+  },
+  {
+    href: "/neighbourhoods/skihill",
+    icon: "🎿",
+    title: "Ski Hill & Resort Listings",
+    desc:
+      "Properties around Fernie Alpine Resort. Ski-in/ski-out style ownership, rental potential, and classic resort neighbourhoods.",
+    cta: "Browse ski hill listings",
+    tier: "primary",
+  },
+  {
+    href: "/types/homes-for-sale-in-fernie-bc/",
+    icon: "🏙️",
+    title: "Homes",
+    desc:
+      "Family-friendly Fernie. Spacious homes in neighbourhoods close to schools and parks - ideal for long-term living.",
+    cta: "Browse homes",
+    tier: "primary",
+  },
+  {
+    href: "/types/condos-and-townhomes-for-sale-in-fernie-bc",
+    icon: "🏢",
+    title: "Condos & Townhomes",
+    desc:
+      "Low-maintenance living in Fernie. Compare resort-area condos with in-town townhomes and strata developments.",
+    cta: "Browse condos & townhomes",
+    tier: "primary",
+  },
+  {
+    href: "/neighbourhoods/",
+    icon: "🏠",
+    title: "Neighbourhoods",
+    desc:
+      "A closer look at Fernie’s distinct neighbourhoods - schools, parks, access, and character.",
+    cta: "Browse neighbourhoods",
+    tier: "primary",
+  },
+  {
+    href: "/types/luxury-homes-for-sale-in-fernie-bc/",
+    icon: "✨",
+    title: "Luxury Properties",
+    desc:
+      "Higher-end Fernie homes and standout properties. Larger homes, premium locations, or unique design and setting.",
+    cta: "Browse luxury listings",
+    tier: "secondary",
+  },
+  {
+    href: "/types/commercial-real-estate-fernie",
+    icon: "🏬",
+    title: "Commercial & Mixed-Use",
+    desc:
+      "Retail, office, and mixed-use commercial opportunities in Fernie. Suitable for owner-operators and investors.",
+    cta: "Browse commercial listings",
+    tier: "secondary",
+  },
+  {
+    href: "/types",
+    icon: "🧭",
+    title: "All Property Types",
+    desc:
+      "Start broad. See Fernie listings across houses, condos, townhomes, land, and more - then filter down to what matters most.",
+    cta: "Browse all property types",
+    tier: "utility",
+  },
+] as const;
+
+/* neutral default for all cards (kept for compatibility) */
+const BASE_CARD_COLOUR = "#4b5563";
+
+/* MAIN hero image (under mountain line) */
+const heroImg =
+  "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/bd399b93-90ac-4859-de40-80f4fdcef800/hero";
+---
+
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} wrapContent={false}>
+  <div class="page-shell pad-x browse-page">
+    {/* ACCENT HEADER */}
+    <section class="page-intro" style={`--accent:${headerAccent};`}>
+      <nav class="neigh-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <span class="neigh-breadcrumb-current">Browse</span>
+      </nav>
+
+      <div class="neigh-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
+
+        <div class="title-row">
+          <h1 class="page-title">{pageTitle}</h1>
+        </div>
+
+        {pageSubhead && <p class="page-subhead">{pageSubhead}</p>}
+      </div>
+    </section>
+
+    {/* ✅ REPLACE the inline SVG strip with the component */}
+    {/* recommend: keep Browse on your default strip for unity */}
+    <MountainStrip preset="default" opacity={0.11} />
+
+    {/* MAIN HERO IMAGE (under the line) */}
+    <div class="browse-photo">
+      <img
+        src={heroImg}
+        alt="Fernie mountain town and ski hill"
+        loading="eager"
+        decoding="async"
+      />
+    </div>
+
+    {/* SUMMARY */}
+    <section class="summary-wrap">
+      <p class="lead">{summaryText}</p>
+    </section>
+
+    {/* GRID */}
+    <div class="grid">
+      {cards.map((c) => (
+        <a
+          class={`card card--${c.tier}`}
+          href={c.href}
+          data-tier={c.tier}
+          style={`--accent:${headerAccent}; --base:${BASE_CARD_COLOUR}; --card-accent:${headerAccent};`}
+        >
+          <div class="body">
+            <h2>
+              <span class="card-ico" aria-hidden="true">{c.icon}</span>
+              {c.title}
+            </h2>
+            <p>{c.desc}</p>
+            <span class="cta">{c.cta}</span>
+          </div>
+        </a>
+      ))}
+    </div>
+
+    {/* POST SECTION */}
+    <section class="post-section">
+      <div class="post-inner">
+        <h2>About Fernie Real Estate</h2>
+        <p>
+          Fernie’s real estate market spans character homes, modern townhomes, resort-area condos,
+          and acreage properties just outside town. Inventory tends to move quickly, especially
+          around the ski hill and in walkable neighbourhoods close to downtown. Whether you’re
+          comparing lifestyle areas like Montane, Ridgemont, Annex, or FAR, or narrowing down
+          property types, the categories above give you a clear starting point for exploring what’s
+          available.
+        </p>
+
+        <div class="cta-block">
+          <h3>Need quick guidance?</h3>
+          <p>
+            If you’re sorting through options or narrowing in on a specific type of property, I’m
+            always happy to give a simple, pressure-free overview of what’s worth paying attention
+            to right now.
+          </p>
+          <a class="cta-link" href="/contact">Talk to Chris →</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <style>
+    .browse-page.page-shell{ max-width:1280px; margin-inline:auto; margin-top:14px; margin-bottom:40px; }
+    .browse-page.pad-x{ padding-inline:var(--edge-pad) !important; }
+    @media (min-width:900px){ .browse-page.pad-x{ padding-inline:var(--edge-pad-lg) !important; } }
+
+    /* INTRO */
+    .browse-page .page-intro{
+      max-width: var(--container-max);
+      margin: 0 auto 10px;
+      padding-top: 32px;
+    }
+
+    .browse-page .neigh-breadcrumb{
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .browse-page .neigh-breadcrumb a{
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      color: inherit;
+    }
+    .browse-page .neigh-breadcrumb a:hover{
+      border-bottom-color: var(--accent);
+    }
+    .browse-page .neigh-breadcrumb-current{ opacity: 0.7; }
+
+    .browse-page .neigh-title-block{ max-width: 48rem; }
+
+    .browse-page .accent-bars{
+      display:flex;
+      gap:0.25rem;
+      margin-bottom:0.75rem;
+    }
+    .browse-page .accent-bar{
+      height:4px;
+      border-radius:999px;
+      background: var(--accent);
+    }
+    .browse-page .accent-bar.primary{ width:80px; opacity:0.9; }
+    .browse-page .accent-bar.secondary{ width:40px; opacity:0.45; }
+
+    .browse-page .title-row{
+      display:flex;
+      align-items:flex-start;
+      gap:0.75rem;
+    }
+
+    .browse-page .page-title{
+      margin:0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height:1.08;
+      font-weight:700;
+      letter-spacing:-0.015em;
+      color:#111827;
+    }
+
+    .browse-page .page-subhead{
+      margin: 6px 0 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      max-width: 52rem;
+    }
+
+    /* MAIN HERO IMAGE (21:9) */
+    .browse-page .browse-photo{
+      margin: 12px 0 28px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 18px 46px rgba(0,0,0,0.14);
+    }
+    .browse-page .browse-photo img{
+      width: 100%;
+      aspect-ratio: 21 / 9;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* SUMMARY */
+    .browse-page .summary-wrap{
+      padding-top:12px;
+      padding-bottom:25px;
+      border-bottom:1px solid #e5e7eb;
+      margin-bottom:10px;
+    }
+    .browse-page .lead{
+      margin:0;
+      font-size:1.075rem;
+      line-height:1.6;
+      color:#111827;
+    }
+
+    /* GRID */
+    .browse-page .grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:18px;
+      margin-top:18px;
+      margin-bottom:52px;
+      align-items: stretch;
+    }
+    @media(max-width:900px){ .browse-page .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media(max-width:560px){ .browse-page .grid{ grid-template-columns:1fr; } }
+
+    /* CARD */
+    .browse-page .card{
+      --accent:#4b5563;
+      --base:#4b5563;
+      --card-accent: var(--accent);
+
+      position:relative;
+      display:flex;
+      flex-direction:column;
+      background:#fff;
+      border:1px solid #e7e9ee;
+      border-radius:16px;
+      text-decoration:none !important;
+      color:inherit !important;
+      overflow:hidden;
+
+      box-shadow:0 8px 22px rgba(0,0,0,0.06);
+      transition:
+        transform .14s ease,
+        box-shadow .16s ease,
+        border-color .16s ease,
+        background-color .16s ease;
+      box-sizing:border-box;
+    }
+
+    /* ✅ bottom hover bar accent (Living Guides vibe) */
+    .browse-page .card::after{
+      content:"";
+      position:absolute;
+      left:0;
+      right:0;
+      bottom:0;
+      height:4px;
+      background: var(--card-accent);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform .18s ease, opacity .18s ease, height .18s ease;
+      opacity:0.92;
+    }
+
+    /* kill global link styles inside the card */
+    .browse-page .card,
+    .browse-page .card *{
+      color: inherit;
+      text-decoration: none !important;
+    }
+    .browse-page .card h2{ color:#111827; }
+    .browse-page .card p{ color:#4b5563; }
+    .browse-page .card .cta{ color:#111827; }
+
+    .browse-page .card:hover{
+      transform:translateY(-3px);
+      box-shadow:0 14px 34px rgba(0,0,0,0.12);
+    }
+
+    .browse-page .card:hover::after{
+      transform: scaleX(1);
+    }
+
+    .browse-page .card .body{ padding:14px 16px 16px; }
+
+    .browse-page .card h2{
+      margin:2px 0 8px;
+      font-size:1.12rem;
+      line-height:1.25;
+      font-weight:700;
+      letter-spacing:-0.01em;
+      display:flex;
+      align-items:center;
+      gap:0.55rem;
+    }
+
+    .browse-page .card-ico{
+      width:36px;
+      height:36px;
+      border-radius:999px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      font-size:1.2rem;
+      line-height:1;
+
+      background: #f3f4f6;
+      border:1px solid #e5e7eb;
+      box-shadow:0 6px 14px rgba(0,0,0,0.06);
+
+      transform: translateY(1px);
+      transition: transform .14s ease, filter .14s ease, background-color .14s ease, border-color .14s ease;
+    }
+
+    .browse-page .card:hover .card-ico{
+      transform: translateY(-1px) scale(1.03);
+      filter: saturate(1.05);
+    }
+
+    .browse-page .card p{
+      margin:0 0 10px;
+      font-size:0.98rem;
+      line-height:1.45;
+
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+    }
+
+    .browse-page .cta{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-size:0.95rem;
+      font-weight:650;
+      padding-top:2px;
+    }
+    .browse-page .cta::after{
+      content:"→";
+      transition: transform .14s ease;
+    }
+    .browse-page .card:hover .cta{
+      color:var(--accent);
+      text-decoration: underline !important;
+      text-underline-offset:.18em;
+    }
+    .browse-page .card:hover .cta::after{
+      transform: translateX(2px);
+    }
+
+    /* ✅ tier styling - make the “paths” feel special */
+    .browse-page .card--primary{
+      box-shadow:0 10px 26px rgba(0,0,0,0.075);
+      border-color: rgba(0,0,0,0.085);
+    }
+    .browse-page .card--primary:hover{
+      transform: translateY(-4px);
+      box-shadow:0 18px 44px rgba(0,0,0,0.14);
+      border-color: rgba(0,0,0,0.10);
+    }
+   .browse-page .card--primary::after{
+  transform: scaleX(0.22);
+  opacity: 0.35;
+}
+.browse-page .card--primary:hover::after{
+  transform: scaleX(1);
+  opacity: 0.92;
+}
+
+
+    .browse-page .card--secondary::after{
+      height:4px;
+      opacity:0.82;
+    }
+
+    .browse-page .card--utility{
+      box-shadow:0 6px 18px rgba(0,0,0,0.05);
+    }
+    .browse-page .card--utility:hover{
+      transform: translateY(-2px);
+      box-shadow:0 12px 30px rgba(0,0,0,0.10);
+    }
+    .browse-page .card--utility::after{
+      height:3px;
+      opacity:0.55;
+    }
+
+    .browse-page .card:focus-visible{
+      outline:2px solid var(--accent);
+      outline-offset:3px;
+    }
+    .browse-page .card:focus:not(:focus-visible){
+      outline:none;
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .browse-page .card,
+      .browse-page .card-ico,
+      .browse-page .cta::after,
+      .browse-page .card::after{
+        transition: none !important;
+      }
+    }
+
+    @supports (background: color-mix(in srgb, #000 50%, #fff)) {
+      .browse-page .card:hover .card-ico{
+        background: color-mix(in srgb, #ffffff 82%, var(--accent) 18%);
+        border-color: color-mix(in srgb, #ffffff 60%, var(--accent) 40%);
+      }
+
+      /* subtle “special” tint on primary cards only */
+      .browse-page .card--primary:hover{
+        background: color-mix(in srgb, #ffffff 94%, var(--accent) 6%);
+      }
+    }
+
+    /* ✅ Featured treatment for primary cards (Option A) */
+    .browse-page .card--primary::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity:1;
+
+      /* fallback (neutral; avoids hard-coded blue) */
+      background:
+        radial-gradient(120% 80% at 20% 0%,
+          rgba(0,0,0,0.06),
+          rgba(255,255,255,0) 55%),
+        linear-gradient(to bottom,
+          rgba(0,0,0,0.02),
+          rgba(255,255,255,0) 55%);
+    }
+
+    /* ensure content sits above the wash */
+    .browse-page .card--primary .body{
+      position: relative;
+      z-index: 1;
+    }
+
+    /* accent-aware wash */
+@supports (background: color-mix(in srgb, #000 50%, #fff)) {
+  .browse-page .card--primary::before{
+    background:
+      radial-gradient(120% 80% at 35% 0%,
+        color-mix(in srgb, var(--accent) 22%, transparent),
+        transparent 55%),
+      linear-gradient(to bottom,
+        rgba(0,0,0,0.02),
+        transparent 55%);
+  }
+}
+
+  </style>
+</Site>

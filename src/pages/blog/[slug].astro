@@ -1,270 +1,762 @@
 ---
 // File: src/pages/blog/[slug].astro
+// Blog detail page - accent header, supports MAP embeds via <div data-embed="MAP:slug"></div>
+
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import HeroBleed from "../../components/HeroBleed.astro";
-// ⛔️ Removed RVEmbed
-import CTAForm2 from "../../components/CTAForm2.astro";
+import CTAForm from "../../components/CTAForm.astro";
+import ListingsAccordion from "../../components/ListingsAccordion.astro";
+import GoogleMyMapEmbed from "../../components/GoogleMyMapEmbed.astro";
+import sanitizeHtml from "sanitize-html";
 import { getJson } from "../../lib/fetchJson";
-import { heroPath } from "../../lib/paths";
 
-/* ---------- static paths (NO helpers referenced) ---------- */
+/* ---------- sanitize config (allow embeds) ---------- */
+const ALLOWED = {
+  allowedTags: [
+    "p","h2","h3","h4","ul","ol","li","a","strong","em","br","hr","span",
+    "blockquote","code","pre","figure","figcaption","img","div"
+  ],
+  allowedAttributes: {
+    a: ["href","target","rel"],
+    img: ["src","alt","title","loading","decoding"],
+    div: ["data-embed"],
+    span: ["data-embed"]
+  },
+  transformTags: {
+    a: (_tag: any, attr: any) => ({
+      tagName: "a",
+      attribs: { ...attr, rel: "noopener nofollow ugc" }
+    })
+  }
+};
+
+/* ---------- static paths (simple, plain JS) ---------- */
 export async function getStaticPaths() {
-  const url = import.meta.env.PUBLIC_BLOG_JSON; // blog JSON
+  const url = import.meta.env.PUBLIC_BLOG_JSON;
   if (!url) return [];
 
   let rows: any[] = [];
   try {
-    const raw = await getJson<any>(url);
-    rows = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows
-      : [];
+    const raw: any = await getJson(url);
+    if (Array.isArray(raw)) rows = raw;
+    else if (raw && Array.isArray(raw.data)) rows = raw.data;
+    else if (raw && Array.isArray(raw.rows)) rows = raw.rows;
   } catch {
     return [];
   }
 
-  const items = rows
-    .map((r: any) => {
-      const status = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
-      const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "").trim().toLowerCase();
-      const hidden = status === "hidden" || status === "inactive" || rawSlug === "index";
-      if (hidden) return null;
+  const items: any[] = [];
 
-      const title = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-      // inline slugify
-      const computed = String(title ?? "")
-        .toLowerCase()
-        .trim()
-        .replace(/&/g, "-and-")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-      const slug = (rawSlug || computed).toLowerCase();
+  for (const r of rows) {
+    if (!r) continue;
 
-      return slug ? { params: { slug }, props: { row: r } } : null;
-    })
-    .filter(Boolean) as any[];
+    const statusVal =
+      r.status != null ? r.status :
+      r.Status != null ? r.Status :
+      "";
+    const slugVal =
+      r.slug != null ? r.slug :
+      r.Slug != null ? r.Slug :
+      "";
+
+    const status = String(statusVal).trim().toLowerCase();
+    const rawSlug = String(slugVal).trim().toLowerCase();
+
+    const hidden =
+      status === "hidden" ||
+      status === "inactive" ||
+      rawSlug === "index";
+
+    if (hidden) continue;
+
+    const titleVal = r.title != null ? r.title : "";
+    const title = String(titleVal).trim();
+
+    const computed = title
+      .toLowerCase()
+      .trim()
+      .replace(/&/g, "-and-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    const slug = (rawSlug || computed).toLowerCase();
+    if (!slug) continue;
+
+    items.push({ params: { slug }, props: { row: r } });
+  }
 
   return items;
 }
 
-/* ---------- page data ---------- */
-type Row = {
-  title?: string; Title?: string; TITLE?: string;
-  summary?: string; Summary?: string; SUMMARY?: string;
-  long_copy?: string; longcopy?: string; LongCopy?: string;
-  hero_img?: string; heroImg?: string; HeroImg?: string;
-  seo_title?: string; seoTitle?: string;
-  seo_description?: string; seoDescription?: string;
-  kicker?: string; subhead?: string;
-  cta1?: string; rv_block?: string; slug?: string; status?: string;
-  spare_1?: string; Spare_1?: string; SPARE_1?: string;
-  spare_2?: string; Spare_2?: string; SPARE_2?: string;
-
-  /* NEW: accept either `date` or `publish_date` */
-  date?: string; Date?: string; publish_date?: string; Publish_Date?: string;
+/* ---------- helper to read fields loosely ---------- */
+const get = (r: any, ...keys: string[]) => {
+  if (!r) return "";
+  for (const k of keys) {
+    const key = String(k);
+    const direct = r[key];
+    if (direct !== undefined && direct !== null && String(direct).trim() !== "") {
+      return String(direct).trim();
+    }
+    const lower = r[key.toLowerCase()];
+    if (lower !== undefined && lower !== null && String(lower).trim() !== "") {
+      return String(lower).trim();
+    }
+    const upper = r[key.toUpperCase()];
+    if (upper !== undefined && upper !== null && String(upper).trim() !== "") {
+      return String(upper).trim();
+    }
+  }
+  return "";
 };
 
-const { row: rowIn } = Astro.props as { row?: Row };
-const row = rowIn ?? ({} as Row);
+/* ---------- Page data ---------- */
+const props = Astro.props || {};
+const row = props.row || {};
 
-const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Fernie Blog").trim();
-const summary  = String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
-const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
-const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
-const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
+const title    = get(row, "title", "Title") || "Fernie Blog";
+const summary  = get(row, "summary", "Summary");
+const body     = get(row, "long_copy", "longcopy", "LongCopy");
+const seoTitle = get(row, "seo_title", "seoTitle") || title;
 
-/* ✅ Clean meta */
-const stripMeta = (s:string="") =>
-  s.replace(/<[^>]*>/g, " ")
-   .replace(/&[^;\s]+;/g, " ")
-   .replace(/\s+/g, " ")
-   .trim();
+const rawSeoDesc =
+  get(row, "seo_description", "seoDescription") ||
+  summary ||
+  "";
+const seoDesc = String(rawSeoDesc)
+  .replace(/<[^>]*>/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
 
-const rawSeoDesc = String(row?.seo_description ?? (row as any)?.seoDescription ?? summary ?? "");
-const seoDesc    = stripMeta(rawSeoDesc);
+const kicker = get(row, "kicker", "subhead") || "Fernie, BC";
 
-/* ---------- kicker/subhead ---------- */
-const kicker = String(
-  (row as any)?.kicker ?? (row as any)?.Kicker ?? (row as any)?.KICKER ??
-  (row as any)?.subhead ?? (row as any)?.Subhead ?? (row as any)?.SUBHEAD ?? ""
-).trim() || "Fernie, BC";
-
-/* ---------- PUBLISHED DATE (A-style: Nov 06, 2025) ---------- */
-const rawDate = String(
-  row?.date ?? (row as any)?.Date ?? row?.publish_date ?? (row as any)?.Publish_Date ?? ""
-).trim();
+/* ---------- publish date ---------- */
+const rawDate = get(row, "date", "publish_date");
 const dateMs = rawDate ? Date.parse(rawDate) : NaN;
-const hasDate = Number.isFinite(dateMs);
+const hasDate = isFinite(dateMs);
 const dateISO = hasDate ? new Date(dateMs).toISOString() : "";
 const datePretty = hasDate
-  ? new Date(dateMs).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })
+  ? new Date(dateMs).toLocaleDateString("en-CA", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
   : "";
 
-/* ---------- parse BUTTONS (label|href, separated by commas or new lines) ---------- */
-type Btn = { label: string; href: string };
-function parseButtons(s: string): Btn[] {
+/* ---------- buttons from spare_1 / spare_2 ---------- */
+function parseButtons(s: string) {
   if (!s) return [];
   return s
     .split(/\s*,\s*|\n+/)
-    .map(part => {
-      const [label, href] = part.split("|").map(x => (x ?? "").trim());
-      if (!label || !href) return null;
-      return { label, href };
+    .map((part) => {
+      const pieces = part.split("|");
+      const label = (pieces[0] || "").trim();
+      const href = (pieces[1] || "").trim();
+      return label && href ? { label, href } : null;
     })
-    .filter(Boolean) as Btn[];
+    .filter(Boolean) as { label: string; href: string }[];
 }
 
-const rawButtons =
-  String(row?.spare_2 ?? row?.Spare_2 ?? row?.SPARE_2 ?? "").trim() ||
-  String(row?.spare_1 ?? row?.Spare_1 ?? row?.SPARE_1 ?? "").trim();
+const rawButtons = get(row, "spare_2") || get(row, "spare_1");
+const buttons = parseButtons(rawButtons);
 
-const buttons: Btn[] = parseButtons(rawButtons);
-
-/* helpers for active state */
-const here = Astro.url.pathname.replace(/\/+$/,"");
-function isActiveHref(href: string, label: string) {
-  const clean = href.replace(/\/+$/,"");
-  if (/^all$/i.test(label)) return here === clean || here.startsWith(clean + "/");
-  return here === clean;
-}
-
-/* ---------- content HTML guards ---------- */
-function stripScripts(html:string) { return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ""); }
+/* ---------- content HTML (sanitize) ---------- */
 const SUMMARY_IS_HTML = true;
-const BODY_IS_HTML    = true;
-const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summary) : "";
-const bodyHtml    = BODY_IS_HTML    ? stripScripts(body)    : "";
+const BODY_IS_HTML = true;
 
-/* ---------- hero preload hint ---------- */
-const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
+const safeSummary = SUMMARY_IS_HTML ? sanitizeHtml(summary || "", ALLOWED) : "";
+const safeBody    = BODY_IS_HTML    ? sanitizeHtml(body || "", ALLOWED)    : "";
 
-/* ---------- Formspree ---------- */
-const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdHere");
+/* ---------- image2 injection (replace the first in-body image) ---------- */
+const image2 =
+  get(row, "image2", "Image2", "image_2", "IMAGE2") ||
+  ""; // expects full URL
+
+const image2Alt =
+  get(row, "image2_alt", "Image2Alt", "image_2_alt", "IMAGE2_ALT") ||
+  title;
+
+function escapeAttr(v: string) {
+  return String(v ?? "").replace(/"/g, "&quot;");
+}
+
+function swapFirstImg(html: string, src: string, alt: string) {
+  const s = String(src || "").trim();
+  if (!s) return html;
+
+  const raw = String(html || "");
+  const m = raw.match(/<img\b[^>]*>/i);
+
+  // no image present - inject at top
+  if (!m) {
+    return `
+      <figure class="blog-hero">
+        <img src="${s}" alt="${escapeAttr(alt)}" loading="eager" decoding="async" />
+      </figure>
+    ` + raw;
+  }
+
+  const tag = m[0];
+
+  // ensure src replaced or inserted
+  let out = /src\s*=/.test(tag)
+    ? tag.replace(/src\s*=\s*["'][^"']*["']/i, `src="${s}"`)
+    : tag.replace(/<img/i, `<img src="${s}"`);
+
+  // ensure alt replaced or inserted
+  const safeAlt = escapeAttr(alt);
+  out = /alt\s*=/.test(out)
+    ? out.replace(/alt\s*=\s*["'][^"']*["']/i, `alt="${safeAlt}"`)
+    : out.replace(/<img/i, `<img alt="${safeAlt}"`);
+
+  // give it eager/decode if it’s your “hero”
+  out = /loading\s*=/.test(out)
+    ? out.replace(/loading\s*=\s*["'][^"']*["']/i, `loading="eager"`)
+    : out.replace(/<img/i, `<img loading="eager"`);
+
+  out = /decoding\s*=/.test(out)
+    ? out.replace(/decoding\s*=\s*["'][^"']*["']/i, `decoding="async"`)
+    : out.replace(/<img/i, `<img decoding="async"`);
+
+  // wrap in figure for consistent spacing (optional but nice)
+  const wrapped = `<figure class="blog-hero">${out}</figure>`;
+
+  return raw.replace(tag, wrapped);
+}
+
+const safeBodyFinal = image2 ? swapFirstImg(safeBody, image2, image2Alt) : safeBody;
+
+/* ---------- Maps registry (same as Living) ---------- */
+type MapEmbed = {
+  mapId: string;
+  title: string;
+  heading?: string;
+  note?: string;
+  height?: number;
+};
+
+/* Normalize keys so all these become the same:
+   "fernie-ev", "FERNIE_EV", "Map:fernie ev" -> "FERNIE_EV" */
+const normMapKey = (k: string) =>
+  String(k || "")
+    .trim()
+    .replace(/^map:/i, "")
+    .replace(/[_\s]+/g, "-")
+    .replace(/[^a-z0-9-]+/gi, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toUpperCase()
+    .replace(/-/g, "_");
+
+/* Default fallback */
+let MAP_EMBEDS: Record<string, MapEmbed> = {
+  FERNIE_EV: {
+    title: "Fernie EV charging locations",
+    mapId: "1UV_hkjCXzuY1RwceYaLmAub-eCIEgZY",
+    heading: "Map - Fernie EV charging locations",
+    note:
+      "The map below shows currently documented public EV charging locations in Fernie. Availability, pricing, and access can change - check a live charging app before relying on a specific station.",
+    height: 560,
+  },
+};
+
+/* OPTIONAL: load registry from Sheets if PUBLIC_MAPS_JSON exists */
+const MAPS_URL = import.meta.env.PUBLIC_MAPS_JSON;
+
+if (MAPS_URL) {
+  try {
+    const raw: any = await getJson<any>(MAPS_URL);
+    const rows: any[] = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
+
+    const getM = (r: any, ...keys: string[]) => {
+      for (const k of keys) {
+        const v = r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()];
+        if (v !== undefined && v !== null && String(v).trim() !== "") {
+          return String(v).trim();
+        }
+      }
+      return "";
+    };
+
+    const built: Record<string, MapEmbed> = rows.reduce(
+      (acc: Record<string, MapEmbed>, r: any) => {
+        const keyRaw = getM(r, "map_slug", "slug", "key", "map_key", "mapKey", "id");
+        const mapId  = getM(r, "google_map_id", "googleMapId", "mapId", "map_id", "map", "mapid");
+        const status = getM(r, "status").toLowerCase();
+
+        // optional: only allow live/published
+        if (status && status !== "live" && status !== "published") return acc;
+
+        const key = normMapKey(keyRaw);
+        if (!key || !mapId) return acc;
+
+        const title = getM(r, "title") || keyRaw || key;
+        const heightNum = Number(getM(r, "height"));
+
+        acc[key] = {
+          mapId,
+          title,
+          heading: getM(r, "heading") || undefined,
+          note: getM(r, "note") || undefined,
+          height: Number.isFinite(heightNum) ? heightNum : undefined,
+        };
+        return acc;
+      },
+      {}
+    );
+
+    MAP_EMBEDS = { ...MAP_EMBEDS, ...built };
+  } catch {
+    // fail-soft
+  }
+}
+
+/* ---------- Split embeds in sanitized HTML ---------- */
+type BodyPart =
+  | { type: "html"; value: string }
+  | { type: "map"; key: string };
+
+function splitEmbeds(html: string): BodyPart[] {
+  const raw = String(html ?? "");
+
+  // Accept: MAP:fernie-ev, MAP:FERNIE_EV, MAP:fernie_ev, etc.
+  const re =
+    /<div\s+[^>]*data-embed\s*=\s*["']\s*MAP:([^"']+)\s*["'][^>]*>\s*<\/div>/gi;
+
+  const out: BodyPart[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = re.exec(raw))) {
+    const idx = m.index ?? 0;
+    const before = raw.slice(last, idx);
+    if (before) out.push({ type: "html", value: before });
+
+    out.push({ type: "map", key: m[1] });
+
+    last = idx + m[0].length;
+  }
+
+  const tail = raw.slice(last);
+  if (tail) out.push({ type: "html", value: tail });
+
+  return out;
+}
+
+const bodyParts = splitEmbeds(safeBodyFinal);
+
+/* ---------- category for breadcrumb ---------- */
+const categoryField = get(row, "category", "Category");
+const categoryRaw = categoryField
+  ? categoryField.split(/[,/|]+/)[0].trim()
+  : "";
+
+const categoryKey = categoryRaw
+  ? categoryRaw
+      .toLowerCase()
+      .replace(/[–—]/g, "-")
+      .replace(/&/g, "-and-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+  : "";
+const hasCategory = !!categoryKey;
+
+function labelForCategory(cat: string = "other") {
+  const norm = (cat || "").trim();
+  if (!norm) return "Other";
+
+  const cleaned = norm
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleaned
+    .split(" ")
+    .map((word) =>
+      word.length === 0
+        ? ""
+        : word[0].toUpperCase() + word.slice(1).toLowerCase(),
+    )
+    .join(" ");
+}
+
+/* ---------- accent colour based on category ---------- */
+const accentPalette = [
+  "#0ea5e9", // sky blue
+  "#22c55e", // green
+  "#6366f1", // indigo
+  "#f97316", // orange
+  "#eab308", // amber
+  "#0f766e", // teal
+  "#14b8a6", // aqua
+];
+
+function accentForCategory(key: string = "other") {
+  const s = (key || "other").toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = (hash + s.charCodeAt(i)) % accentPalette.length;
+  }
+  return accentPalette[hash];
+}
+
+const accent = accentForCategory(categoryKey || "other");
 
 /* ---------- CTA copy ---------- */
-const ctaHeadline = `Want the right homes in ${title} sent to you early?`;
-const ctaSubline  = "Tell me what fits your criteria — I’ll only send the ones that actually matter.";
+const ctaHeadline = "Get Early Access to Homes Worth Seeing";
+const ctaSubline  = "Tell me what matters to you and I’ll send homes that actually fit.";
+
+/* ---------- RV block ---------- */
+const listingsMode  = (get(row, "listings_mode") || "accordion").toLowerCase();
+const listingsLabel = get(row, "listings_label") || "Explore Fernie listings";
+const listingsSub   = get(row, "listings_sub")   || "Newest properties currently on the MLS.";
+const cta1Raw       = get(row, "cta1", "CTA1");
+const blockId       = get(row, "rv_block_id", "rv_block");
+
+/* ---------- debug toggle ---------- */
+const debug = Astro.url?.searchParams?.get("debug") === "1";
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
-  <HeroBleed
-    src={heroImg ? heroPath(heroImg) : ""}
-    title={title}
-    kicker={kicker}
-    containerMax={1280}
-    containerPad={0}
-    flush={false}
-    preload={false}
-    position="top-left"
-    titleInset={15}
-  />
-
-  {/* Published date (under hero, above summary) */}
-  {hasDate && (
-    <div class="container">
-      <time class="post-date" datetime={dateISO}>Published: {datePretty}</time>
-    </div>
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  wrapContent={false}
+>
+  {debug && (
+    <pre style="max-width:1200px;margin:12px auto;padding:10px;border:1px solid #ddd;background:#fafafa;overflow:auto;font-size:12px;">
+      {JSON.stringify({ mapsLoaded: Object.keys(MAP_EMBEDS), bodyParts }, null, 2)}
+    </pre>
   )}
 
-  {/* Summary (underline treatment, no card) */}
-  {summary && (
-    <section class="summary-wrap">
-      <div class="container">
-        {SUMMARY_IS_HTML
-          ? <div class="lead" set:html={summaryHtml}></div>
-          : <p class="lead">{summary}</p>}
+  <div class="page-shell pad-x">
+    {/* INTRO HEADER: breadcrumb + accent bars */}
+    <section class="page-intro" style={`--accent:${accent};`}>
+      <nav class="blog-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <a href="/blog/">Blog</a>
 
-        {buttons.length > 0 && (
-          <nav class="btnset-wrap" aria-label="Blog quick links">
-            <ul class="btnset">
-              {buttons.map(b => {
-                const active = isActiveHref(b.href, b.label);
-                return (
-                  <li>
-                    <a
-                      class={`btnpill${active ? " is-active" : ""}`}
-                      href={b.href}
-                      data-astro-prefetch="hover"
-                    >
-                      {b.label}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+        {hasCategory && (
+          <>
+            <span>/</span>
+            <a href={`/blog/?cat=${encodeURIComponent(categoryKey)}`}>
+              {labelForCategory(categoryRaw)}
+            </a>
+          </>
+        )}
+
+        <span>/</span>
+        <span class="blog-breadcrumb-current">{title}</span>
+      </nav>
+
+      <div class="blog-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
+
+        <div class="title-row">
+          <h1 class="page-title">{title}</h1>
+        </div>
+
+        {kicker && <p class="page-kicker">{kicker}</p>}
+
+        {hasDate && (
+          <p class="page-meta">
+            <time datetime={dateISO}>{datePretty}</time>
+          </p>
         )}
       </div>
     </section>
-  )}
 
-  {body && (
-    <div class="container body-wrap">
-      {BODY_IS_HTML
-        ? <div class="lead" set:html={bodyHtml}></div>
-        : <p class="lead">{body}</p>}
+    {/* FADED MOUNTAIN STRIP */}
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mountainFade" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="
+            M0 18
+            L5 8
+            L11 14
+            L18 5
+            L25 13
+            L32 4
+            L40 12
+            L48 3
+            L56 11
+            L64 4
+            L72 13
+            L80 6
+            L90 15
+            L100 7
+            L100 20
+            L0 20
+            Z
+          "
+          fill="url(#mountainFade)"
+        />
+      </svg>
     </div>
-  )}
 
-  {/* CTA ABOVE LONG COPY (leave as-is) */}
-  <div class="container cta-inline" id="cta">
-    <CTAForm2
-      formId={formspreeId}
-      pageSlug={Astro.params.slug}
-      pageTitle={title}
-      headline={ctaHeadline}
-      subline={ctaSubline}
-    />
+    {/* SUMMARY */}
+    {summary && (
+      <section class="summary-wrap">
+        {SUMMARY_IS_HTML ? (
+          <div class="lead" set:html={safeSummary}></div>
+        ) : (
+          <p class="lead">{summary}</p>
+        )}
+      </section>
+    )}
+
+    {/* QUICK-LINK BUTTONS */}
+    {buttons.length > 0 && (
+      <nav class="btnset-wrap" aria-label="Quick links">
+        <ul class="btnset">
+          {buttons.map((b) => (
+            <li>
+              <a class="btnpill" href={b.href}>
+                {b.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    )}
+
+    {/* MAIN BODY (supports maps) */}
+    {body && (
+      <div class="body-wrap">
+        <div class="lead">
+          {bodyParts.map((p) => {
+            if (p.type === "html") return <div set:html={p.value}></div>;
+
+            const m = MAP_EMBEDS[normMapKey(p.key)];
+            if (!m) {
+              return (
+                <div set:html={`<p><strong>Missing embed:</strong> MAP:${p.key}</p>`}></div>
+              );
+            }
+
+            return (
+              <GoogleMyMapEmbed
+                mapId={m.mapId}
+                title={m.title}
+                heading={m.heading || m.title}
+                note={m.note || ""}
+                height={m.height}
+              />
+            );
+          })}
+        </div>
+      </div>
+    )}
+
+    {/* INLINE CTA FORM */}
+    <div class="cta-inline" id="cta">
+      <CTAForm
+        pageSlug={Astro.params.slug}
+        pageTitle={title}
+        headline={ctaHeadline}
+        subline={ctaSubline}
+      />
+    </div>
+
+    {/* OPTIONAL LISTINGS ACCORDION */}
+    {listingsMode !== "off" && (
+      <ListingsAccordion
+        label={listingsLabel}
+        subline={listingsSub}
+        cta1={cta1Raw}
+        block={blockId}
+      />
+    )}
   </div>
 
   <style>
-    .container { max-width: 1200px; margin-inline: auto; padding-inline: 12px; }
-
-    .post-date{
-      display:block;
-      font-size:.9rem;
-      color:#6b7280;  /* slate-500 */
-      margin: 10px 0 0;   /* tuck just under hero */
+    .page-shell {
+      max-width: 1280px;
+      margin-inline: auto;
+      margin-top: 14px;
+      margin-bottom: 40px;
     }
 
-    /* unified summary treatment (same as other pages) */
-    .summary-wrap{
-      padding-top:10px;
-      padding-bottom:10px;
-      border-bottom:1px solid #e5e7eb;
-      margin-bottom:35px;
+    .pad-x {
+      padding-inline: var(--edge-pad) !important;
     }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-   
-    .btnset-wrap { margin-top: 10px; }
+
+    @media (min-width: 900px) {
+      .pad-x {
+        padding-inline: var(--edge-pad-lg) !important;
+      }
+    }
+
+    .page-intro {
+      max-width: var(--container-max);
+      margin: 0 auto 10px;
+      padding-top: 28px;
+    }
+
+    .blog-breadcrumb {
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .blog-breadcrumb a {
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+
+    .blog-breadcrumb a:hover {
+      border-bottom-color: var(--accent);
+    }
+
+    .blog-breadcrumb-current {
+      opacity: 0.7;
+    }
+
+    .blog-title-block {
+      max-width: 48rem;
+    }
+
+    .accent-bars {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .accent-bar {
+      height: 4px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .accent-bar.primary {
+      width: 80px;
+      opacity: 0.9;
+    }
+
+    .accent-bar.secondary {
+      width: 40px;
+      opacity: 0.45;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .page-title {
+      margin: 0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height: 1.08;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #111827;
+    }
+
+    .page-kicker {
+      margin: 6px 0 4px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .page-meta {
+      margin: 0 0 4px;
+      font-size: 0.85rem;
+      opacity: 0.75;
+    }
+
+    .mountain-strip {
+      margin: 8px auto 24px;
+      height: 48px;
+      max-height: 60px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.02), transparent);
+    }
+
+    .mountain-strip svg {
+      width: 100%;
+      height: 100%;
+      opacity: 0.9;
+      mix-blend-mode: multiply;
+    }
+
+    .summary-wrap {
+      padding-top: 12px;
+      padding-bottom: 25px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 35px;
+    }
+
+    .lead {
+      margin: 0;
+      font-size: 1.075rem;
+      line-height: 1.6;
+      color: #111827;
+    }
+
     .btnset {
-      list-style: none; margin: 0; padding: 0;
-      display: flex; flex-wrap: wrap; gap: 10px;
+      list-style: none;
+      margin: 12px 0;
+      padding: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
     }
+
     .btnpill {
-      display: inline-block;
       border: 1px solid #e5e7eb;
       background: #fff;
-      color: #111827;
-      font-weight: 700;
-      text-decoration: none;
       padding: 10px 16px;
       border-radius: 9999px;
-      line-height: 1;
-      box-shadow: 0 1px 0 rgba(0,0,0,.02);
-      transition: background .15s ease, color .15s ease, border-color .15s ease, transform .05s ease-in-out;
-    }
-    .btnpill:hover { background: #f3f4f6; transform: translateY(-1px); }
-    .btnpill.is-active {
-      background: #0f172a; color: #fff; border-color: transparent; box-shadow: 0 1px 0 rgba(0,0,0,.05);
+      font-weight: 700;
+      text-decoration: none;
+      color: #111827;
+      transition: background 0.15s ease, transform 0.05s ease;
     }
 
-    .summary-wrap::after, .body-wrap::after { content: ""; display: block; clear: both; }
+    .btnpill:hover {
+      background: #f3f4f6;
+      transform: translateY(-1px);
+    }
 
-    .cta-inline { padding: 18px 0 10px; clear: both; }
-    .body-wrap { padding-top: -12px; }
+    .body-wrap {
+      margin-top: 18px;
+    }
+
+    /* image2 hero styling */
+    .blog-hero img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 16px;
+      margin: 18px 0 22px;
+    }
+
+    .cta-inline {
+      padding: 24px 0 4px;
+    }
   </style>
 </Site>

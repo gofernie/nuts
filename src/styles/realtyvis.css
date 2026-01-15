@@ -1,0 +1,409 @@
+/* =========================================================
+   REALTYVIS - GLOBAL OVERRIDES (FINAL SHOT)
+   File: src/styles/realtyvis.css
+
+   What this does (without “cards gone wild”):
+   - Gives RV cards the same shell + hover lift as your custom cards
+   - Makes grid rows stretch + cards fill their grid cells
+   - Equalizes card height via a consistent “body floor” (when RV exposes a body wrapper)
+   - Stabilizes the PHOTO AREA safely by ONLY sizing known RV photo containers
+     (no brittle first-child hacks, no hiding random images globally)
+
+   If RV changes markup in the future, this should degrade gracefully.
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   0) SCOPE SAFETY - prevent overflow / overlap in RV layouts
+   --------------------------------------------------------- */
+:where(.rv-host, .rv-wrap, .rv-block),
+:where(.rv-host, .rv-wrap, .rv-block) * {
+  min-width: 0;
+}
+
+:where(.rv-host, .rv-wrap, .rv-block) :where(p, div, span) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+
+/* ---------------------------------------------------------
+   1) TOKENS - match your “Fernie” card vibe
+   --------------------------------------------------------- */
+:where(.rv-host, .rv-wrap, .rv-block) {
+  --rv-radius: 18px;
+  --rv-border: 1px solid rgba(17, 24, 39, 0.10);
+
+  --rv-shadow: 0 10px 26px rgba(0,0,0,0.08);
+  --rv-shadow-hover: 0 14px 34px rgba(0,0,0,0.12);
+
+  --rv-bg: #fff;
+  --rv-muted: rgba(17,24,39,.70);
+  --rv-muted-2: rgba(17,24,39,.55);
+
+  /* Photo slot height (keeps cards from going wild) */
+  --rv-media-h: 220px;
+
+  --rv-pad-x: 14px;
+  --rv-pad-y: 12px;
+
+  --rv-title-size: 16px;
+  --rv-body-size: 14px;
+
+  /* Equal-height knob: “text block floor” */
+  --rv-card-body-min: 190px; /* tweak 160–230 */
+
+  --rv-accent: var(--accent, #f97316);
+}
+
+@media (max-width: 768px) {
+  :where(.rv-host, .rv-wrap, .rv-block) {
+    --rv-media-h: 180px;
+    --rv-pad-x: 12px;
+    --rv-card-body-min: 170px;
+  }
+}
+
+
+/* ---------------------------------------------------------
+   2) GRID: ensure rows stretch + wrappers don’t break height
+   --------------------------------------------------------- */
+:where(.rv-host, .rv-wrap, .rv-block)
+:where(.rv-grid, [class*="rv-grid"], [class*="Grid"], [class*="grid"]) {
+  align-items: stretch !important;
+}
+
+/* grid items stretch */
+:where(.rv-host, .rv-wrap, .rv-block)
+:where(.rv-grid, [class*="rv-grid"], [class*="Grid"], [class*="grid"])
+> * {
+  align-self: stretch !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* nested wrapper between grid item and card */
+:where(.rv-host, .rv-wrap, .rv-block)
+:where(.rv-grid, [class*="rv-grid"], [class*="Grid"], [class*="grid"])
+> * > * {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+
+/* ---------------------------------------------------------
+   3) RV CARD SHELL: same feel as your custom cards
+   --------------------------------------------------------- */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card {
+  position: relative;
+  border-radius: var(--rv-radius);
+  border: var(--rv-border);
+  background: var(--rv-bg);
+  box-shadow: var(--rv-shadow);
+  overflow: hidden;
+
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0;
+
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  will-change: transform;
+}
+
+/* RV often wraps the card in an <a> */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card > a {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Hover lift (match your custom cards) */
+@media (hover:hover) and (pointer:fine) {
+  :where(.rv-host, .rv-wrap, .rv-block) .rv-card:hover,
+  :where(.rv-host, .rv-wrap, .rv-block) .rv-card:focus-within {
+    transform: translateY(-2px);
+    box-shadow: var(--rv-shadow-hover);
+  }
+}
+
+
+/* ---------------------------------------------------------
+   4) PHOTO SLOT (SAFE): stop stacked / “gone wild” cards
+   IMPORTANT: we only touch known photo containers inside cards.
+   If RV uses one of these, we lock it to a stable height.
+   --------------------------------------------------------- */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-listingCard-photo,
+  .rv-listingCardPhoto,
+  .rv-cardMedia,
+  .rv-cardPhoto,
+  [class*="listingCard-photo"],
+  [class*="ListingCardPhoto"],
+  [class*="cardMedia"],
+  [class*="CardMedia"],
+  [class*="cardPhoto"],
+  [class*="CardPhoto"]
+) {
+  height: var(--rv-media-h) !important;
+  overflow: hidden !important;
+  background: #f3f4f6;
+}
+
+/* Make any direct media inside that container fill the slot */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-listingCard-photo,
+  .rv-listingCardPhoto,
+  .rv-cardMedia,
+  .rv-cardPhoto,
+  [class*="listingCard-photo"],
+  [class*="ListingCardPhoto"],
+  [class*="cardMedia"],
+  [class*="CardMedia"],
+  [class*="cardPhoto"],
+  [class*="CardPhoto"]
+) > :where(img, video, picture) {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* If RV nests the <img> inside <picture> */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-listingCard-photo,
+  .rv-listingCardPhoto,
+  .rv-cardMedia,
+  .rv-cardPhoto,
+  [class*="listingCard-photo"],
+  [class*="ListingCardPhoto"],
+  [class*="cardMedia"],
+  [class*="CardMedia"],
+  [class*="cardPhoto"],
+  [class*="CardPhoto"]
+) :where(picture, figure) {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-listingCard-photo,
+  .rv-listingCardPhoto,
+  .rv-cardMedia,
+  .rv-cardPhoto,
+  [class*="listingCard-photo"],
+  [class*="ListingCardPhoto"],
+  [class*="cardMedia"],
+  [class*="CardMedia"],
+  [class*="cardPhoto"],
+  [class*="CardPhoto"]
+) :where(picture, figure) > img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+}
+
+
+/* ---------------------------------------------------------
+   5) CARD BODY: consistent spacing + equal-height floor
+   NOTE: This only applies when RV provides a body/content wrapper.
+   We DO NOT force min-height on the <a> (that caused chaos).
+   --------------------------------------------------------- */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-cardBody,
+  .rv-cardContent,
+  [class*="cardBody"],
+  [class*="CardBody"],
+  [class*="cardContent"],
+  [class*="CardContent"],
+  [class*="content"],
+  [class*="Content"]
+) {
+  padding: var(--rv-pad-y) var(--rv-pad-x) calc(var(--rv-pad-y) + 2px);
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px;
+  flex: 1 1 auto !important;
+  min-height: var(--rv-card-body-min) !important;
+  min-width: 0;
+}
+
+
+/* ---------------------------------------------------------
+   6) TYPE / PRICE / TEXT CLAMPS
+   --------------------------------------------------------- */
+/* property type line */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-listingLabel-type,
+  [class*="listingLabel-type"],
+  [class*="ListingLabel-type"]
+) {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--rv-muted-2);
+  margin: 0 0 2px;
+}
+
+/* price punch */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-listingLabel-price,
+  [class*="listingLabel-price"],
+  [class*="ListingLabel-price"]
+) {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* clamp address + city */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-listingLabel-address,
+  .rv-listingLabel-cityRegion,
+  .rv-listingHeader-address,
+  .rv-listingHeader-cityRegion
+) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-listingLabel-address,
+  .rv-listingHeader-address
+) {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: var(--rv-title-size);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-listingLabel-cityRegion,
+  .rv-listingHeader-cityRegion
+) {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  opacity: .85;
+  color: var(--rv-muted);
+}
+
+/* bottom-align meta/brokerage */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-card :where(
+  .rv-listingLabel-meta,
+  .rv-listingLabel-brokerage,
+  [class*="broker"],
+  [class*="Broker"],
+  [class*="mls"],
+  [class*="MLS"]
+) {
+  margin-top: auto;
+  color: var(--rv-muted-2);
+  font-size: 12px;
+}
+
+
+/* ---------------------------------------------------------
+   7) INSERT CARDS (your injected ones) - match RV shell + hover
+   --------------------------------------------------------- */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-insertCard--gridItem {
+  position: relative;
+  border-radius: var(--rv-radius);
+  border: var(--rv-border);
+  background: var(--rv-bg);
+  box-shadow: var(--rv-shadow);
+  overflow: hidden;
+
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0;
+
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  will-change: transform;
+}
+
+@media (hover:hover) and (pointer:fine) {
+  :where(.rv-host, .rv-wrap, .rv-block) .rv-insertCard--gridItem:hover,
+  :where(.rv-host, .rv-wrap, .rv-block) .rv-insertCard--gridItem:focus-within {
+    transform: translateY(-2px);
+    box-shadow: var(--rv-shadow-hover);
+  }
+}
+
+/* Accent bar */
+:where(.rv-host, .rv-wrap, .rv-block) .rv-insertCard--accent::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: var(--rv-accent);
+  box-shadow: 1px 0 0 rgba(0,0,0,.06);
+  opacity: .95;
+}
+
+
+/* ---------------------------------------------------------
+   8) MOBILE FORCE STACK - keep the “mobile mess” fix
+   --------------------------------------------------------- */
+@media (max-width: 900px) {
+  :where(.rv-host, .rv-wrap, .rv-block) :where(
+    .rv-row,
+    .rv-columns,
+    .rv-twoCol,
+    [class*="twoCol"],
+    [class*="TwoCol"],
+    [class*="columns"],
+    [class*="Columns"],
+    [class*="leftRail"],
+    [class*="LeftRail"],
+    [class*="rightRail"],
+    [class*="RightRail"]
+  ) {
+    grid-template-columns: 1fr !important;
+    flex-direction: column !important;
+  }
+
+  :where(.rv-host, .rv-wrap, .rv-block) :where(
+    .rv-left,
+    .rv-leftRail,
+    .rv-sidebar,
+    [class*="left"],
+    [class*="Left"],
+    [class*="sidebar"],
+    [class*="Sidebar"]
+  ) {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 auto !important;
+    position: static !important;
+  }
+
+  :where(.rv-host, .rv-wrap, .rv-block) :where(
+    .rv-scheduleBox,
+    .rv-showingBox,
+    [class*="schedule"],
+    [class*="Schedule"],
+    [class*="showing"],
+    [class*="Showing"]
+  ) {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  :where(.rv-host, .rv-wrap, .rv-block) input,
+  :where(.rv-host, .rv-wrap, .rv-block) select,
+  :where(.rv-host, .rv-wrap, .rv-block) textarea,
+  :where(.rv-host, .rv-wrap, .rv-block) button {
+    max-width: 100% !important;
+  }
+}

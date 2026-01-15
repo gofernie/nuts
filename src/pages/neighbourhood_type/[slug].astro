@@ -3,84 +3,187 @@
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import RVEmbed from "../../components/RVEmbed.astro";
 
 /* ---------- utils ---------- */
-const slugify = (v:string) =>
-  (v ?? "").toLowerCase().trim()
-    .replace(/&/g,"-and-")
-    .replace(/[^a-z0-9]+/g,"-")
-    .replace(/^-+|-+$/g,"");
+const slugify = (v: string) =>
+  (v ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+/* simple field getter + image resolver (for gallery) */
+const get = (r: any, ...keys: string[]) => {
+  for (const k of keys) {
+    const v = r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()];
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return String(v).trim();
+    }
+  }
+  return "";
+};
+
+function resolveImgFromCell(v: string): string {
+  const s = (v ?? "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("/")) return s;
+  return heroPath(s);
+}
 
 /* ---------- static paths ---------- */
 export async function getStaticPaths() {
   const url =
     import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON ||
     import.meta.env.PUBLIC_TYPES_JSON ||
-    import.meta.env.PUBLIC_SHEET_JSON || "";
+    import.meta.env.PUBLIC_SHEET_JSON ||
+    "";
+
   if (!url) return [];
 
-  let rows:any[] = [];
+  let rows: any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows : [];
+    rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
   } catch {
     return [];
   }
 
-  const items = rows.map((r:any) => {
-    const status  = String(r?.status ?? "").trim().toLowerCase();
-    const rawSlug = String(r?.slug ?? "").trim().toLowerCase();
-    if (status === "hidden" || status === "inactive" || rawSlug === "index") return null;
+  const items = rows
+    .map((r: any) => {
+      const status = String(r?.status ?? "").trim().toLowerCase();
+      const rawSlug = String(r?.slug ?? "").trim().toLowerCase();
+      if (status === "hidden" || status === "inactive" || rawSlug === "index") return null;
 
-    const title  = String(r?.title ?? "").trim();
-    const nhType = String(r?.neighbourhood_type ?? "").trim();
-    const typ    = String(r?.type ?? "").trim();
-    const cat    = String(r?.category ?? "").trim();
+      const title = String(r?.title ?? "").trim();
+      const nhType = String(r?.neighbourhood_type ?? "").trim();
+      const typ = String(r?.type ?? "").trim();
+      const cat = String(r?.category ?? "").trim();
 
-    const slug = (rawSlug || slugify(title || nhType || typ || cat)).toLowerCase();
-    return slug ? { params: { slug }, props: { row: r } } : null;
-  }).filter(Boolean) as any[];
+      const slug = (rawSlug || slugify(title || nhType || typ || cat)).toLowerCase();
+      return slug ? { params: { slug }, props: { row: r } } : null;
+    })
+    .filter(Boolean) as any[];
 
   return items;
 }
 
 /* ---------- page data ---------- */
 type Row = {
-  title?: string; summary?: string; long_copy?: string; hero_img?: string;
-  seo_title?: string; seo_description?: string; spare_2?: string;
-  cta1?: string; rv_block?: string; slug?: string; status?: string;
-  neighbourhood_type?: string; type?: string; category?: string;
+  title?: string;
+  summary?: string;
+  long_copy?: string;
+  hero_img?: string;
+  seo_title?: string;
+  seo_description?: string;
+  spare_2?: string;
+  cta1?: string;
+  rv_block?: string;
+  slug?: string;
+  status?: string;
+  neighbourhood_type?: string;
+  type?: string;
+  category?: string;
+  url?: string;
+
+  kicker?: string;
+  Kicker?: string;
+  KICKER?: string;
+  subhead?: string;
+  Subhead?: string;
+  SUBHEAD?: string;
+
+  spare_3?: string;
+  Spare_3?: string;
+  SPARE_3?: string;
+  spare_3_caption?: string;
+  Spare_3_Caption?: string;
+  SPARE_3_CAPTION?: string;
+
+  spare_4?: string;
+  Spare_4?: string;
+  SPARE_4?: string;
+  spare_4_caption?: string;
+  Spare_4_Caption?: string;
+  SPARE_4_CAPTION?: string;
+
+  spare_5?: string;
+  Spare_5?: string;
+  SPARE_5?: string;
+  spare_5_caption?: string;
+  Spare_5_Caption?: string;
+  SPARE_5_CAPTION?: string;
 };
+
 const { row: rowIn } = Astro.props as { row?: Row };
 const row = rowIn ?? ({} as Row);
 
 /* ---------- content ---------- */
-const title    = String(row?.title ?? "Neighbourhood Type").trim();
-const summary  = String(row?.summary ?? "").trim();
-const body     = String(row?.long_copy ?? "").trim();
-const heroImg  = String(row?.hero_img ?? "").trim();
+const title = String(row?.title ?? "Neighbourhood Type").trim();
+const summary = String(row?.summary ?? "").trim();
+const body = String(row?.long_copy ?? "").trim();
+const heroImg = String(row?.hero_img ?? "").trim();
 const seoTitle = String(row?.seo_title ?? title).trim();
 
-/* subhead/kicker with fallback */
+const url = String((row as any)?.url ?? "").trim();
+
+/* subhead/kicker fallback */
 const kicker =
-  String((row as any)?.kicker ?? (row as any)?.Kicker ?? (row as any)?.KICKER ??
-         (row as any)?.subhead ?? (row as any)?.Subhead ?? (row as any)?.SUBHEAD ?? "")
-  .trim() || "Fernie, BC";
+  String(
+    (row as any)?.kicker ??
+      (row as any)?.Kicker ??
+      (row as any)?.KICKER ??
+      (row as any)?.subhead ??
+      (row as any)?.Subhead ??
+      (row as any)?.SUBHEAD ??
+      ""
+  ).trim() || "Fernie, BC";
+
+/* ✅ spare_3 image moved under listings */
+const spare3Img = resolveImgFromCell(get(row, "spare_3", "Spare_3", "SPARE_3"));
+const spare3Cap = get(row, "spare_3_caption", "Spare_3_Caption", "SPARE_3_CAPTION");
+
+/* ✅ GALLERY - now uses spare_4..5 only */
+const gallery = [4, 5]
+  .map((n) => {
+    const src = resolveImgFromCell(get(row, `spare_${n}`));
+    const cap = get(row, `spare_${n}_caption`);
+    return src ? { src, cap } : null;
+  })
+  .filter(Boolean) as { src: string; cap: string }[];
 
 /* meta cleaner */
-const stripMeta = (s:string="") =>
-  s.replace(/<[^>]*>/g, " ")
-   .replace(/&[^;\s]+;/g, " ")
-   .replace(/\s+/g, " ")
-   .trim();
+const stripMeta = (input: string = "") => {
+  let out = "";
+  let inTag = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === "<") {
+      inTag = true;
+      out += " ";
+    } else if (ch === ">" && inTag) {
+      inTag = false;
+    } else if (!inTag) {
+      out += ch;
+    }
+  }
+
+  return out.replace(/&[^;\s]+;/g, " ").replace(/\s+/g, " ").trim();
+};
+
 const rawSeoDesc = String(row?.seo_description ?? summary ?? "");
-const seoDesc    = stripMeta(rawSeoDesc);
+const seoDesc = stripMeta(rawSeoDesc);
 
 /* buttons from spare_2 (Label|/url) */
 type Btn = { label: string; href: string };
@@ -88,8 +191,8 @@ function parseButtons(s: string): Btn[] {
   if (!s) return [];
   return s
     .split(/\s*,\s*|\n+/)
-    .map(part => {
-      const [label, href] = part.split("|").map(x => (x ?? "").trim());
+    .map((part) => {
+      const [label, href] = part.split("|").map((x) => (x ?? "").trim());
       if (!label || !href) return null;
       return { label, href };
     })
@@ -98,24 +201,52 @@ function parseButtons(s: string): Btn[] {
 const buttonsCell = String(row?.spare_2 ?? "").trim();
 const buttons: Btn[] = parseButtons(buttonsCell);
 
-/* active-state helper (treat "All" specially) */
-const here = Astro.url.pathname.replace(/\/+$/,"");
+/* active-state helper */
+function pathOnly(u: string) {
+  try {
+    return new URL(u, "http://x").pathname.replace(/\/+$/, "");
+  } catch {
+    return String(u || "").replace(/^[a-z]+:\/\/[^/]+/i, "").replace(/\/+$/, "");
+  }
+}
+const here = pathOnly(Astro.url.pathname);
 function isActiveHref(href: string, label: string) {
-  const clean = href.replace(/\/+$/,"");
+  const clean = pathOnly(href);
   if (/^all$/i.test(label)) return here === clean || here.startsWith(clean + "/");
   return here === clean;
 }
 
-/* ---------- RV embed input ---------- */
+/* ---------- Type-first pills (primary choice) ---------- */
+const normLabel = (s: string) =>
+  String(s ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+const TYPE_ORDER = ["all", "condos", "homes", "town homes", "townhomes"];
+
+function isTypeLabel(label: string) {
+  const l = normLabel(label);
+  return TYPE_ORDER.includes(l);
+}
+
+const typePills = buttons
+  .filter((p) => isTypeLabel(p.label))
+  .sort(
+    (a, b) => TYPE_ORDER.indexOf(normLabel(a.label)) - TYPE_ORDER.indexOf(normLabel(b.label))
+  );
+
+const otherPills = buttons.filter((p) => !isTypeLabel(p.label));
+
+/* RV embed input */
+const stripScripts = (html: string) => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+
 const rawCta =
   String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
 const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
-function stripScripts(html:string) {
-  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
-}
-function extractRvId(html:string) {
+function extractRvId(html: string) {
   const clean = stripScripts(html);
   const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
   return m?.[1] || "";
@@ -124,82 +255,220 @@ const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
 const hasValidBlock = ID_RE.test(rvBlockId);
 
 /* hero preload */
-const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
+const heroPreload = heroImg ? { href: heroPath(heroImg), imagesizes: "100vw" } : null;
 
-/* summary render parity with neighbourhoods */
+/* summary/body HTML flags */
 const SUMMARY_IS_HTML = true;
+const BODY_IS_HTML = true;
 const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summary) : "";
+const bodyHtml = BODY_IS_HTML ? stripScripts(body) : "";
+
+/* accent colour hashing */
+const accentPalette = ["#0ea5e9", "#22c55e", "#6366f1", "#f97316", "#eab308", "#0f766e", "#14b8a6"];
+const accentForNeighbourhoodType = (key: string = "") => {
+  const s = (key || "neighbourhood-type").toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) hash = (hash + s.charCodeAt(i)) % accentPalette.length;
+  return accentPalette[hash];
+};
+
+const currentSlug = (Astro.params?.slug ?? "").toString().trim();
+const headerAccent = accentForNeighbourhoodType(currentSlug || title || "neighbourhood-type");
+
+/* ✅ Ski Hill buildings card on neighbourhood_type pages */
+const isSkiHillType = /ski[-\s]?hill/i.test(currentSlug) || /ski[-\s]?hill/i.test(title);
+const buildingsHref = "/neighbourhoods/skihill/buildings/";
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
-  {/* Match neighbourhoods HeroBleed config */}
-  <HeroBleed
-    src={heroImg ? heroPath(heroImg) : ""}
-    title={title}
-    kicker={kicker}
-    containerMax={1280}
-    containerPad={0}
-    flush={false}
-    preload={true}
-    position="top-left"
-    titleInset={15}
-  />
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} wrapContent={false} heroPreload={heroPreload}>
+  <div class="page-shell pad-x" style={`--accent:${headerAccent};`}>
+    <section class="page-intro">
+      <nav class="nt-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <a href="/neighbourhood_type">Neighbourhood Types</a>
+        <span>/</span>
+        <span class="nt-breadcrumb-current">{title}</span>
+      </nav>
 
-  {summary && (
-    <section>
-      <div class="container summary-wrap">
-        {SUMMARY_IS_HTML
-          ? <div class="lead" set:html={summaryHtml}></div>
-          : <p class="lead">{summary}</p>}
-      </div>
-
-      {buttons.length > 0 && (
-        <div class="container pills-wrap">
-          <nav class="btnset-wrap" aria-label="Neighbourhood-type quick links">
-            <ul class="btnset">
-              {buttons.map(b => {
-                const active = isActiveHref(b.href, b.label);
-                return (
-                  <li>
-                    <a
-                      class={`btnpill${active ? " is-active" : ""}`}
-                      href={b.href}
-                      aria-current={active ? "page" : undefined}
-                      data-astro-prefetch="hover"
-                    >
-                      {b.label}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+      <div class="nt-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
         </div>
-      )}
+
+        <div class="title-row">
+          <h1 class="page-title">{title}</h1>
+        </div>
+
+        {kicker && <p class="page-subhead">{kicker}</p>}
+      </div>
     </section>
-  )}
 
-  <div class="container listings-wrap">
-    <h2 class="h2">Current {title} Listings</h2>
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mountainFadeNeighbourhoodType" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="
+            M0 18
+            L5 8
+            L11 14
+            L18 5
+            L25 13
+            L32 4
+            L40 12
+            L48 3
+            L56 11
+            L64 4
+            L72 13
+            L80 6
+            L90 15
+            L100 7
+            L100 20
+            L0 20
+            Z
+          "
+          fill="url(#mountainFadeNeighbourhoodType)"
+        />
+      </svg>
+    </div>
 
-    {hasValidBlock ? (
-      <div class="rv-host">
-        <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
-      </div>
-    ) : (
-      <div class="rv-fallback">
-        <p><strong>Heads-up:</strong> Listings are unavailable for this page right now.</p>
-      </div>
+    {summary && (
+      <section class="summary-wrap">
+        {SUMMARY_IS_HTML ? <div class="lead" set:html={summaryHtml}></div> : <p class="lead">{summary}</p>}
+      </section>
     )}
 
-    {hasValidBlock && (
-      <script is:inline>
+    {/* PRIMARY: Type first. SECONDARY: Buildings (Ski Hill only). */}
+    {(typePills.length > 0 || isSkiHillType) && (
+      <section class="choice-deck" aria-label="Primary browsing choices">
+        {/* Type chooser - primary */}
+        {typePills.length > 0 && (
+          <article class="choice-card choice-card--primary">
+            <p class="choice-kicker">Start here</p>
+            <h2 class="choice-title">Choose a property type</h2>
+            <p class="choice-lead">Pick condos, homes, or townhomes first - then browse the current listings.</p>
+
+            <nav class="type-pills" aria-label="Property type links">
+              <ul class="type-pills__list">
+                {typePills.map((b) => {
+                  const active = isActiveHref(b.href, b.label);
+                  const key = normLabel(b.label) === "town homes" ? "townhomes" : normLabel(b.label);
+
+                  return (
+                    <li>
+                      <a
+                        class={`type-pill${active ? " is-active" : ""}`}
+                        href={b.href}
+                        aria-current={active ? "page" : undefined}
+                        data-rv-filter={key}
+                        data-astro-prefetch="hover"
+                      >
+                        {b.label}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+
+            <a class="choice-jump" href="#listings">
+              Jump to listings
+            </a>
+          </article>
+        )}
+
+        {/* Buildings - secondary (Ski Hill only) */}
+        {isSkiHillType && (
+          <article class="choice-card choice-card--secondary" aria-label="Ski Hill buildings">
+            <p class="choice-kicker">Optional</p>
+            <h2 class="choice-title">Explore by building</h2>
+            <p class="choice-lead">
+              Ski Hill is organized by condo buildings more than streets. Browse each complex with notes and the listings inside.
+            </p>
+            <div class="choice-actions">
+              <a class="choice-btn" href={buildingsHref}>
+                View Ski Hill buildings
+              </a>
+              <a class="choice-link" href="#listings">
+                Listings
+              </a>
+            </div>
+          </article>
+        )}
+      </section>
+    )}
+
+    {/* Secondary quick links (non-type pills) */}
+    {otherPills.length > 0 && (
+      <section class="pills-wrap" aria-label="Neighbourhood-type quick links">
+        <nav class="btnset-wrap">
+          <ul class="btnset">
+            {otherPills.map((b) => {
+              const active = isActiveHref(b.href, b.label);
+              return (
+                <li>
+                  <a
+                    class={`btnpill${active ? " is-active" : ""}`}
+                    href={b.href}
+                    aria-current={active ? "page" : undefined}
+                    data-astro-prefetch="hover"
+                  >
+                    {b.label}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      </section>
+    )}
+
+    {/* GALLERY - now spare_4..5 only */}
+    {gallery.length > 0 && (
+      <section class="gallery-wrap">
+        <div class="gallery">
+          {gallery.map(({ src, cap }) => (
+            <figure class="tile">
+              <img loading="lazy" decoding="async" src={src} alt={cap || title} />
+              {cap && <figcaption>{cap}</figcaption>}
+            </figure>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <section class="listings-wrap" id="listings">
+      <h2 class="h2">Current {title} Listings</h2>
+
+      {hasValidBlock ? (
+        <div class="rv-host">
+          <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
+        </div>
+      ) : (
+        <div class="rv-fallback">
+          <p>
+            <strong>Heads-up:</strong> Listings are unavailable for this page right now.
+          </p>
+          <p>
+            <a href="/search">Browse all listings</a>
+          </p>
+        </div>
+      )}
+
+      {hasValidBlock && (
+        <script is:inline>
 {`(function(){
   let warmed=false;
   function warm(){
     if(warmed) return; warmed=true;
-    new Image().src="https://app.realtyvis.com/favicon.ico";
-    new Image().src="https://cdn.realtyvis.com/favicon.ico";
+    var i1=new Image(); i1.src="https://app.realtyvis.com/favicon.ico";
+    var i2=new Image(); i2.src="https://cdn.realtyvis.com/favicon.ico";
     try{
       fetch("https://app.realtyvis.com/css/site.min.css",{mode:"no-cors"}).catch(()=>{});
       fetch("https://app.realtyvis.com/js/site.min.js",{mode:"no-cors"}).catch(()=>{});
@@ -211,75 +480,344 @@ const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summary) : "";
     host.addEventListener(ev,warm,{once:true,passive:true});
   });
 })();`}
-      </script>
+        </script>
+      )}
+    </section>
+
+    {/* spare_3 image moved under listings */}
+    {spare3Img && (
+      <section class="hero-under-listings">
+        <img src={spare3Img} alt={spare3Cap || `${title} in Fernie`} loading="lazy" decoding="async" />
+        {spare3Cap && <p class="hero-under-caption">{spare3Cap}</p>}
+      </section>
+    )}
+
+    {body && (
+      <section class="body-wrap">
+        {BODY_IS_HTML ? <div class="lead" set:html={bodyHtml}></div> : <p class="lead">{body}</p>}
+      </section>
     )}
   </div>
 
-  {body && (
-    <div class="container body-wrap">
-      <div class="lead" set:html={stripScripts(body)}></div>
-    </div>
-  )}
+  {/* Progressive enhancement (safe no-op until RV filter hook is known) */}
+  <script is:inline>
+    function scrollToListings() {
+      var el = document.getElementById("listings");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function tryApplyRvFilter(filterKey) {
+      return false;
+    }
+
+    document.addEventListener("click", function (e) {
+      var a = e.target && e.target.closest ? e.target.closest("a[data-rv-filter]") : null;
+      if (!a) return;
+
+      var key = a.getAttribute("data-rv-filter") || "all";
+      var applied = tryApplyRvFilter(key);
+      if (!applied) return;
+
+      e.preventDefault();
+      scrollToListings();
+    });
+  </script>
 
   <style>
-    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
+    .page-shell{ max-width: 1280px; margin-inline: auto; margin-top: 14px; margin-bottom: 40px; }
+    .pad-x{ padding-inline: var(--edge-pad) !important; }
+    @media (min-width: 900px){ .pad-x{ padding-inline: var(--edge-pad-lg) !important; } }
 
-    /* match neighbourhoods summary block */
+    .page-intro{ max-width: var(--container-max); margin: 0 auto 10px; padding-top: 28px; }
+
+    .nt-breadcrumb{
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .nt-breadcrumb a{ text-decoration: none; border-bottom: 1px solid transparent; }
+    .nt-breadcrumb a:hover{ border-bottom-color: var(--accent); }
+    .nt-breadcrumb-current{ opacity: 0.7; }
+
+    .nt-title-block{ max-width: 48rem; }
+
+    .accent-bars{ display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+    .accent-bar{ height: 4px; border-radius: 999px; background: var(--accent); }
+    .accent-bar.primary{ width: 80px; opacity: 0.9; }
+    .accent-bar.secondary{ width: 40px; opacity: 0.45; }
+
+    .title-row{ display: flex; align-items: flex-start; gap: 0.75rem; }
+
+    .page-title{
+      margin: 0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height: 1.08;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #111827;
+    }
+
+    .page-subhead{
+      margin: 6px 0 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .mountain-strip{
+      margin: 8px auto 24px;
+      height: 48px;
+      max-height: 60px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
+    }
+    .mountain-strip svg{ width: 100%; height: 100%; opacity: 0.9; mix-blend-mode: multiply; }
+
     .summary-wrap{
-      padding-top:10px;
-      padding-bottom:10px;
-      border-bottom:1px solid #e5e7eb;
-      margin-bottom:0;
+      padding-top: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 6px;
     }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
 
-    .pills-wrap{ padding-top:12px; margin-bottom:35px; }
-    .btnset-wrap { margin-top:0; }
+    .lead{
+      margin: 0;
+      font-size: 1.075rem;
+      line-height: 1.6;
+      color: #111827;
+    }
+    .lead :where(p, ul, ol){ margin: 0 0 .8rem; }
+    .lead :where(a){ text-decoration: underline; }
+
+    /* === Primary choice deck (type first) === */
+    .choice-deck{
+      display: grid;
+      gap: 14px;
+      margin: 12px 0 18px;
+    }
+    @media (min-width: 900px){
+      .choice-deck{
+        grid-template-columns: 1.35fr .9fr;
+        align-items: stretch;
+      }
+    }
+
+    .choice-card{
+      border: 1px solid rgba(17,24,39,.12);
+      border-radius: 16px;
+      padding: 18px;
+      background: linear-gradient(135deg, rgba(15,23,42,.06) 0%, #ffffff 55%);
+      box-shadow: 0 12px 28px rgba(0,0,0,.08), inset 0 0 0 1px rgba(255,255,255,.6);
+      position: relative;
+      overflow: hidden;
+    }
+    .choice-card:before{
+      content:"";
+      position:absolute;
+      inset:0 0 auto 0;
+      height: 5px;
+      background: var(--accent);
+      opacity: .95;
+    }
+
+    .choice-kicker{
+      margin: 0 0 6px;
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      opacity: .9;
+    }
+    .choice-title{
+      margin: 0 0 8px;
+      font-size: 1.15rem;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+    }
+    .choice-lead{
+      margin: 0 0 12px;
+      line-height: 1.6;
+      opacity: .92;
+    }
+
+    .type-pills__list{
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+    .type-pills__list > li{ margin: 0; padding: 0; }
+
+    .type-pill{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(17,24,39,.14);
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.92);
+      color: #111827;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: .95rem;
+      line-height: 1;
+      transition: transform .08s ease, background .15s ease, border-color .15s ease, color .15s ease;
+    }
+    .type-pill:hover{
+      transform: translateY(-1px);
+      background: rgba(15,23,42,.04);
+      border-color: rgba(17,24,39,.22);
+    }
+    .type-pill.is-active{
+      background: var(--accent);
+      color: #fff;
+      border-color: transparent;
+    }
+
+    .choice-jump{
+      display: inline-block;
+      margin-top: 10px;
+      font-weight: 650;
+      opacity: .82;
+      text-decoration: none;
+    }
+    .choice-jump:hover{ text-decoration: underline; }
+
+    .choice-actions{
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .choice-btn{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      font-weight: 650;
+      font-size: 0.9rem;
+      box-shadow: 0 6px 14px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.25);
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .choice-btn:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 10px 20px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.3);
+    }
+    .choice-link{
+      font-weight: 650;
+      opacity: .82;
+      text-decoration: none;
+    }
+    .choice-link:hover{ text-decoration: underline; }
+
+    /* Gallery */
+    .gallery-wrap{ padding-top: 8px; padding-bottom: 8px; margin-bottom: 16px; }
+    .gallery{ display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .tile{ position: relative; overflow: hidden; border-radius: 6px; margin: 0; padding: 0; }
+    .tile img{ display: block; width: 100%; height: auto; border-radius: inherit; object-fit: cover; }
+    .tile figcaption{
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,.55);
+      color: #fff;
+      font-size: .85rem;
+      border-radius: 8px;
+    }
+
+    /* Secondary pills */
+    .pills-wrap{ padding-top: 6px; margin: 6px 0 14px; }
     .btnset{
-      list-style:none; margin:0; padding:0;
-      display:flex; flex-wrap:wrap; gap:10px;
-      justify-content:center;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+      align-items: center;
     }
+    .btnset > li{ list-style: none; margin: 0; padding: 0; }
+
     .btnpill{
-      display:inline-block;
-      border:1px solid #e5e7eb;
-      background:#fff;
-      color:#111827;
-      font-weight:700;
-      text-decoration:none;
-      padding:10px 16px;
-      border-radius:9999px;
-      line-height:1;
-      box-shadow:0 1px 0 rgba(0,0,0,.02);
-      transition:background .15s ease, color .15s ease, border-color .15s ease, transform .05s ease-in-out;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(17,24,39,.14);
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.9);
+      color: #111827;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: .9rem;
+      line-height: 1;
+      transition: transform .08s ease, background .15s ease, border-color .15s ease, color .15s ease;
     }
-    .btnpill:hover{ background:#f3f4f6; transform:translateY(-1px); }
+    .btnpill:hover{
+      transform: translateY(-1px);
+      background: rgba(15,23,42,.04);
+      border-color: rgba(17,24,39,.22);
+    }
     .btnpill.is-active{
-      background:#0f172a; color:#fff; border-color:transparent; box-shadow:0 1px 0 rgba(0,0,0,.05);
+      background: var(--accent);
+      color: #fff;
+      border-color: transparent;
     }
 
-    .listings-wrap{ padding-top:16px; padding-bottom:8px; }
-    .h2{ font-size:clamp(20px,2.6vw,28px); margin:0 0 10px; }
+    .listings-wrap{ padding-top: 16px; padding-bottom: 8px; }
+    .h2{ font-size: clamp(20px, 2.6vw, 28px); margin: 0 0 10px; }
+    .rv-host{ min-height: 1000px; }
 
     .rv-fallback{
-      padding:12px 16px;
-      background:#fff3cd;
-      border:1px solid #ffe69c;
-      border-radius:10px;
-      color:#5c3c00;
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: #fff3cd;
+      border: 1px solid #ffe69c;
+      border-radius: 10px;
+      color: #5c3c00;
     }
 
-    .rv-host [data-skeleton],
-    .rv-host .rv-skeleton {
-      animation:none !important;
-      background:none !important;
-      background-image:none !important;
-      box-shadow:none !important;
-      opacity:0 !important;
-      pointer-events:none !important;
+    /* spare_3 under listings */
+    .hero-under-listings{
+      margin: 18px 0 24px;
+      border-radius: 6px;
+      overflow: hidden;
     }
-    .rv-host .rv-root, .rv-host .rv-container, .rv-host .rv-shell {
-      max-width:1200px; margin-inline:auto;
+    .hero-under-listings img{ display: block; width: 100%; height: auto; }
+    .hero-under-caption{ margin: 10px 2px 0; font-size: 0.95rem; opacity: 0.75; }
+
+    .body-wrap{ margin-top: 8px; }
+
+    .rv-host [data-skeleton],
+    .rv-host .rv-skeleton{
+      animation: none !important;
+      background: none !important;
+      background-image: none !important;
+      box-shadow: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    .rv-host .rv-root,
+    .rv-host .rv-container,
+    .rv-host .rv-shell{
+      max-width: 1200px;
+      margin-inline: auto;
     }
   </style>
 </Site>

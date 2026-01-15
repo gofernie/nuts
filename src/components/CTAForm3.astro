@@ -1,40 +1,29 @@
 ---
 // File: src/components/CTAForm.astro
 export interface Props {
-  formId?: string;       // optional; falls back to xzzklnlw
+  formId?: string;       // ignore at runtime; we hardcode action to be safe
   pageSlug?: string;
-  pageTitle?: string;    // e.g., "Groceries and Essentials in Fernie"
+  pageTitle?: string;
 }
+const { pageSlug = "", pageTitle = "spending time" } = Astro.props;
 
-const {
-  formId,
-  pageSlug = "",
-  pageTitle = "spending time",
-} = Astro.props;
-
-const workingFormId = formId || "xzzklnlw";
-
-// Keep for hidden fields consistency
+// Hidden-field helpers only
 const base = (pageTitle ?? "spending time").toString().trim();
 const prettyTitle = base
-  ? base.toLowerCase().split(/\s+/).map((w) => (w === "and" ? "and" : w.charAt(0).toUpperCase() + w.slice(1))).join(" ")
+  ? base.toLowerCase().split(/\s+/).map(w => (w==="and" ? "and" : w[0].toUpperCase()+w.slice(1))).join(" ")
   : "Spending Time";
 ---
 
-<section class="cta" data-activity={prettyTitle}>
-  <!-- LEFT: copy with solid orange bg -->
+<section class="cta" data-activity={prettyTitle} aria-live="polite">
   <div class="cta__text">
     <div class="cta__text-inner">
       <h2 class="cta__title">Thinking of moving to Fernie?</h2><br />
-      <p class="cta__intro">
-        If you’re curious whether living here would actually fit your life — I can help you understand neighbourhoods,
-        rhythms, and what a realistic move could look like. No rush, no pressure.
-      </p>
+      <p class="cta__intro">If you’re curious whether living here would actually fit your life — I can help you understand neighbourhoods, rhythms, and what a realistic move could look like. No rush, no pressure.</p>
     </div>
   </div>
 
-  <!-- RIGHT: minimal form -->
-  <form action={`https://formspree.io/f/${workingFormId}`} method="POST" class="cta__form" novalidate>
+  <!-- HARD-CODED ACTION (cannot be stripped by templating) -->
+  <form action="https://formspree.io/f/xzzklnlw" data-fallback-action="https://formspree.io/f/xzzklnlw" method="POST" class="cta__form" data-enhance="true">
     <!-- Hidden context -->
     <input type="hidden" name="page_slug" value={pageSlug} />
     <input type="hidden" name="page_title" value={base} />
@@ -46,12 +35,12 @@ const prettyTitle = base
     <input type="text" name="_gotcha" class="hp" tabindex="-1" autocomplete="off" />
 
     <div class="fld">
-      <label for="name">Name</label>
+      <label for="name">Name <span class="req">*</span></label>
       <input id="name" name="name" type="text" placeholder="Name" autocomplete="name" required />
     </div>
 
     <div class="fld">
-      <label for="email">Email</label>
+      <label for="email">Email <span class="req">*</span></label>
       <input id="email" name="email" type="email" placeholder="Enter email" autocomplete="email" required />
     </div>
 
@@ -65,135 +54,132 @@ const prettyTitle = base
       <textarea id="message" name="message" rows="3" placeholder="Anything specific? (optional)"></textarea>
     </div>
 
-    <button type="submit" class="cta__btn">Start the conversation →</button>
+    <div class="errbar" role="alert" hidden></div>
+
+    <button type="submit" class="cta__btn">
+      <span class="btn-label">Start the conversation →</span>
+      <span class="btn-spinner" aria-hidden="true"></span>
+    </button>
   </form>
 
-  <!-- Plain inline JS (no backticks) -->
+  <!-- JS enhancement; native POST still works if JS fails -->
   <script is:inline>
-    document.addEventListener('DOMContentLoaded', function () {
-      var form = document.querySelector('form.cta__form');
-      if (!form) return;
+    (function () {
+      var form = document.querySelector('form.cta__form[data-enhance="true"]');
+      var section = form && form.closest('.cta');
+      if (!form || !section) return;
+
+      // SAFETY: if something stripped action, restore it
+      var fallback = form.getAttribute('data-fallback-action') || 'https://formspree.io/f/xzzklnlw';
+      if (!form.getAttribute('action')) form.setAttribute('action', fallback);
+
+      if (form.dataset.enhanced) return;
+      form.dataset.enhanced = "1";
+
+      var errbar = form.querySelector('.errbar');
+
+      function showError(msg){
+        if(!errbar) return;
+        errbar.textContent = msg || 'Something went wrong. Please try again.';
+        errbar.hidden = false;
+      }
+
+      function showThanks() {
+        form.outerHTML = [
+          '<div class="thanks" role="status">',
+            '<div class="checkwrap">',
+              '<svg class="check" viewBox="0 0 52 52" width="84" height="84" aria-hidden="true">',
+                '<path class="ring" d="M26 2a24 24 0 1 1 0 48a24 24 0 1 1 0-48z" fill="none" stroke="#10b981" stroke-width="3" opacity=".22"></path>',
+                '<path class="tick" d="M14 27l8 8 16-18" fill="none" stroke="#10b981" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"></path>',
+              '</svg>',
+            '</div>',
+            '<h3 class="thanks-title">Thanks!</h3>',
+            '<p class="thanks-copy">I’ll follow up shortly. No pressure — just helpful info.</p>',
+            '<div class="confetti" aria-hidden="true"></div>',
+          '</div>'
+        ].join('');
+        section.classList.add('is-thanks');
+      }
 
       form.addEventListener('submit', async function (e) {
+        // Let native required validation fire first
+        if (!form.checkValidity()) return;
+
+        // Spam trap
+        var hp = form.querySelector('input[name="_gotcha"]');
+        if (hp && hp.value) return;
+
+        // Stay on-page + AJAX submit
         e.preventDefault();
+
+        var btn = form.querySelector('.cta__btn');
+        btn && btn.classList.add('is-loading');
+
         try {
-          var r = await fetch(form.action, {
-            method: form.method,
+          const r = await fetch(form.getAttribute('action') || fallback, {
+            method: 'POST',
             body: new FormData(form),
             mode: 'cors',
             headers: { 'Accept': 'application/json' }
           });
-
-          var payload = {};
-          try { payload = await r.json(); } catch (_) {}
-
-          if (r.ok) {
-            form.innerHTML =
-              '<div class="p-4 text-center">' +
-                '<h3 class="text-xl font-semibold mb-2">Thanks!</h3>' +
-                '<p class="text-neutral-600">I’ll follow up shortly. No pressure — just helpful info.</p>' +
-              '</div>';
-          } else {
-            var errors = (payload && payload.errors)
-              ? payload.errors.map(function (e) { return e.message; }).join('\n')
-              : '';
-            var msg = errors || ('HTTP ' + r.status);
-            alert('Form error:\n' + msg);
-            console.error('Formspree error details:', payload);
+          if (r.ok) { showThanks(); }
+          else {
+            let payload = {}; try { payload = await r.json(); } catch(_){}
+            const msg = (payload && payload.errors) ? payload.errors.map(e => e.message).join(' • ') : ('HTTP ' + r.status);
+            showError('Form error: ' + msg);
           }
         } catch (err) {
-          alert('Network error submitting the form. Please try again.');
+          showError('Network error submitting the form. Please try again.');
           console.error(err);
+        } finally {
+          btn && btn.classList.remove('is-loading');
         }
       });
-    });
+    })();
   </script>
 
   <style>
-    /* Container */
-    .cta {
-      width: 100%;
-      max-width: var(--site-max, 1300px);
-      margin: 3rem auto;
-      border: 1px solid #e5e7eb;
-      border-radius: 16px;
-      background: #fff;
-      box-shadow: 0 8px 24px rgba(0,0,0,.05);
-      display: grid;
-      grid-template-columns: 1fr;
-      overflow: hidden;
-      position: relative;
-      z-index: 10;
-      isolation: isolate;
-      contain: paint;
-    }
-    @media (min-width: 900px) { .cta { grid-template-columns: 1fr 1fr; } }
-
-    /* LEFT: copy with solid orange bg */
-    .cta__text {
-      position: relative;
-      z-index: 2;
-      background: #e9771a; /* Living orange */
-      color: #fff;
-      min-height: 380px;
-      display: flex;
-      align-items: center;
-    }
-    .cta__text-inner { padding: 2rem; width: 100%; max-width: 680px; }
-    .cta__title { font-size: clamp(26px, 2.2vw, 38px); font-weight: 600; line-height: 1.25; margin: 0 0 .6rem; color:#fff; }
-    .cta__intro { font-weight: 500; margin: 0; font-size: 1rem; line-height: 1.65; color: rgba(255,255,255,.95); }
-
-    /* RIGHT: form panel */
-    .cta__form {
-      background: #f4f5f7;
-      padding: 1.25rem;
-      border-left: 1px solid #e9eaef;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-      position: relative;
-      z-index: 2;
-    }
-    @media (max-width: 700px) {
-      .cta__form { grid-template-columns: 1fr; border-left: none; border-top: 1px solid #e9eaef; }
-    }
-
-    .fld { display: flex; flex-direction: column; min-width: 0; }
-    .fld--full { grid-column: 1 / -1; }
-    .fld label { font-weight: 600; font-size: .92rem; margin-bottom: .32rem; color: #333; }
-    .muted { color: #6b7280; font-weight: 500; }
-
-    .fld input,
-    .fld textarea {
-      padding: .62rem .72rem;
-      border: 1px solid #cfd4dc;
-      border-radius: 8px;
-      font-size: .96rem;
-      line-height: 1.35;
-      background: #fff;
-      width: 100%;
-      outline: none;
-      resize: vertical;
-    }
-    .fld input:focus,
-    .fld textarea:focus { border-color: #111; box-shadow: 0 0 0 2px rgba(0,0,0,.08); }
-
-    .cta__btn {
-      grid-column: 1 / -1;
-      background: #111;
-      color: #fff;
-      padding: .9rem 1rem;
-      font-size: 1rem;
-      font-weight: 700;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: background .2s ease;
-      width: 100%;
-    }
-    .cta__btn:hover { background: #222; }
-
-    /* Honeypot hide */
-    .hp { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+    .cta{width:100%;max-width:var(--site-max,1300px);margin:3rem auto;border:1px solid #e5e7eb;border-radius:16px;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.05);display:grid;grid-template-columns:1fr;overflow:hidden;position:relative;z-index:10;isolation:isolate;contain:paint;}
+    @media (min-width:900px){.cta{grid-template-columns:1fr 1fr;}}
+    .cta__text{background:#e9771a;color:#fff;min-height:380px;display:flex;align-items:center;}
+    .cta__text-inner{padding:2rem;max-width:680px;width:100%;}
+    .cta__title{font-size:clamp(26px,2.2vw,38px);font-weight:600;line-height:1.25;margin:0 0 .6rem;color:#fff;}
+    .cta__intro{font-weight:500;margin:0;font-size:1rem;line-height:1.65;color:rgba(255,255,255,.95);}
+    .cta__form{background:#f4f5f7;padding:1.25rem;border-left:1px solid #e9eaef;display:grid;grid-template-columns:1fr 1fr;gap:1rem;position:relative;z-index:2;}
+    @media (max-width:700px){.cta__form{grid-template-columns:1fr;border-left:none;border-top:1px solid #e9eaef;}}
+    .fld{display:flex;flex-direction:column;min-width:0;}
+    .fld--full{grid-column:1 / -1;}
+    .fld label{font-weight:600;font-size:.92rem;margin-bottom:.32rem;color:#333;}
+    .muted{color:#6b7280;font-weight:500;}
+    .req{color:#b91c1c;font-weight:700;}
+    .fld input,.fld textarea{padding:.62rem .72rem;border:1px solid #cfd4dc;border-radius:8px;font-size:.96rem;line-height:1.35;background:#fff;width:100%;outline:none;resize:vertical;}
+    .fld input:focus,.fld textarea:focus{border-color:#111;box-shadow:0 0 0 2px rgba(0,0,0,.08);}
+    .fld input:invalid{border-color:#ef4444;}
+    .fld input:invalid:focus{box-shadow:0 0 0 2px rgba(239,68,68,.15);}
+    .errbar{grid-column:1 / -1;background:#fee2e2;color:#7f1d1d;border:1px solid #fecaca;border-radius:8px;padding:.7rem .9rem;font-size:.95rem;}
+    .cta__btn{grid-column:1 / -1;background:#111;color:#fff;padding:.9rem 1rem;font-size:1rem;font-weight:700;border:none;border-radius:10px;cursor:pointer;transition:background .2s ease,transform .1s ease;width:100%;position:relative;overflow:hidden;}
+    .cta__btn:hover{background:#222;}
+    .cta__btn:active{transform:translateY(1px);}
+    .btn-spinner{--s:18px;width:var(--s);height:var(--s);border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;position:absolute;right:14px;top:50%;transform:translateY(-50%);opacity:0;pointer-events:none;}
+    .cta__btn.is-loading .btn-spinner{opacity:1;animation:spin .8s linear infinite;}
+    .cta__btn.is-loading .btn-label{opacity:.65;}
+    @keyframes spin{to{transform:translateY(-50%) rotate(360deg);}}
+    .hp{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;}
+    /* Thank-you (global for injected HTML) */
+    :global(.thanks){background:#f4f5f7;padding:2.25rem 1.5rem 2rem;border-left:1px solid #e9eaef;text-align:center;position:relative;overflow:hidden;min-height:260px;display:flex;flex-direction:column;justify-content:center;align-items:center;animation:fadeUp .35s ease-out both;}
+    @media (max-width:700px){:global(.thanks){border-left:none;border-top:1px solid #e9eaef;}}
+    :global(.checkwrap){width:84px;height:84px;margin-bottom:.6rem;position:relative;}
+    :global(.check){display:block;width:84px;height:84px;}
+    :global(.tick){stroke-dasharray:42;stroke-dashoffset:42;animation:tick-draw .5s .15s ease-out forwards;}
+    :global(.thanks-title){margin:.2rem 0 .2rem;font-size:1.3rem;font-weight:700;color:#0f172a;}
+    :global(.thanks-copy){margin:0;color:#475569;}
+    @keyframes tick-draw{to{stroke-dashoffset:0;}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    :global(.confetti){position:absolute;inset:0;pointer-events:none;}
+    :global(.is-thanks .confetti::before),:global(.is-thanks .confetti::after){
+      content:"";position:absolute;left:50%;top:28%;width:6px;height:6px;background:#f59e0b;transform:translate(-50%,-50%);
+      box-shadow:-120px -40px 0 #0ea5e9,-90px 10px 0 #84cc16,-60px -18px 0 #f43f5e,-30px 22px 0 #22c55e,30px -26px 0 #eab308,60px 14px 0 #06b6d4,90px -12px 0 #a78bfa,120px 18px 0 #fb7185;
+      opacity:0;animation:confetti-pop .9s .15s ease-out forwards;}
+    @keyframes confetti-pop{0%{transform:translate(-50%,-50%) scale(.5);opacity:0}60%{opacity:1}100%{transform:translate(-50%,-90%) scale(1);opacity:0}}
   </style>
 </section>

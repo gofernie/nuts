@@ -1,0 +1,1740 @@
+---
+/**
+ * File: src/pages/home-match.astro
+ * Fernie Home Match - AI assistant + smart next steps
+ */
+export const prerender = true;
+
+import Site from "../layouts/Site.astro";
+import { getJson } from "../lib/fetchJson";
+import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../lib/categoryColours";
+
+const NEIGH_URL = import.meta.env.PUBLIC_SHEET_JSON; // neighbourhoods sheet
+const TYPES_URL = import.meta.env.PUBLIC_TYPES_JSON; // property types sheet
+
+const get = (r: any, k: string) =>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+    .toString()
+    .trim();
+
+const RESERVED = new Set(["index", "page", "pages", "all", "view", "list"]);
+
+// Clean cells that sometimes come through with newlines / quotes
+const cleanUrlishValue = (v: any) =>
+  String(v ?? "")
+    .replace(/\r?\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^"+|"+$/g, "");
+
+// NEW: parse lifestyle tags into a stable array of tokens
+const parseLifestyleTags = (v: any): string[] => {
+  const raw = String(v ?? "")
+    .replace(/\r?\n/g, " ")
+    .trim();
+
+  if (!raw) return [];
+
+  // support: comma, pipe, or semicolon separated
+  const parts = raw.split(/[,|;]+/g).map((s) => s.trim()).filter(Boolean);
+
+  // normalize: lowercase, collapse spaces, remove surrounding quotes
+  const out = parts
+    .map((s) =>
+      s
+        .replace(/^"+|"+$/g, "")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter(Boolean);
+
+  // dedupe
+  return Array.from(new Set(out));
+};
+
+// Normalize slug to last segment, lowercase, no leading or trailing slashes
+const normalizeSlugServer = (v: any) =>
+  String(v ?? "")
+    .trim()
+    .replace(/^https?:\/\/[^/]+/i, "")
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "")
+    .split("/")
+    .pop()
+    ?.toLowerCase() || "";
+
+const visible = (r: any) => {
+  const status = get(r, "status").toLowerCase();
+  const rawSlug = normalizeSlugServer(get(r, "slug"));
+
+  if (!rawSlug || RESERVED.has(rawSlug)) return false;
+  if (status === "hidden" || status === "inactive") return false;
+
+  return true;
+};
+
+const normalizeRows = (rows: any[] = []) =>
+  rows
+    .filter(visible)
+    .map((r) => ({
+      slug: normalizeSlugServer(get(r, "slug")),
+      title: get(r, "title") || get(r, "name"),
+      summary: get(r, "summary") || get(r, "teaser") || "",
+
+      // ✅ MORE ROBUST IMAGE FIELD FALLBACKS (fixes “no image” cards)
+      hero_img: cleanUrlishValue(
+        get(r, "hero_img") ||
+          get(r, "heroImg") ||
+          get(r, "hero") ||
+          get(r, "hero_src") ||
+          get(r, "heroSrc") ||
+          get(r, "image") ||
+          get(r, "img") ||
+          ""
+      ),
+      card_img: cleanUrlishValue(
+        get(r, "card_img") ||
+          get(r, "cardImg") ||
+          get(r, "card") ||
+          get(r, "card_src") ||
+          get(r, "cardSrc") ||
+          get(r, "image") ||
+          get(r, "img") ||
+          get(r, "cardimg") ||
+          ""
+      ),
+
+      // NEW: lifestyle tags from your sheet column
+      lifestyle_tags: parseLifestyleTags(
+        get(r, "lifestyle_tags") || get(r, "lifestyleTags") || get(r, "tags") || ""
+      ),
+    }));
+
+let neighbourhoodRows: any[] = [];
+let propertyTypeRows: any[] = [];
+
+// neighbourhoods
+if (NEIGH_URL) {
+  try {
+    const raw = await getJson(NEIGH_URL);
+    const rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
+    neighbourhoodRows = normalizeRows(rows);
+  } catch {
+    neighbourhoodRows = [];
+  }
+}
+
+// property types
+if (TYPES_URL) {
+  try {
+    const raw = await getJson(TYPES_URL);
+    const rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
+    propertyTypeRows = normalizeRows(rows);
+  } catch {
+    propertyTypeRows = [];
+  }
+}
+
+/* ---------- Safe JSON strings for inline <script type="application/json"> ---------- */
+const hmNeighbourhoodJson = JSON.stringify(neighbourhoodRows ?? []).replace(/</g, "\\u003C");
+const hmPropertyTypeJson = JSON.stringify(propertyTypeRows ?? []).replace(/</g, "\\u003C");
+
+const pageTitle = "Fernie Home Match";
+const seoTitle = "Fernie Home Match - Find your Fernie fit";
+const seoDesc =
+  "Tell the assistant how you live and it will suggest Fernie neighbourhoods and property types that actually fit your lifestyle, budget, and timing.";
+
+const pageSubhead =
+  "Share how you live, then explore the Fernie neighbourhoods and property types that make the most sense.";
+
+const summaryText =
+  "Start with a quick description of your situation, budget, and timing. The assistant uses my local Fernie content and market knowledge to suggest neighbourhoods and property types that could fit. From there, you can explore listings and, if you’d like, talk it through with me directly.";
+
+/* header accent - match index pages */
+const headerAccent = CATEGORY_COLOURS.homeMatch ?? DEFAULT_ACCENT;
+---
+
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  wrapContent={false}
+  showHeader={true}
+>
+  <div class="page-shell pad-x">
+    {/* INTRO - match /areas index style */}
+    <section class="page-intro" style={`--accent:${headerAccent};`}>
+      <nav class="area-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <span class="area-breadcrumb-current">Home Match</span>
+      </nav>
+
+      <div class="area-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
+
+        <div class="title-row">
+          <h1 class="page-title">{pageTitle}</h1>
+        </div>
+
+        {pageSubhead && <p class="page-subhead">{pageSubhead}</p>}
+      </div>
+    </section>
+
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mountainFadeHomeMatch" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="
+            M0 18
+            L5 8
+            L11 14
+            L18 5
+            L25 13
+            L32 4
+            L40 12
+            L48 3
+            L56 11
+            L64 4
+            L72 13
+            L80 6
+            L90 15
+            L100 7
+            L100 20
+            L0 20
+            Z
+          "
+          fill="url(#mountainFadeHomeMatch)"
+        />
+      </svg>
+    </div>
+
+    <div class="summary-wrap">
+      <p class="lead">{summaryText}</p>
+    </div>
+
+    {/* MAIN */}
+    <section class="hm-shell">
+      <div class="hm-panel">
+        {/* FORM */}
+        <form id="homeMatchForm" class="hm-form">
+          <header class="hm-header">
+            <p class="hm-kicker">AI assistant - Fernie Home Match</p>
+            <h2>Find your Fernie fit</h2>
+          </header>
+
+          <div class="hm-pill-row">
+            <button
+              type="button"
+              class="hm-pill"
+              data-situation-snippet="Family who skis and wants to be close to the hill."
+            >
+              Family who skis
+            </button>
+            <button
+              type="button"
+              class="hm-pill"
+              data-situation-snippet="Remote worker who wants to be close to town and bike trails."
+            >
+              Remote worker, close to town
+            </button>
+            <button
+              type="button"
+              class="hm-pill"
+              data-situation-snippet="Investor focused on long-term rental income."
+            >
+              Investor, long-term rental
+            </button>
+            <button
+              type="button"
+              class="hm-pill"
+              data-situation-snippet="Retiring and looking for a quieter street with easy town access."
+            >
+              Retiring, quiet street
+            </button>
+          </div>
+
+          <div class="hm-field">
+            <label for="hm-situation">Briefly describe your situation</label>
+            <textarea
+              id="hm-situation"
+              name="situation"
+              rows="4"
+              placeholder="Example: We’re a family of four who ski most weekends. We’d like to be close to lifts or trails, with good school access and room for gear."
+              required
+            ></textarea>
+          </div>
+
+          <div class="hm-two-col">
+            <div class="hm-field">
+              <label for="hm-budget">
+                Budget <span class="hm-label-muted">(rough is fine)</span>
+              </label>
+              <input id="hm-budget" name="budget" type="text" placeholder="$800k - $1.1M" />
+            </div>
+
+            <div class="hm-field">
+              <label for="hm-timing">Timing</label>
+              <input
+                id="hm-timing"
+                name="timing"
+                type="text"
+                placeholder="This season / next 6 - 12 months / just browsing"
+              />
+            </div>
+          </div>
+
+          <button type="submit" class="hm-submit">
+            <span class="hm-submit-spinner" aria-hidden="true"></span>
+            <span class="hm-submit-text">Ask the Fernie Home Match assistant</span>
+          </button>
+
+          <p class="hm-footnote">
+            Powered by AI using Chris Crump’s local knowledge and content. It’s a starting point,
+            not a formal valuation or legal advice.
+          </p>
+        </form>
+
+        {/* OUTPUT + SUGGESTIONS */}
+        <section class="hm-output-section">
+          <h2 class="hm-output-heading">Your Fernie plan</h2>
+          <div id="hmOutput" class="hm-output hm-output--empty">
+            <p>Your suggested neighbourhoods and property types will appear here after you ask a question.</p>
+          </div>
+
+          {/* PDF actions - hidden until a result renders */}
+          <div id="hmPdfActions" class="hm-pdf-actions" hidden>
+            <button id="hmDownloadPdf" type="button" class="hm-pdf-btn">
+              Save as PDF
+            </button>
+            <p class="hm-pdf-note">
+              Opens a print-friendly version - choose “Save as PDF”.
+            </p>
+          </div>
+
+          {/* Print-only content gets injected here */}
+          <div id="hmPrintRoot" class="hm-print-root" aria-hidden="true"></div>
+
+          <section id="hmSuggestions" class="hm-suggestions" hidden>
+            <div id="hmNeighbourhoodGroup" class="hm-suggest-group" hidden>
+              <h3>Explore these Fernie neighbourhoods</h3>
+              <p>
+                Click into each area to see photos, details, and current listings that line up with
+                your Home Match.
+              </p>
+              <div id="hmNeighbourhoodGrid" class="hm-suggest-grid"></div>
+            </div>
+
+            <div id="hmTypeGroup" class="hm-suggest-group" hidden>
+              <h3>Dial in your property type</h3>
+              <p>
+                From ski hill condos to Montane family homes and acreages, explore what each option
+                really looks like on the ground in Fernie.
+              </p>
+              <div id="hmTypeGrid" class="hm-suggest-grid"></div>
+            </div>
+          </section>
+
+          {/* CURATED */}
+          <section class="hm-curated-box" id="hmCurated">
+            <button
+              id="hmCuratedToggle"
+              class="hm-curated-toggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="hmCuratedPanel"
+            >
+              <div class="hm-curated-toggle-main">
+                <span class="hm-curated-toggle-title">Ask Chris for a curated list</span>
+                <span class="hm-curated-toggle-sub">
+                  Optional - send your details and I’ll shortlist homes for you based on your Home Match.
+                </span>
+              </div>
+              <span class="hm-curated-toggle-icon" aria-hidden="true">⌄</span>
+            </button>
+
+            <div id="hmCuratedPanel" class="hm-curated-panel" aria-hidden="true">
+              <p class="hm-curated-insight">
+                I’ll review your Fernie Home Match answers and email you a small curated list of
+                homes that fit your budget, timing, and lifestyle - not just everything on the MLS.
+              </p>
+
+              <form
+                id="hmCuratedForm"
+                class="hm-curated-form"
+                method="POST"
+                action="https://formspree.io/f/mvgjywdn"
+                novalidate
+              >
+                <input type="hidden" name="source" value="home-match-curated" />
+                <input type="hidden" name="_redirect" value="false" />
+
+                <input type="hidden" name="hm_situation" id="hmCuratedSituation" />
+                <input type="hidden" name="hm_budget" id="hmCuratedBudget" />
+                <input type="hidden" name="hm_timing" id="hmCuratedTiming" />
+
+                <div class="hm-curated-row">
+                  <label class="hm-curated-field">
+                    <span class="hm-curated-label">Name</span>
+                    <div class="hm-curated-input-wrap">
+                      <span class="hm-curated-input-icon" aria-hidden="true">👤</span>
+                      <input type="text" name="name" autocomplete="name" placeholder="Your name" />
+                    </div>
+                  </label>
+
+                  <label class="hm-curated-field">
+                    <span class="hm-curated-label">Email</span>
+                    <div class="hm-curated-input-wrap">
+                      <span class="hm-curated-input-icon" aria-hidden="true">@</span>
+                      <input type="email" name="email" autocomplete="email" placeholder="you@email.com" />
+                    </div>
+                  </label>
+
+                  <div class="hm-curated-submit-wrap">
+                    <button type="submit" class="hm-curated-submit">Send to Chris →</button>
+                  </div>
+                </div>
+
+                <label class="hm-curated-field hm-curated-field--full">
+                  <span class="hm-curated-label">Anything specific you’d like me to include?</span>
+                  <div class="hm-curated-input-wrap hm-curated-input-wrap--textarea">
+                    <span class="hm-curated-input-icon" aria-hidden="true">✉️</span>
+                    <textarea
+                      name="message"
+                      rows={3}
+                      placeholder="Optional - for example, ‘must have a garage’, ‘no stairs’, or ‘quiet street away from highway noise’. I’ll also see your Home Match details."
+                    ></textarea>
+                  </div>
+                </label>
+              </form>
+
+              <p id="hmCuratedSuccess" class="hm-curated-success" hidden></p>
+            </div>
+          </section>
+        </section>
+      </div>
+
+      {/* HUMAN */}
+      <section class="hm-human">
+        <h2>Prefer a quick human check-in?</h2>
+        <p>
+          If you’d like, I can sense-check your Home Match, flag any blind spots, and send over a
+          simple shortlist of properties that actually fit your brief.
+        </p>
+        <a class="hm-human-cta" href="/contact?source=home-match">Book a quick call →</a>
+      </section>
+    </section>
+  </div>
+
+  {/* JSON payloads */}
+  <script type="application/json" id="hm-neighbourhoods" set:html={hmNeighbourhoodJson}></script>
+  <script type="application/json" id="hm-property-types" set:html={hmPropertyTypeJson}></script>
+
+  {/* Client */}
+  <script type="module">
+    const form = document.getElementById("homeMatchForm");
+    const outputEl = document.getElementById("hmOutput");
+    const suggestionsWrap = document.getElementById("hmSuggestions");
+    const neighGroup = document.getElementById("hmNeighbourhoodGroup");
+    const typeGroup = document.getElementById("hmTypeGroup");
+    const neighGrid = document.getElementById("hmNeighbourhoodGrid");
+    const typeGrid = document.getElementById("hmTypeGrid");
+
+    const curatedBox = document.getElementById("hmCurated");
+    const curatedToggle = document.getElementById("hmCuratedToggle");
+    const curatedPanel = document.getElementById("hmCuratedPanel");
+    const curatedForm = document.getElementById("hmCuratedForm");
+    const curatedSituation = document.getElementById("hmCuratedSituation");
+    const curatedBudget = document.getElementById("hmCuratedBudget");
+    const curatedTiming = document.getElementById("hmCuratedTiming");
+
+    // PDF bits
+    const pdfActions = document.getElementById("hmPdfActions");
+    const pdfBtn = document.getElementById("hmDownloadPdf");
+    const printRoot = document.getElementById("hmPrintRoot");
+    let lastPayload = null;
+    let lastData = null;
+
+    const STORAGE_KEY = "fh-home-match-state";
+
+    const THINKING_MESSAGES = [
+      "Thinking about Fernie for you - this usually takes a few seconds.",
+      "Matching your situation to Fernie neighbourhoods and property types…",
+      "Pulling together a simple plan - almost there…",
+    ];
+
+    const THINKING_INTERVAL_MS = 2600;
+    let thinkingTimer = null;
+
+    function startThinkingMessages() {
+      if (!outputEl) return;
+      let i = 0;
+      outputEl.innerHTML = `<p class="hm-thinking">${THINKING_MESSAGES[i]}</p>`;
+      outputEl.classList.add("hm-output--empty");
+
+      thinkingTimer = window.setInterval(() => {
+        i = (i + 1) % THINKING_MESSAGES.length;
+        outputEl.innerHTML = `<p class="hm-thinking">${THINKING_MESSAGES[i]}</p>`;
+      }, THINKING_INTERVAL_MS);
+    }
+
+    function stopThinkingMessages() {
+      if (thinkingTimer) {
+        window.clearInterval(thinkingTimer);
+        thinkingTimer = null;
+      }
+    }
+
+    function getJsonFromScript(id) {
+      const el = document.getElementById(id);
+      if (!el) return [];
+      try {
+        return JSON.parse(el.textContent || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    const allNeighbourhoods = getJsonFromScript("hm-neighbourhoods");
+    const allTypes = getJsonFromScript("hm-property-types");
+
+    const MAX_NEIGHBOURHOOD_CARDS = 4;
+    const MAX_TYPE_CARDS = 3;
+
+    function stripHtml(s) {
+      return String(s || "")
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function cleanUrlishValue(v) {
+      return String(v || "")
+        .replace(/\r?\n/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/^"+|"+$/g, "");
+    }
+
+    function normalizeSlug(value) {
+      return String(value || "")
+        .toLowerCase()
+        .trim()
+        .replace(/^https?:\/\/[^/]+/i, "")
+        .replace(/^\/+/, "")
+        .replace(/\/+$/, "")
+        .split("/")
+        .pop();
+    }
+
+    function titleizeSlug(slug) {
+      const s = String(slug || "").replace(/-/g, " ").trim();
+      return s
+        .split(" ")
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    }
+
+    // alias bridge for neighbourhood variations (sheet vs AI)
+    function slugAliases(slug) {
+      const s = normalizeSlug(slug || "");
+      if (!s) return [];
+      const out = new Set([s]);
+
+      if (s === "annex") out.add("the-annex");
+      if (s === "the-annex") out.add("annex");
+
+      if (s === "cedars") out.add("the-cedars");
+      if (s === "the-cedars") out.add("cedars");
+
+      if (s === "montane-fernie") out.add("montane");
+      if (s === "montane") out.add("montane-fernie");
+
+      if (s === "ski-hill") out.add("skihill");
+      if (s === "skihill") out.add("ski-hill");
+
+      return Array.from(out);
+    }
+
+    function escapeHtmlInline(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function cleanTitleJunk(label) {
+      let s = String(label || "").trim();
+      s = s.replace(/\s*\(`[^`]+`\)\s*$/, "");
+      s = s.replace(/\s*\(\s*[a-z0-9-]+\s*\)\s*$/, "");
+      s = s.replace(/\s*\{[^}]*\}\s*$/, "");
+      s = s.replace(/\s*\(\s*["'][^"']+["']\s*\)\s*$/, "");
+      return s.trim();
+    }
+
+    function formatAiText(raw) {
+      let text = String(raw || "").trim();
+      if (!text) return "";
+
+      text = text.replace(/\r\n/g, "\n");
+
+      text = text
+        .replace(/^Neighbourhoods to consider\s*:/gim, "## Neighbourhoods to consider")
+        .replace(/^Property types that fit\s*:/gim, "## Property types that fit")
+        .replace(/^Next steps\s*:/gim, "## Next steps");
+
+      text = text.replace(/(\n)(##\s)/g, "\n\n## ");
+
+      const blocks = text.split(/\n{2,}/);
+
+      const htmlBlocks = blocks
+        .map((block) => {
+          let b = block.trim();
+          if (!b) return "";
+
+          const headingMatch = b.match(/^#{1,6}\s+(.*)$/);
+          if (headingMatch) {
+            const content = escapeHtmlInline(headingMatch[1] || "");
+            return `<h3>${content}</h3>`;
+          }
+
+          const lines = b.split("\n");
+          const bulletLines = lines.filter((line) => line.trim().match(/^(-|\*|•)\s+/));
+
+          if (bulletLines.length) {
+            const itemsHtml = bulletLines
+              .map((line) => {
+                let content = line.replace(/^(-|\*|•)\s+/, "").trim();
+
+                const boldLabelMatch = content.match(/^\*\*([^*]+)\*\*(.*)$/);
+                if (boldLabelMatch) {
+                  const title = cleanTitleJunk(boldLabelMatch[1]);
+                  const rest = String(boldLabelMatch[2] || "")
+                    .trim()
+                    .replace(/^\s*[:-]\s*/, "");
+                  return `<li class="hm-rec-item">
+                    <div class="hm-rec-title">${escapeHtmlInline(title)}</div>
+                    ${rest ? `<div class="hm-rec-desc">${escapeHtmlInline(rest)}</div>` : ""}
+                  </li>`;
+                }
+
+                const colon = content.indexOf(":");
+                if (colon > 0 && colon < 80) {
+                  const t = cleanTitleJunk(content.slice(0, colon).trim());
+                  const d = content.slice(colon + 1).trim();
+                  return `<li class="hm-rec-item">
+                    <div class="hm-rec-title">${escapeHtmlInline(t)}</div>
+                    ${d ? `<div class="hm-rec-desc">${escapeHtmlInline(d)}</div>` : ""}
+                  </li>`;
+                }
+
+                return `<li class="hm-rec-item"><div class="hm-rec-desc">${escapeHtmlInline(
+                  content
+                )}</div></li>`;
+              })
+              .join("");
+
+            return `<ul class="hm-bullet-list">${itemsHtml}</ul>`;
+          }
+
+          b = escapeHtmlInline(b).replace(/\n/g, "<br/>");
+          return `<p>${b}</p>`;
+        })
+        .filter(Boolean);
+
+      return htmlBlocks.join("");
+    }
+
+    // ✅ MORE ROBUST: handles card_img/cardImg/image/img/hero variations
+    function resolveImgSrc(item) {
+      const pick = (...keys) => {
+        for (const k of keys) {
+          const v = cleanUrlishValue(item?.[k] || "");
+          if (v) return v;
+        }
+        return "";
+      };
+
+      return pick(
+        "card_img","cardImg","card","card_src","cardSrc","image","img",
+        "hero_img","heroImg","hero","hero_src","heroSrc"
+      );
+    }
+
+    function renderCards(slugs, allItems, gridEl, isType) {
+      if (!gridEl) return;
+      gridEl.innerHTML = "";
+      if (!Array.isArray(slugs) || !slugs.length) return;
+
+      const baseHref = isType ? "/types" : "/neighbourhoods";
+
+      const byAlias = new Map();
+      (allItems || []).forEach((item) => {
+        const canonical = normalizeSlug(item?.slug || "");
+        if (!canonical) return;
+        byAlias.set(canonical, item);
+        slugAliases(canonical).forEach((k) => byAlias.set(k, item));
+      });
+
+      const limit = isType ? MAX_TYPE_CARDS : MAX_NEIGHBOURHOOD_CARDS;
+
+      const seenCanonical = new Set();
+      const ordered = [];
+
+      for (const raw of slugs) {
+        const candidates = slugAliases(raw).map((s) => normalizeSlug(s)).filter(Boolean);
+
+        let item = null;
+        let canonical = null;
+
+        for (const c of candidates) {
+          const hit = byAlias.get(c);
+          if (hit) {
+            item = hit;
+            canonical = normalizeSlug(hit?.slug || c);
+            break;
+          }
+        }
+
+        if (!canonical) canonical = candidates[0] || normalizeSlug(raw);
+
+        if (!canonical) continue;
+        if (seenCanonical.has(canonical)) continue;
+
+        seenCanonical.add(canonical);
+        ordered.push({ canonical, item });
+        if (ordered.length >= limit) break;
+      }
+
+      const cards = ordered.map(({ canonical, item }) => {
+        const href = `${baseHref}/${canonical}`;
+        const title = cleanTitleJunk((item && (item.title || item.name)) || titleizeSlug(canonical));
+
+        let summary = stripHtml((item && (item.summary || item.teaser || "")) || "");
+        if (summary.length > 260) {
+          const cut = summary.slice(0, 260);
+          const lastSpace = cut.lastIndexOf(" ");
+          summary = (lastSpace > 180 ? cut.slice(0, lastSpace) : cut) + "…";
+        }
+
+        const img = resolveImgSrc(item);
+
+        return { href, title, summary, img };
+      });
+
+      gridEl.innerHTML = cards
+        .map(
+          (card) => `
+            <a class="hm-suggest-card" href="${card.href}">
+              ${
+                card.img
+                  ? `<div class="hm-suggest-img-wrap">
+                       <img src="${card.img}" alt="${escapeHtmlInline(card.title)}" loading="lazy" decoding="async" />
+                     </div>`
+                  : ""
+              }
+              <div class="hm-suggest-body">
+                <h5>${escapeHtmlInline(card.title)}</h5>
+                ${card.summary ? `<p>${escapeHtmlInline(card.summary)}</p>` : ""}
+                <span class="hm-suggest-cta">View details &amp; listings →</span>
+              </div>
+            </a>`
+        )
+        .join("");
+    }
+
+    function renderOutput(data) {
+      if (!outputEl) return;
+
+      const answer = (data && (data.answer || data.outputText || data.output || "")) || "";
+      const formatted = formatAiText(answer);
+
+      outputEl.innerHTML = "";
+      outputEl.classList.remove("hm-output--empty");
+
+      outputEl.innerHTML = formatted
+        ? formatted
+        : "<p>Sorry - I couldn’t format that response clearly. Try again with a little more detail.</p>";
+    }
+
+    function applyResult(data, payload) {
+      if (!data) return;
+
+      try {
+        lastPayload = payload || null;
+        lastData = data || null;
+
+        renderOutput(data);
+
+        const neighSlugs = (data && data.neighbourhoodSlugs) || [];
+        const typeSlugs = (data && data.propertyTypeSlugs) || [];
+
+        const hasNeigh = Array.isArray(neighSlugs) && neighSlugs.length > 0;
+        const hasTypes = Array.isArray(typeSlugs) && typeSlugs.length > 0;
+
+        if (suggestionsWrap) suggestionsWrap.hidden = !hasNeigh && !hasTypes;
+
+        if (hasNeigh) {
+          if (neighGroup) neighGroup.hidden = false;
+          renderCards(neighSlugs, allNeighbourhoods, neighGrid, false);
+        } else if (neighGroup) {
+          neighGroup.hidden = true;
+        }
+
+        if (hasTypes) {
+          if (typeGroup) typeGroup.hidden = false;
+          renderCards(typeSlugs, allTypes, typeGrid, true);
+        } else if (typeGroup) {
+          typeGroup.hidden = true;
+        }
+
+        if (form && payload) {
+          const sit = form.querySelector("#hm-situation");
+          const bud = form.querySelector("#hm-budget");
+          const tim = form.querySelector("#hm-timing");
+          if (sit) sit.value = payload.situation || "";
+          if (bud) bud.value = payload.budget || "";
+          if (tim) tim.value = payload.timing || "";
+        }
+
+        if (pdfActions) pdfActions.hidden = false;
+      } catch (e) {
+        console.error("Home Match render crash:", e);
+        if (outputEl) {
+          outputEl.classList.remove("hm-output--empty");
+          outputEl.innerHTML =
+            "<p>Sorry - I got a result but had trouble rendering it. Please try again, or reach out on the contact page.</p>";
+        }
+        if (suggestionsWrap) suggestionsWrap.hidden = true;
+        if (pdfActions) pdfActions.hidden = true;
+      }
+    }
+
+    function restoreFromSession() {
+      try {
+        if (!window.sessionStorage) return;
+        const raw = window.sessionStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const stored = JSON.parse(raw);
+        const payload = stored?.payload || {};
+        const data = stored?.data || null;
+        if (!data) return;
+
+        applyResult(data, payload);
+        if (pdfActions) pdfActions.hidden = false;
+      } catch {
+        // ignore
+      }
+    }
+
+    restoreFromSession();
+
+    const chips = document.querySelectorAll("[data-situation-snippet]");
+    const situationFieldEl = document.getElementById("hm-situation");
+
+    chips.forEach((chip) => {
+      chip.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (!situationFieldEl) return;
+
+        const snippet = chip.getAttribute("data-situation-snippet") || "";
+        const current = situationFieldEl.value.trim();
+
+        situationFieldEl.value = current
+          ? current + (current.endsWith(".") ? " " : ". ") + snippet
+          : snippet;
+
+        situationFieldEl.focus();
+      });
+    });
+
+    if (form) {
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const submitBtn = form.querySelector(".hm-submit");
+        const fd = new FormData(form);
+
+        const payload = {
+          situation: fd.get("situation") || "",
+          budget: fd.get("budget") || "",
+          timing: fd.get("timing") || "",
+        };
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.classList.add("is-loading");
+        }
+
+        if (suggestionsWrap) suggestionsWrap.hidden = true;
+        if (pdfActions) pdfActions.hidden = true;
+
+        startThinkingMessages();
+
+        try {
+          const res = await fetch("/api/home-match", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          stopThinkingMessages();
+
+          if (!res.ok) throw new Error("Bad response from /api/home-match");
+
+          const data = await res.json();
+
+          applyResult(data, payload);
+
+          try {
+            if (window.sessionStorage) {
+              window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ payload, data }));
+            }
+          } catch {
+            // ignore
+          }
+        } catch (err) {
+          stopThinkingMessages();
+          console.error(err);
+          if (outputEl) {
+            outputEl.innerHTML =
+              "<p>Sorry - something went wrong talking to the assistant. Please try again, or reach out on the contact page.</p>";
+          }
+          if (suggestionsWrap) suggestionsWrap.hidden = true;
+          if (pdfActions) pdfActions.hidden = true;
+        } finally {
+          stopThinkingMessages();
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove("is-loading");
+          }
+        }
+      });
+    }
+
+    function syncCuratedHidden() {
+      if (!form || !curatedSituation || !curatedBudget || !curatedTiming) return;
+      const fd = new FormData(form);
+      curatedSituation.value = (fd.get("situation") || "").toString();
+      curatedBudget.value = (fd.get("budget") || "").toString();
+      curatedTiming.value = (fd.get("timing") || "").toString();
+    }
+
+    if (curatedBox && curatedToggle && curatedPanel) {
+      function setOpen(open) {
+        curatedBox.classList.toggle("is-open", open);
+        curatedPanel.setAttribute("aria-hidden", open ? "false" : "true");
+        curatedToggle.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) syncCuratedHidden();
+      }
+
+      setOpen(false);
+
+      curatedToggle.addEventListener("click", (event) => {
+        event.preventDefault();
+        const open = !curatedBox.classList.contains("is-open");
+        setOpen(open);
+      });
+    }
+
+    if (curatedForm) {
+      const successEl = document.getElementById("hmCuratedSuccess");
+
+      curatedForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        syncCuratedHidden();
+
+        const nameEl = curatedForm.querySelector('input[name="name"]');
+        const emailEl = curatedForm.querySelector('input[name="email"]');
+
+        const name = (nameEl?.value || "").trim();
+        const email = (emailEl?.value || "").trim();
+
+        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+        [nameEl, emailEl].forEach((el) => el?.classList.remove("hm-field-error"));
+
+        if (!name || !emailOk) {
+          if (!name) nameEl?.classList.add("hm-field-error");
+          if (!emailOk) emailEl?.classList.add("hm-field-error");
+
+          if (successEl) {
+            successEl.hidden = false;
+            successEl.textContent = "Please add your name and a valid email before sending.";
+          }
+          return;
+        }
+
+        if (successEl) {
+          successEl.hidden = true;
+          successEl.textContent = "";
+        }
+
+        const submitBtn = curatedForm.querySelector(".hm-curated-submit");
+        if (submitBtn) submitBtn.disabled = true;
+
+        try {
+          const fd = new FormData(curatedForm);
+
+          const res = await fetch("https://formspree.io/f/mvgjywdn", {
+            method: "POST",
+            headers: { Accept: "application/json" },
+            body: fd,
+          });
+
+          if (res.ok) {
+            curatedForm.reset();
+            syncCuratedHidden();
+
+            if (successEl) {
+              successEl.hidden = false;
+              successEl.textContent =
+                "Thanks - I’ve got your details and your Fernie Home Match. I’ll email you a curated shortlist.";
+            }
+          } else {
+            if (successEl) {
+              successEl.hidden = false;
+              successEl.textContent =
+                "Something went wrong sending this. Please try again in a moment, or email me directly.";
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          if (successEl) {
+            successEl.hidden = false;
+            successEl.textContent =
+              "Something went wrong sending this. Please try again in a moment, or email me directly.";
+          }
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      });
+    }
+
+    /* ---------- PDF (print-to-PDF) helpers ---------- */
+
+    function pickBySlug(slugs, allItems, isType) {
+      const baseHref = isType ? "/types" : "/neighbourhoods";
+      const byAlias = new Map();
+
+      (allItems || []).forEach((item) => {
+        const canonical = normalizeSlug(item?.slug || "");
+        if (!canonical) return;
+        byAlias.set(canonical, item);
+        slugAliases(canonical).forEach((k) => byAlias.set(k, item));
+      });
+
+      const out = [];
+      (slugs || []).forEach((raw) => {
+        const candidates = slugAliases(raw).map((s) => normalizeSlug(s)).filter(Boolean);
+        let item = null;
+        let canonical = null;
+
+        for (const c of candidates) {
+          const hit = byAlias.get(c);
+          if (hit) {
+            item = hit;
+            canonical = normalizeSlug(hit?.slug || c);
+            break;
+          }
+        }
+        if (!canonical) canonical = candidates[0] || normalizeSlug(raw);
+        if (!canonical) return;
+
+        const title = cleanTitleJunk((item && (item.title || item.name)) || titleizeSlug(canonical));
+        out.push({ title, href: `${baseHref}/${canonical}` });
+      });
+
+      const seen = new Set();
+      return out.filter((x) => {
+        if (seen.has(x.href)) return false;
+        seen.add(x.href);
+        return true;
+      });
+    }
+
+    function buildPrintHtml() {
+      const payload = lastPayload || {};
+      const data = lastData || {};
+
+      const answerHtml = outputEl ? outputEl.innerHTML : "";
+      const neighSlugs = data?.neighbourhoodSlugs || [];
+      const typeSlugs = data?.propertyTypeSlugs || [];
+
+      const neighLinks = pickBySlug(neighSlugs, allNeighbourhoods, false);
+      const typeLinks = pickBySlug(typeSlugs, allTypes, true);
+
+      const now = new Date();
+      const stamp = now.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const esc = (s) => escapeHtmlInline(String(s || ""));
+
+      const linksBlock = (title, items) => {
+        if (!items?.length) return "";
+        return `
+          <h2>${esc(title)}</h2>
+          <ul>
+            ${items
+              .map(
+                (it) =>
+                  `<li><a href="${it.href}">${esc(it.title)}</a><span class="hm-print-url"> ${esc(
+                    it.href
+                  )}</span></li>`
+              )
+              .join("")}
+          </ul>
+        `;
+      };
+
+      return `
+        <div class="hm-print-page">
+          <div class="hm-print-header">
+            <div class="hm-print-title">Fernie Home Match</div>
+            <div class="hm-print-meta">Generated: ${esc(stamp)}</div>
+          </div>
+
+          <div class="hm-print-box">
+            <div class="hm-print-label">Your inputs</div>
+            <div class="hm-print-grid">
+              <div><strong>Situation</strong><div>${esc(payload.situation)}</div></div>
+              <div><strong>Budget</strong><div>${esc(payload.budget)}</div></div>
+              <div><strong>Timing</strong><div>${esc(payload.timing)}</div></div>
+            </div>
+          </div>
+
+          <div class="hm-print-box">
+            <div class="hm-print-label">Your Fernie plan</div>
+            <div class="hm-print-answer">${answerHtml || "<p>(No answer)</p>"}</div>
+          </div>
+
+          ${linksBlock("Recommended neighbourhoods", neighLinks)}
+          ${linksBlock("Recommended property types", typeLinks)}
+
+          <div class="hm-print-footer">
+            Chris Crump - fernie.homes
+          </div>
+        </div>
+      `;
+    }
+
+    function openPrintDialog() {
+      if (!printRoot) return;
+      if (!lastData || !outputEl || outputEl.classList.contains("hm-output--empty")) return;
+
+      printRoot.innerHTML = buildPrintHtml();
+
+      window.setTimeout(() => window.print(), 50);
+    }
+
+    if (pdfBtn) {
+      pdfBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        openPrintDialog();
+      });
+    }
+  </script>
+
+  <!-- ✅ IMPORTANT: global so injected cards/output get styled -->
+  <style is:global>
+
+    .page-shell { max-width: 1280px; margin-inline: auto; margin-top: 14px; margin-bottom: 40px; }
+    .pad-x { padding-inline: var(--edge-pad) !important; }
+    @media (min-width: 900px){ .pad-x { padding-inline: var(--edge-pad-lg) !important; } }
+
+    /* INTRO - matches /areas */
+    .page-intro {
+      max-width: var(--container-max);
+      margin: 0 auto 10px;
+      padding-top: 28px;
+    }
+
+    .area-breadcrumb{
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .area-breadcrumb a{ text-decoration: none; border-bottom: 1px solid transparent; }
+    .area-breadcrumb a:hover{ border-bottom-color: var(--accent); }
+    .area-breadcrumb-current{ opacity: 0.7; }
+
+    .area-title-block{ max-width: 48rem; }
+
+    .accent-bars{ display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+    .accent-bar{ height: 4px; border-radius: 999px; background: var(--accent); }
+    .accent-bar.primary{ width: 80px; opacity: 0.9; }
+    .accent-bar.secondary{ width: 40px; opacity: 0.45; }
+
+    .title-row{ display: flex; align-items: flex-start; gap: 0.75rem; }
+
+    .page-title{
+      margin: 0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height: 1.08;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #111827;
+    }
+
+    .page-subhead{
+      margin: 6px 0 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .mountain-strip{
+      margin: 8px auto 24px;
+      height: 48px;
+      max-height: 60px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
+    }
+    .mountain-strip svg{ width: 100%; height: 100%; opacity: 0.9; mix-blend-mode: multiply; }
+
+    .summary-wrap{
+      padding-top: 12px;
+      padding-bottom: 25px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 26px;
+    }
+
+    .lead{ margin: 0; font-size: 1.075rem; line-height: 1.6; color: #111827; }
+
+    /* SHELL */
+    .hm-shell { display: flex; flex-direction: column; gap: 28px; }
+
+    .hm-panel{
+      width: 100%;
+      border-radius: 26px;
+      padding: 24px 20px 28px;
+      background: radial-gradient(circle at top left, #0ea5e9 0, #020617 40%, #020617 100%);
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.45), 0 0 0 1px rgba(15, 23, 42, 0.7);
+      color: #e5e7eb;
+    }
+    @media (min-width: 900px){ .hm-panel{ padding: 28px 28px 32px; } }
+
+    .hm-form{ display:flex; flex-direction:column; gap:14px; margin-bottom:22px; }
+
+    .hm-header h2{
+      margin:0 0 6px;
+      font-size:1.7rem;
+      line-height:1.25;
+      letter-spacing:-0.01em;
+      color:#f9fafb;
+    }
+
+    .hm-kicker{
+      margin:0 0 4px;
+      font-size:0.8rem;
+      letter-spacing:0.18em;
+      text-transform:uppercase;
+      color:rgba(226,232,240,0.72);
+    }
+
+    .hm-pill-row{ display:flex; flex-wrap:wrap; gap:8px; margin-top:2px; margin-bottom:10px; }
+
+    .hm-pill{
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,0.7);
+      padding:5px 10px;
+      font-size:0.83rem;
+      background:rgba(15,23,42,0.75);
+      color:#e5e7eb;
+      cursor:pointer;
+      transition: background-color .12s ease, border-color .12s ease, transform .08s ease, box-shadow .12s ease;
+    }
+    .hm-pill:hover{
+      background:rgba(15,23,42,1);
+      border-color:#38bdf8;
+      transform:translateY(-1px);
+      box-shadow:0 4px 10px rgba(15,23,42,0.45);
+    }
+
+    .hm-field{ display:flex; flex-direction:column; gap:4px; }
+    .hm-field label{ font-size:0.9rem; font-weight:500; color:#e5e7eb; }
+    .hm-label-muted{ opacity:0.8; font-weight:400; }
+
+    .hm-field textarea,
+    .hm-field input{
+      border-radius:12px;
+      border:1px solid rgba(148,163,184,0.8);
+      background:rgba(15,23,42,0.9);
+      color:#e5e7eb;
+      padding:9px 11px;
+      font-size:1rem;
+      line-height:1.6;
+    }
+    .hm-field textarea::placeholder,
+    .hm-field input::placeholder{ color:rgba(148,163,184,0.9); }
+
+    .hm-field textarea:focus,
+    .hm-field input:focus{
+      outline:none;
+      border-color:#38bdf8;
+      box-shadow:0 0 0 1px rgba(56,189,248,0.6);
+    }
+
+    .hm-two-col{ display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1.1fr); gap:10px 14px; }
+    @media (max-width:700px){ .hm-two-col{ grid-template-columns:1fr; } }
+
+    .hm-submit{
+      margin-top:4px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:999px;
+      border:none;
+      padding:10px 22px;
+      font-size:1rem;
+      font-weight:600;
+      cursor:pointer;
+      color:#f9fafb;
+      background:linear-gradient(90deg,#22c55e,#0ea5e9);
+      box-shadow:0 10px 26px rgba(8,47,73,0.6);
+      transition: transform .08s ease, box-shadow .12s ease, filter .12s ease, opacity .12s ease;
+      position:relative;
+      overflow:hidden;
+    }
+    .hm-submit:hover{
+      transform:translateY(-1px);
+      box-shadow:0 14px 32px rgba(8,47,73,0.75);
+      filter:brightness(1.03);
+    }
+
+    .hm-submit.is-loading{ opacity:0.9; cursor:default; transform:none; box-shadow:0 10px 26px rgba(8,47,73,0.55); }
+    .hm-submit.is-loading::after{
+      content:"";
+      position:absolute;
+      inset:-2px;
+      background:linear-gradient(
+        90deg,
+        rgba(34,197,94,0.0),
+        rgba(14,165,233,0.55),
+        rgba(99,102,241,0.45),
+        rgba(34,197,94,0.55),
+        rgba(34,197,94,0.0)
+      );
+      transform:translateX(-60%);
+      animation: hm-shimmer 1.05s linear infinite;
+      filter: blur(0.5px);
+      pointer-events:none;
+      mix-blend-mode:screen;
+    }
+    @keyframes hm-shimmer { to { transform: translateX(60%); } }
+
+    .hm-footnote{ margin:6px 0 0; font-size:0.78rem; line-height:1.5; color:rgba(203,213,225,0.9); }
+
+    /* OUTPUT */
+    .hm-output-section{ margin-top:18px; padding:0; background:transparent; border:none; box-shadow:none; }
+
+    .hm-output{
+      padding:0;
+      background:transparent;
+      border:none;
+      box-shadow:none;
+      max-height:none;
+      overflow:visible;
+      font-size:1.05rem;
+      line-height:1.8;
+      color:#e5e7eb;
+    }
+    .hm-output p{ margin:0 0 1rem; padding:0; }
+    .hm-output h3{ margin:1.6rem 0 0.6rem; font-size:1.45rem; font-weight:600; letter-spacing:-0.01em; color:#ffffff; }
+    .hm-output ul, .hm-output ol{ margin:0.6rem 0 1rem 1.3rem; padding:0; }
+    .hm-output--empty{ font-style:italic; color:rgba(226,232,240,0.85); }
+
+    .hm-thinking{ animation: hm-fade 0.35s ease; }
+    @keyframes hm-fade { from{opacity:.3; transform:translateY(2px);} to{opacity:1; transform:translateY(0);} }
+
+    .hm-bullet-list{ margin:0.55rem 0 1.05rem 1.1rem; padding:0; list-style:disc; }
+    .hm-rec-item{ margin:0.55rem 0; padding:0; color:rgba(226,232,240,0.92); }
+    .hm-rec-title{ font-size:1.06rem; font-weight:750; line-height:1.25; color:#f8fafc; margin-bottom:0.14rem; }
+    .hm-rec-desc{ font-size:0.95rem; line-height:1.55; color:rgba(226,232,240,0.92); opacity:0.95; }
+
+    /* PDF actions */
+    .hm-pdf-actions{
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .hm-pdf-btn{
+      border-radius: 999px;
+      border: 1px solid rgba(125,211,252,0.45);
+      background: rgba(15,23,42,0.9);
+      color: #e5e7eb;
+      padding: 8px 14px;
+      font-weight: 650;
+      cursor: pointer;
+      transition: transform .08s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+    .hm-pdf-btn:hover{
+      transform: translateY(-1px);
+      border-color: rgba(125,211,252,0.75);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+    }
+    .hm-pdf-note{
+      margin: 0;
+      font-size: 0.86rem;
+      color: rgba(226,232,240,0.78);
+    }
+
+    /* Hidden print root - only for printing */
+    .hm-print-root{ display: none; }
+
+    @media print {
+      /* Hide everything except the print root */
+      body * { visibility: hidden !important; }
+      #hmPrintRoot, #hmPrintRoot * { visibility: visible !important; }
+      #hmPrintRoot {
+        display: block !important;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+
+      /* Print layout */
+      .hm-print-page{
+        padding: 18mm 16mm;
+        font-size: 11pt;
+        color: #111;
+      }
+      .hm-print-header{
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 8mm;
+        margin-bottom: 8mm;
+      }
+      .hm-print-title{ font-size: 18pt; font-weight: 750; }
+      .hm-print-meta{ font-size: 9pt; color: #555; }
+
+      .hm-print-box{
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 10mm;
+      }
+      .hm-print-label{
+        font-size: 9pt;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #444;
+        margin-bottom: 6px;
+        font-weight: 650;
+      }
+      .hm-print-grid{
+        display: grid;
+        grid-template-columns: 1.6fr 1fr 1fr;
+        gap: 10px;
+      }
+      .hm-print-grid strong{ display: block; margin-bottom: 4px; }
+      .hm-print-answer h3{ margin: 10px 0 6px; font-size: 13pt; }
+      .hm-print-answer p{ margin: 0 0 10px; }
+      .hm-print-answer ul{ margin: 0 0 10px 18px; }
+
+      h2{
+        font-size: 12pt;
+        margin: 0 0 6px;
+      }
+      ul{ margin: 0 0 8mm 18px; }
+      .hm-print-url{ font-size: 9pt; color: #666; }
+
+      .hm-print-footer{
+        margin-top: 10mm;
+        font-size: 9pt;
+        color: #666;
+        border-top: 1px solid #ddd;
+        padding-top: 6mm;
+      }
+
+      @page { margin: 0; }
+    }
+
+    /* SUGGESTIONS */
+    .hm-suggestions{ margin-top:18px; padding-top:14px; border-top:none; }
+    .hm-suggest-group + .hm-suggest-group{ margin-top:16px; }
+    .hm-suggest-group h3{ margin:0 0 4px; font-size:1.25rem; font-weight:700; letter-spacing:-0.01em; color:#f0f9ff; }
+    .hm-suggest-group p{ margin:0 0 12px; font-size:0.95rem; color:rgba(240,249,255,0.85); }
+
+    .hm-suggest-grid{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; margin-top:4px; }
+    @media (max-width:900px){ .hm-suggest-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:640px){ .hm-suggest-grid{ grid-template-columns:1fr; } }
+
+    .hm-suggest-card{
+      display:flex;
+      flex-direction:column;
+      position:relative;
+      border-radius:18px;
+      overflow:hidden;
+      background:rgba(15,23,42,0.98);
+      border:1px solid rgba(125,211,252,0.15);
+      box-shadow:none;
+      color:#e5e7eb;
+      cursor:pointer;
+      text-decoration:none;
+      transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+    }
+    .hm-suggest-card:hover{
+      border-color:rgba(125,211,252,0.55);
+      box-shadow:0 0 8px rgba(125,211,252,0.35), 0 0 20px rgba(125,211,252,0.25), 0 0 36px rgba(125,211,252,0.15);
+      background:radial-gradient(circle at top left, #1e293b, #020617);
+    }
+    .hm-suggest-card:focus-visible{ outline:2px solid #38bdf8; outline-offset:4px; }
+
+    .hm-suggest-img-wrap{ position:relative; width:100%; overflow:hidden; background:#020617; aspect-ratio:16/9; }
+    .hm-suggest-img-wrap img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+    .hm-suggest-body{ padding:12px 14px 16px; display:flex; flex-direction:column; gap:6px; }
+    .hm-suggest-body h5{ margin:0; font-size:1rem; font-weight:600; color:#f8fafc; }
+    .hm-suggest-body p{
+      margin:0;
+      padding:0;
+      font-size:0.86rem;
+      line-height:1.45;
+      color:rgba(226,232,240,0.92);
+      display:-webkit-box;
+      -webkit-box-orient:vertical;
+      -webkit-line-clamp:3;
+      overflow:hidden;
+    }
+    .hm-suggest-cta{
+      all:unset;
+      display:inline-flex;
+      align-items:center;
+      margin-top:8px;
+      font-size:0.86rem;
+      font-weight:600;
+      color:#7dd3fc;
+      opacity:0.9;
+      cursor:pointer;
+      gap:0.3rem;
+      transition: opacity .15s ease, color .15s ease, transform .12s ease;
+    }
+    .hm-suggest-card:hover .hm-suggest-cta{ opacity:1; color:#bae6fd; text-decoration:none; }
+
+    /* HUMAN */
+    .hm-human{
+      margin-top:6px;
+      padding:18px 0 4px;
+      border-top:1px solid #e5e7eb;
+    }
+    .hm-human h2{ margin:0 0 6px; font-size:1.1rem; color:#111827; }
+    .hm-human p{
+      margin:0 0 10px;
+      font-size:0.98rem;
+      line-height:1.5;
+      color:#374151;
+      max-width:40rem;
+    }
+    .hm-human-cta{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:999px;
+      border:1px solid #111827;
+      padding:8px 16px;
+      font-size:0.95rem;
+      font-weight:600;
+      text-decoration:none;
+      background:#111827;
+      color:#f9fafb;
+      transition: background-color .12s ease, color .12s ease, transform .08s ease, box-shadow .12s ease;
+    }
+    .hm-human-cta:hover{
+      background:#020617;
+      color:#f9fafb;
+      transform:translateY(-1px);
+      box-shadow:0 6px 16px rgba(15,23,42,0.4);
+    }
+
+    /* SUBMIT SPINNER */
+    .hm-submit-spinner{
+      width:14px;
+      height:14px;
+      border-radius:999px;
+      border:2px solid rgba(255,255,255,0.35);
+      border-top-color:#ffffff;
+      margin-right:8px;
+      display:none;
+      animation: hm-spin .7s linear infinite;
+    }
+    .hm-submit.is-loading .hm-submit-spinner{ display:inline-block; }
+    .hm-submit.is-loading .hm-submit-text{ opacity:0.85; }
+    @keyframes hm-spin { to { transform: rotate(360deg); } }
+
+    /* Curated accordion */
+    .hm-curated-box{
+      margin-top:18px;
+      border-radius:16px;
+      background: radial-gradient(circle at top, rgba(13,223,201,0.10), transparent) 0 0 / 100% 220px no-repeat;
+      background-color: rgba(3,16,38,0.96);
+      border:1px solid rgba(15,23,42,0.9);
+      box-shadow:0 14px 32px rgba(0,0,0,0.45);
+      overflow:hidden;
+    }
+    .hm-curated-toggle{
+      width:100%;
+      border:0;
+      padding:1.1rem 1.5rem;
+      background:transparent;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:1rem;
+      cursor:pointer;
+      color:#e6f4ff;
+    }
+    .hm-curated-toggle-main{ display:flex; flex-direction:column; text-align:left; }
+    .hm-curated-toggle-title{ font-size:1.05rem; font-weight:600; }
+    .hm-curated-toggle-sub{ font-size:0.85rem; opacity:0.8; margin-top:0.2rem; }
+    .hm-curated-toggle-icon{ display:inline-flex; align-items:center; justify-content:center; font-size:1.1rem; transform:rotate(0deg); transition: transform 180ms ease; }
+    .hm-curated-box.is-open .hm-curated-toggle-icon{ transform:rotate(180deg); }
+
+    .hm-curated-panel{
+      padding:0 1.5rem 1.5rem;
+      max-height:0;
+      opacity:0;
+      overflow:hidden;
+      transition:max-height 220ms ease, opacity 200ms ease;
+    }
+    .hm-curated-box.is-open .hm-curated-panel{ opacity:1; max-height:900px; }
+
+    .hm-curated-insight{
+      margin-top:0.5rem;
+      margin-bottom:1.3rem;
+      font-size:0.87rem;
+      color:rgba(230,244,255,0.9);
+    }
+
+    .hm-curated-form{ display:flex; flex-direction:column; gap:1.25rem; }
+
+    .hm-curated-row{
+      display:grid;
+      grid-template-columns:minmax(0,1.2fr) minmax(0,1.2fr) auto;
+      gap:0.9rem;
+      align-items:flex-end;
+    }
+
+    .hm-curated-field{ display:flex; flex-direction:column; gap:0.3rem; }
+    .hm-curated-field--full{ grid-column:1 / -1; }
+
+    .hm-curated-label{
+      font-size:0.8rem;
+      text-transform:uppercase;
+      letter-spacing:0.06em;
+      color:rgba(212,230,255,0.9);
+    }
+
+    .hm-curated-input-wrap{
+      display:flex;
+      align-items:center;
+      gap:0.5rem;
+      padding:0.65rem 0.9rem;
+      border-radius:10px;
+      border:1px solid rgba(148,163,184,0.35);
+      background:rgba(15,23,42,0.9);
+    }
+    .hm-curated-input-wrap--textarea{ align-items:flex-start; }
+
+    .hm-curated-input-icon{ font-size:0.9rem; opacity:0.9; margin-top:0.05rem; }
+
+    .hm-curated-input-wrap input,
+    .hm-curated-input-wrap textarea{
+      flex:1;
+      border:none;
+      background:transparent;
+      color:#f7fbff;
+      font-size:0.95rem;
+      font-family:inherit;
+    }
+    .hm-curated-input-wrap input::placeholder,
+    .hm-curated-input-wrap textarea::placeholder{ color:rgba(216,231,255,0.6); }
+    .hm-curated-input-wrap input:focus,
+    .hm-curated-input-wrap textarea:focus{ outline:none; }
+
+    .hm-curated-input-wrap:focus-within{
+      border-color:rgba(0,209,255,0.7);
+      box-shadow:0 0 0 2px rgba(0,209,255,0.3);
+    }
+
+    .hm-curated-submit-wrap{ display:flex; align-items:center; }
+
+    .hm-curated-submit{
+      white-space:nowrap;
+      padding-inline:1.3rem;
+      padding-block:0.8rem;
+      font-size:0.95rem;
+      border-radius:999px;
+      border:none;
+      background:linear-gradient(90deg,#22c55e,#0ea5e9);
+      color:#021622;
+      font-weight:600;
+      cursor:pointer;
+      box-shadow:0 10px 24px rgba(8,47,73,0.7);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      transition: transform .08s ease, box-shadow .12s ease, filter .12s ease;
+    }
+    .hm-curated-submit:hover{
+      transform:translateY(-1px);
+      box-shadow:0 14px 32px rgba(8,47,73,0.85);
+      filter:brightness(1.03);
+    }
+
+    .hm-curated-success{ margin-top:0.9rem; font-size:0.85rem; color:#bbf7d0; }
+
+    /* validation */
+    .hm-field-error{
+      outline: 2px solid rgba(239, 68, 68, 0.75);
+      outline-offset: 2px;
+      border-color: rgba(239, 68, 68, 0.75) !important;
+    }
+
+    @media (max-width:780px){
+      .hm-curated-row{ grid-template-columns:1fr; }
+      .hm-curated-submit-wrap{ justify-content:stretch; }
+      .hm-curated-submit{ width:100%; }
+    }
+  
+  </style>
+</Site>

@@ -1,115 +1,146 @@
 ---
-// File: src/components/CTAForm.astro
+/** File: src/components/CTAForm.astro */
+/** Simplified: hard-coded to working Formspree form xqajpnvo */
+
 export interface Props {
-  formId: string;
   pageSlug?: string;
-  pageTitle?: string;   // Activity (e.g., "skiing and boarding")
-  spare_1?: string;     // BG image for the copy panel (left)
-  spare_1_pos?: string; // optional CSS background-position (e.g., "center 30%")
+  pageTitle?: string;
+
+  // Optional overrides if you ever want to tweak copy per-page
+  headline?: string;
+  subline?: string;
+
+  // Optional background image for the left panel
+  spare_1?: string;
+  spare_1_pos?: string;
 }
 
 const {
-  formId,
   pageSlug = "",
-  pageTitle = "spending time",
+  pageTitle = "",
+  headline,
+  subline,
   spare_1 = "",
   spare_1_pos = "center center",
 } = Astro.props;
 
-// Pretty title — capitalize each word except "and"
-const base = (pageTitle ?? "spending time").toString().trim();
-const prettyTitle = base
-  ? base
-      .toLowerCase()
-      .split(/\s+/)
-      .map((word, i) => {
-        if (word === "and") return "and"; // keep "and" lowercase
-        return word.charAt(0).toUpperCase() + word.slice(1);
-      })
-      .join(" ")
-  : "Spending Time";
+/* ---------- Formspree endpoint (same project as contact form) ---------- */
+const formAction = "https://formspree.io/f/xqajpnvo";
 
+/* ---------- Copy (hard-coded defaults with optional overrides) ---------- */
+const DEFAULT_HEADLINE = "Get Early Access to Homes Worth Seeing";
+const DEFAULT_SUBLINE =
+  "Tell me what matters to you and I’ll send homes that actually fit.";
 
+const resolvedHeadline = (headline ?? "").trim() || DEFAULT_HEADLINE;
+const resolvedSubline  = (subline ?? "").trim()  || DEFAULT_SUBLINE;
 
-// Personas
-type Persona = { name: string; email: string; notes?: string };
-const personas: Record<string, Persona> = {
-  Snowmobiling: { name: "Sled-Head Sam", email: "powdersledder@example.com", notes: "pow stashes, groomed trails" },
-  Snowboarding: { name: "Pow Chaser", email: "pow-chaser@example.com", notes: "steeps, trees, sidecountry" },
-  Skiing:       { name: "First-Chair Fran", email: "firstchair@example.com", notes: "early laps, quiet runs" },
-  Biking:       { name: "Singletrack Pat", email: "trailtime@example.com", notes: "flow + technical mix" },
-  Rafting:      { name: "River Runner", email: "splashcrew@example.com", notes: "class II/III, sunny days" },
-  Hiking:       { name: "Summit Seeker", email: "highline@example.com" },
-};
-const persona: Persona = personas[prettyTitle] ?? {
-  name: `${prettyTitle} fan`,
-  email: `${prettyTitle.toLowerCase().replace(/\s+/g, "-")}-fan@example.com`,
-};
+// Subject line for your inbox (no “Quiet List” wording)
+const subject = pageTitle
+  ? `Fernie Homes • ${pageTitle}`
+  : "Fernie Homes • Website enquiry";
 
-const fanTag = `For ${prettyTitle} fans`;
+const ctaVariant = "cta-inline-v2";
 
-// Copy panel background
+/* ---------- Left panel background ---------- */
 const copyBg = (spare_1 ?? "").toString().trim();
 const copyStyle = copyBg
   ? `background-image: linear-gradient(rgba(0,0,0,.80), rgba(0,0,0,.58)), url('${copyBg}');
-     background-position: ${spare_1_pos};`
+     background-position: ${spare_1_pos};
+     background-size: cover;`
   : "";
 ---
 
-<section class="cta" data-activity={prettyTitle}>
-  <!-- LEFT: copy with image -->
+<section class="cta" data-page={pageSlug || pageTitle.toLowerCase()}>
+  {/* LEFT: copy with optional background image */}
   <div class="cta__text" style={copyStyle}>
     <div class="cta__text-inner">
+      <p class="cta__kicker">Fernie homes &amp; condos</p>
       <h2 class="cta__title">
-        Love {prettyTitle} in Fernie?<br />Maybe it's time to move here.
-      </h2><br />
-      <p class="cta__tag">{fanTag} ✳</p>
-
+        {resolvedHeadline}
+      </h2>
       <p class="cta__intro">
-        If you love it here, why not make it part of your life?
-        Get a curated list of homes near the places where you actually want to be -
-        trails, lifts, rivers, patios, and everything in between.
+        {resolvedSubline}
       </p>
-  
+      <ul class="cta__list">
+        <li>Early heads-up on listings that actually fit.</li>
+        <li>No spam, no pressure — unsubscribe any time.</li>
+        <li>Local context on streets, zoning, and rental rules.</li>
+      </ul>
     </div>
   </div>
 
-  <!-- RIGHT: neutral form -->
-<form action={`https://formspree.io/f/xzzklnlw`} method="POST" class="cta__form">
-
-    <!-- Hidden context -->
+  {/* RIGHT: form */}
+  <form
+    id="cta-form"
+    action={formAction}
+    method="POST"
+    class="cta__form"
+  >
+    {/* Hidden context */}
     <input type="hidden" name="page_slug" value={pageSlug} />
-    <input type="hidden" name="page_title" value={base} />
-    <input type="hidden" name="activity" value={prettyTitle} />
-    <input type="hidden" name="cta_variant" value="activity-themed-persona-v1" />
-    <input type="hidden" name="_subject" value={`Fernie Quiet List • ${prettyTitle}`} />
+    <input type="hidden" name="page_title" value={pageTitle} />
+    <input type="hidden" name="cta_variant" value={ctaVariant} />
+    <input type="hidden" name="_subject" value={subject} />
 
-    <!-- Honeypot (basic spam guard) -->
-    <input type="text" name="_gotcha" class="hp" tabindex="-1" autocomplete="off" />
+    {/* Honeypot (basic spam guard) */}
+    <input
+      type="text"
+      name="_gotcha"
+      class="hp"
+      tabindex="-1"
+      autocomplete="off"
+    />
 
     <div class="fld">
-      <label for="name">Name</label>
-      <input id="name" name="name" type="text" placeholder={persona.name} autocomplete="name" required />
+      <label for="cta_name">Name</label>
+      <input
+        id="cta_name"
+        name="name"
+        type="text"
+        placeholder="Jane Smith"
+        autocomplete="name"
+        required
+      />
     </div>
 
     <div class="fld">
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" placeholder={persona.email} autocomplete="email" required />
+      <label for="cta_email">Email</label>
+      <input
+        id="cta_email"
+        name="email"
+        type="email"
+        placeholder="you@email.com"
+        autocomplete="email"
+        required
+      />
     </div>
 
     <div class="fld">
-      <label for="budget">Budget (approx.)</label>
-      <input id="budget" name="budget" type="text" placeholder="$700k – $900k" inputmode="text" autocomplete="off" />
+      <label for="cta_budget">Budget (approx.)</label>
+      <input
+        id="cta_budget"
+        name="budget"
+        type="text"
+        placeholder="$700k – $900k"
+        autocomplete="off"
+      />
     </div>
 
     <div class="fld">
-      <label for="beds">Beds</label>
-      <input id="beds" name="beds" type="text" placeholder="2+" inputmode="numeric" autocomplete="off" />
+      <label for="cta_beds">Beds</label>
+      <input
+        id="cta_beds"
+        name="beds"
+        type="text"
+        placeholder="2+"
+        autocomplete="off"
+      />
     </div>
 
     <div class="fld fld--full">
-      <label for="timing">When are you thinking?</label>
-      <select id="timing" name="timing" autocomplete="off">
+      <label for="cta_timing">When are you thinking?</label>
+      <select id="cta_timing" name="timing" autocomplete="off">
         <option value="">Select…</option>
         <option>Soon (0–3 months)</option>
         <option>3–6 months</option>
@@ -119,54 +150,23 @@ const copyStyle = copyBg
     </div>
 
     <div class="fld fld--full">
-      <label for="notes">Anything specific?</label>
+      <label for="cta_notes">Anything specific?</label>
       <textarea
-        id="notes"
+        id="cta_notes"
         name="notes"
-        rows="3"
-        placeholder={personas[prettyTitle]?.notes
-          ? `e.g., ${personas[prettyTitle]?.notes}`
-          : "e.g., walkable, quiet street, rental-friendly"}
+        rows={3}
+        placeholder="e.g., walkable, quiet street, rental-friendly, good storage…"
       ></textarea>
     </div>
 
-    <button type="submit" class="cta__btn">Get my quiet list →</button>
+    <button type="submit" class="cta__btn">
+      Get homes sent to me →
+    </button>
+
+    <div id="cta-status" class="cta__status" aria-live="polite" hidden></div>
   </form>
 
-  <script>
-document.addEventListener("DOMContentLoaded", () => {
-  const form = document.querySelector("form.cta__form");
-  if (!form) return;
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    const data = new FormData(form);
-
-    const r = await fetch(form.action, {
-      method: form.method,
-      body: data,
-      headers: { 'Accept': 'application/json' }
-    });
-
-    if (r.ok) {
-      form.innerHTML = `
-        <div class="p-4 text-center">
-          <h3 class="text-xl font-semibold mb-2">Thanks!</h3>
-          <p class="text-neutral-600">I’ll get back to you shortly.</p>
-        </div>
-      `;
-    } else {
-      alert("There was an error. Please try again.");
-    }
-  }
-
-  form.addEventListener("submit", handleSubmit);
-});
-</script>
-
-
   <style>
-    /* Container */
     .cta {
       width: 100%;
       max-width: var(--site-max, 1300px);
@@ -174,115 +174,253 @@ document.addEventListener("DOMContentLoaded", () => {
       border: 1px solid #e5e7eb;
       border-radius: 16px;
       background: #fff;
-      box-shadow: 0 8px 24px rgba(0,0,0,.05);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
       display: grid;
       grid-template-columns: 1fr;
       overflow: hidden;
-
-      /* Ensure nothing above/behind blocks clicks */
       position: relative;
-      z-index: 10;
-      isolation: isolate;     /* new stacking context */
-      contain: paint;         /* hard layer; shields from stray overlays */
-      pointer-events: auto;   /* belt & suspenders */
-    }
-    @media (min-width: 900px) {
-      .cta { grid-template-columns: 1fr 1fr; }
+      z-index: 5;
+      isolation: isolate;
     }
 
-    /* LEFT: copy w/ image */
+    @media (min-width: 900px) {
+      .cta {
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      }
+    }
+
     .cta__text {
       position: relative;
-      z-index: 2;
-      background: #4e077e;
-      background-size: 150% auto;       /* show more of the image on desktop */
-      background-repeat: no-repeat;
-      background-position: center !important;
+      background: radial-gradient(circle at top left, #111827, #020617);
       color: #fff;
       min-height: 420px;
       display: flex;
       align-items: center;
-      pointer-events: auto;
-    }
-    @media (max-width: 899px) {
-      .cta__text { background-size: cover; }
     }
 
     .cta__text-inner {
-      padding: 2rem;
+      padding: 2rem 2.4rem 2rem 2rem;
       width: 100%;
-      max-width: 680px;
+      max-width: 640px;
     }
 
-    /* FIXED clamp: max must be larger than min */
-    .cta__title { font-size: clamp(28px, 2.3vw, 40px); font-weight: 600; line-height: 1.25; margin: 0 0 .35rem; color:#fff; }
-    .cta__tag   { margin: 0 0 .9rem; font-size: .95rem; color: rgba(255,255,255,.95); }
-    .cta__intro { font-weight: 500; margin: 0 0 1rem; font-size: 1rem; line-height: 1.65; color: rgba(255,255,255,.95); }
-    .cta__list  { font-weight: 500; margin: 0; padding: 0; list-style: none; color: rgba(255,255,255,.95); font-size: .95rem; }
-    .cta__list li { margin: .38rem 0; }
+    @media (max-width: 899px) {
+      .cta__text {
+        min-height: 320px;
+      }
+      .cta__text-inner {
+        padding: 1.75rem 1.5rem;
+      }
+    }
 
-    /* RIGHT: form panel */
+    .cta__kicker {
+      margin: 0 0 0.4rem;
+      font-size: 0.85rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .cta__title {
+      margin: 0 0 0.6rem;
+        font-size: clamp(1.4rem, 1.8vw, 1.9rem);
+      line-height: 1.25;
+      font-weight: 600;
+      color: #f9fafb;
+    }
+
+    .cta__intro {
+      margin: 0 0 0.85rem;
+      font-size: 0.98rem;
+      line-height: 1.65;
+      color: rgba(249, 250, 251, 0.95);
+    }
+
+    .cta__list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: 0.92rem;
+      color: rgba(249, 250, 251, 0.95);
+    }
+
+    .cta__list li {
+      margin: 0.28rem 0;
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .cta__list li::before {
+      content: "•";
+      display: inline-block;
+      transform: translateY(-1px);
+    }
+
     .cta__form {
-      background: #cdced1;
-      padding: 1.25rem;
-      border-left: 1px solid #e9eaef;
+      background: #f3f4f6;
+      padding: 1.4rem 1.4rem 1.5rem;
+      border-left: 1px solid #e5e7eb;
       display: grid;
       grid-template-columns: 1fr;
-      gap: 1rem;
-
-      position: relative;  /* ensure above any odd siblings */
-      z-index: 2;
-      pointer-events: auto;
-    }
-    @media (min-width: 700px) {
-      .cta__form { grid-template-columns: 1fr 1fr; }
+      gap: 0.9rem;
     }
 
-    .fld { display: flex; flex-direction: column; min-width: 0; }
-    .fld--full { grid-column: 1 / -1; }
-    .fld label { font-weight: 600; font-size: .92rem; margin-bottom: .32rem; color: #333; }
+    @media (min-width: 720px) {
+      .cta__form {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 899px) {
+      .cta__form {
+        border-left: none;
+        border-top: 1px solid #e5e7eb;
+      }
+    }
+
+    .fld {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .fld--full {
+      grid-column: 1 / -1;
+    }
+
+    .fld label {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 0.28rem;
+      color: #111827;
+    }
 
     .fld input,
     .fld select,
     .fld textarea {
-      padding: .62rem .72rem;
-      border: 1px solid #cfd4dc;
+      padding: 0.6rem 0.7rem;
       border-radius: 8px;
-      font-size: .96rem;
-      line-height: 1.35;
+      border: 1px solid #d1d5db;
       background: #fff;
+      font-size: 0.95rem;
+      line-height: 1.35;
+      outline: none;
       width: 100%;
       box-sizing: border-box;
-      outline: none;
     }
+
     .fld input:focus,
     .fld select:focus,
     .fld textarea:focus {
-      border-color: #111;
-      box-shadow: 0 0 0 2px rgba(0,0,0,.08);
+      border-color: #111827;
+      box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.12);
     }
 
     .cta__btn {
       grid-column: 1 / -1;
-      background: #111;
+      margin-top: 0.2rem;
+      background: #111827;
       color: #fff;
-      padding: .9rem 1rem;
+      padding: 0.9rem 1rem;
       font-size: 1rem;
-      font-weight: 700;
-      border: none;
+      font-weight: 600;
       border-radius: 10px;
+      border: none;
       cursor: pointer;
-      transition: background .2s ease;
       width: 100%;
+      transition:
+        background 0.18s ease,
+        transform 0.06s ease,
+        box-shadow 0.12s ease;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
     }
-    .cta__btn:hover { background: #222; }
 
-    /* Mobile: stack divider */
-    @media (max-width: 899px) {
-      .cta__form { border-left: none; border-top: 1px solid #e9eaef; }
+    .cta__btn:hover {
+      background: #020617;
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(15, 23, 42, 0.25);
     }
 
-    /* Honeypot hide */
-    .hp { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+    .cta__status{
+      grid-column: 1 / -1;
+      margin-top: 0.35rem;
+      font-size: 0.9rem;
+      line-height: 1.4;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: #f9fafb;
+      color: #4b5563;
+    }
+
+    .cta__status.is-success{
+      border-color: #22c55e;
+      background: #ecfdf3;
+      color: #166534;
+    }
+
+    .cta__status.is-error{
+      border-color: #ef4444;
+      background: #fef2f2;
+      color: #b91c1c;
+    }
+
+    .hp {
+      position: absolute;
+      left: -9999px;
+      top: auto;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+    }
+
+    #cta-form.is-submitted {
+      opacity: 1;
+      pointer-events: none;
+    }
   </style>
+
+  <script>
+    if (typeof window !== "undefined") {
+      window.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("cta-form");
+        const statusEl = document.getElementById("cta-status");
+        if (!form || !statusEl) return;
+
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+
+          statusEl.hidden = false;
+          statusEl.textContent = "Sending your details…";
+          statusEl.classList.remove("is-error", "is-success");
+
+          const formData = new FormData(form);
+
+          try {
+            const res = await fetch(form.action, {
+              method: form.method,
+              body: formData,
+              headers: { Accept: "application/json" },
+            });
+
+            if (res.ok) {
+              form.reset();
+              form.classList.add("is-submitted");
+              statusEl.textContent =
+                "Thanks — I’ve got your details and I’ll follow up with a few Fernie listings and ideas that fit.";
+              statusEl.classList.add("is-success");
+            } else {
+              statusEl.textContent =
+                "Hmm, something went wrong. Please try again or email me at chris@crump.ca.";
+              statusEl.classList.add("is-error");
+            }
+          } catch (err) {
+            statusEl.textContent =
+              "Network hiccup. Please try again in a moment or email me directly at chris@crump.ca.";
+            statusEl.classList.add("is-error");
+          }
+        });
+      });
+    }
+  </script>
 </section>

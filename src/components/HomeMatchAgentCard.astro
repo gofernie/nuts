@@ -1,0 +1,696 @@
+---
+const quickTags = [
+  "Family who skis",
+  "Remote worker, close to town",
+  "Investor, long-term rental",
+  "Retiring, quiet street",
+];
+---
+
+<section class="hm-shell" aria-labelledby="hm-heading">
+  <div class="hm-card">
+   
+
+    <!-- FORM -->
+    <form id="homeMatchForm" class="hm-form" novalidate>
+      <div class="hm-chip-row" aria-label="Common situations">
+        {quickTags.map((tag) => (
+          <button
+            type="button"
+            class="hm-chip"
+            data-hm-chip={tag}
+          >
+            {tag}
+          </button>
+        ))}
+      </div>
+
+      <div class="hm-grid">
+        <div class="hm-field hm-field-full">
+          <label for="hm-situation">Briefly describe your situation</label>
+          <textarea
+            id="hm-situation"
+            name="situation"
+            rows="4"
+            required
+            placeholder="E.g. Skiing family who wants lift access, good schools, and space for gear…"
+          ></textarea>
+        </div>
+
+        <div class="hm-field">
+          <label for="hm-budget">Budget (rough is fine)</label>
+          <input
+            id="hm-budget"
+            name="budget"
+            type="text"
+            inputmode="text"
+            placeholder="E.g. $800k–$1.1M"
+          />
+        </div>
+
+        <div class="hm-field">
+          <label for="hm-timing">Timing</label>
+          <input
+            id="hm-timing"
+            name="timing"
+            type="text"
+            placeholder="This season / next 6–12 months / just browsing"
+          />
+        </div>
+      </div>
+
+      <div class="hm-actions-row">
+        <button type="submit" class="hm-btn-primary" data-hm-submit>
+          Ask the Fernie Home Match assistant
+        </button>
+        <p class="hm-footnote">
+          Powered by AI using Chris Crump’s local knowledge and content. It’s a starting point,
+          not a formal valuation or legal advice.
+        </p>
+      </div>
+    </form>
+
+    <!-- OUTPUT + IMAGES + NEXT ACTIONS -->
+    <section class="hm-output-shell" aria-live="polite">
+      <div id="homeMatchOutput" class="hm-output hm-output-empty">
+        <p>
+          Your suggested neighbourhoods and property types will appear here after you ask a
+          question.
+        </p>
+      </div>
+
+      <!-- NEW: neighbourhood image strip -->
+      <div id="homeMatchNeighbourCards" class="hm-suggested" hidden>
+        <h3 class="hm-suggested-title">Neighbourhoods to explore</h3>
+        <p class="hm-suggested-copy">
+          These Fernie areas showed up as good matches based on what you shared.
+        </p>
+        <div class="hm-suggested-grid"></div>
+      </div>
+
+      <div class="hm-next-actions">
+        <p class="hm-next-heading">What would you like to do next?</p>
+        <p class="hm-next-copy">
+          Based on what you told the assistant, use these actions to explore or get human help.
+        </p>
+
+        <div class="hm-next-buttons">
+          <a
+            href="/neighbourhoods"
+            class="hm-btn-ghost"
+          >
+            View listings in Fernie neighbourhoods →
+          </a>
+          <a
+            href="/types"
+            class="hm-btn-ghost"
+          >
+            Explore matching property types →
+          </a>
+          <a
+            href="/contact?source=home-match-ai"
+            class="hm-btn-ghost hm-btn-accent"
+          >
+            Get a custom shortlist from Chris
+          </a>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<script>
+  if (typeof window !== "undefined") {
+    // Static mapping from slugs → images + copy
+    const NEIGH_META = {
+      "ski-hill": {
+        label: "Fernie Alpine Ski Resort",
+        href: "/neighbourhoods/ski-hill",
+        img: "/images/neighbourhoods/ski-hill-hero.jpg", // TODO: swap to your real hero URL
+        blurb: "Lift-side living with direct access to skiing and resort amenities.",
+      },
+      "montane-fernie": {
+        label: "Montane",
+        href: "/neighbourhoods/montane-fernie",
+        img: "/images/neighbourhoods/montane-hero.jpg", // TODO: swap
+        blurb: "Trail-connected, family-friendly community with quick access to FAR and town.",
+      },
+      ridgemont: {
+        label: "Ridgemont",
+        href: "/neighbourhoods/ridgemont",
+        img: "/images/neighbourhoods/ridgemont-hero.jpg", // TODO: swap
+        blurb: "Established neighbourhood with good school access and walkable trails.",
+      },
+      "the-cedars-fernie": {
+        label: "The Cedars",
+        href: "/neighbourhoods/the-cedars-fernie",
+        img: "/images/neighbourhoods/the-cedars-hero.jpg", // TODO: swap
+        blurb: "Quiet, newer homes with trees, space, and a short drive to the ski hill.",
+      },
+      annex: {
+        label: "The Annex",
+        href: "/neighbourhoods/annex",
+        img: "/images/neighbourhoods/annex-hero.jpg", // TODO: swap
+        blurb: "Close to downtown with a family feel and easy access to schools and parks.",
+      },
+    };
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const form = document.getElementById("homeMatchForm");
+      const outputEl = document.getElementById("homeMatchOutput");
+      const submitBtn = document.querySelector("[data-hm-submit]");
+      const chipButtons = document.querySelectorAll("[data-hm-chip]");
+      const situationEl = document.getElementById("hm-situation");
+      const neighSection = document.getElementById("homeMatchNeighbourCards");
+      const neighGrid = neighSection?.querySelector(".hm-suggested-grid");
+
+      if (!form || !outputEl || !submitBtn) return;
+
+      // Chip → append to textarea
+      chipButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (!situationEl) return;
+          const tag = btn.getAttribute("data-hm-chip") || "";
+          const current = situationEl.value.trim();
+          situationEl.value = current
+            ? current + (current.endsWith(".") ? " " : ". ") + tag
+            : tag;
+          situationEl.focus();
+        });
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const situation = situationEl?.value.trim() || "";
+        const budget = (document.getElementById("hm-budget")?.value || "").trim();
+        const timing = (document.getElementById("hm-timing")?.value || "").trim();
+
+        if (!situation) {
+          situationEl?.focus();
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Thinking about Fernie for you…";
+
+        outputEl.classList.remove("hm-output-empty", "hm-output-error");
+        outputEl.innerHTML =
+          "<p>Looking at your situation and local Fernie options…</p>";
+
+        if (neighSection && neighGrid) {
+          neighSection.hidden = true;
+          neighGrid.innerHTML = "";
+        }
+
+        try {
+          const res = await fetch("/api/home-match", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ situation, budget, timing }),
+          });
+
+          if (!res.ok) {
+            throw new Error("Bad response from /api/home-match");
+          }
+
+          const data = await res.json();
+          const answer = data?.answer || "";
+          let neighbourhoodSlugs = Array.isArray(data?.neighbourhoodSlugs)
+            ? data.neighbourhoodSlugs
+            : [];
+
+          // Light heuristic: if this clearly looks like a ski family
+          // AND Montane/Ridgemont showed up, also surface The Cedars.
+          const lowerAnswer = String(answer).toLowerCase();
+          const skiFamily =
+            (lowerAnswer.includes("ski") || lowerAnswer.includes("lift")) &&
+            lowerAnswer.includes("family");
+
+          if (
+            skiFamily &&
+            (neighbourhoodSlugs.includes("montane-fernie") ||
+              neighbourhoodSlugs.includes("ridgemont")) &&
+            !neighbourhoodSlugs.includes("the-cedars-fernie")
+          ) {
+            neighbourhoodSlugs.push("the-cedars-fernie");
+          }
+
+          // ---------- Render main text ----------
+          const safe = String(answer)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+
+          const html = safe
+            .replace(/^## (.+)$/gm, "<h3>$1</h3>") // headings
+            .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>") // bold
+            .split(/\n{2,}/)
+            .map((block) => `<p>${block.replace(/\n/g, "<br />")}</p>`)
+            .join("");
+
+          outputEl.innerHTML = html;
+          outputEl.classList.remove("hm-output-empty");
+
+          // ---------- Render neighbourhood image cards ----------
+          if (neighSection && neighGrid) {
+            const uniqueSlugs = Array.from(new Set(neighbourhoodSlugs));
+            const cards = uniqueSlugs
+              .map((slug) => NEIGH_META[slug])
+              .filter(Boolean);
+
+            if (cards.length > 0) {
+              neighGrid.innerHTML = cards
+                .map(
+                  (n) => `
+                  <a class="hm-suggested-card" href="${n.href}">
+                    <div class="hm-suggested-img-wrap">
+                      <img src="${n.img}" alt="${n.label}" loading="lazy" decoding="async" />
+                    </div>
+                    <div class="hm-suggested-body">
+                      <h4>${n.label}</h4>
+                      <p>${n.blurb}</p>
+                      <span class="hm-suggested-cta">View listings →</span>
+                    </div>
+                  </a>
+                `,
+                )
+                .join("");
+
+              neighSection.hidden = false;
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          outputEl.classList.add("hm-output-error");
+          outputEl.innerHTML =
+            "<p>Sorry — something went wrong running your Home Match. Please try again in a moment, or contact Chris directly.</p>";
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Ask the Fernie Home Match assistant";
+        }
+      });
+    });
+  }
+</script>
+
+<style>
+  .hm-shell {
+    width: 100%;
+  }
+
+  .hm-card {
+    width: 100%;
+    max-width: 1100px;
+    margin-inline: auto;
+    border-radius: 24px;
+    padding: 22px 22px 20px;
+    background: radial-gradient(circle at top left, #1f2937, #020617);
+    color: #e5e7eb;
+    box-shadow:
+      0 24px 60px rgba(15, 23, 42, 0.55),
+      0 0 0 1px rgba(15, 23, 42, 0.8);
+  }
+
+  .hm-header {
+    margin-bottom: 16px;
+  }
+
+
+
+  .hm-title {
+    margin: 0 0 6px;
+    font-size: clamp(1.6rem, 2.3vw, 1.95rem);
+    line-height: 1.15;
+    font-weight: 700;
+  }
+
+  .hm-subhead {
+    margin: 0;
+    font-size: 0.98rem;
+    line-height: 1.5;
+    opacity: 0.85;
+    max-width: 34rem;
+  }
+
+  /* FORM */
+  .hm-form {
+    margin-top: 16px;
+    margin-bottom: 16px;
+    padding: 14px 14px 16px;
+    border-radius: 18px;
+    background: radial-gradient(circle at top, #111827, #020617);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+  }
+
+  .hm-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .hm-chip {
+    border: none;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    background: rgba(15, 23, 42, 0.9);
+    color: #e5e7eb;
+    border: 1px solid rgba(148, 163, 184, 0.75);
+    cursor: pointer;
+    transition:
+      background-color 0.12s ease,
+      border-color 0.12s ease,
+      transform 0.08s ease,
+      box-shadow 0.12s ease;
+  }
+
+  .hm-chip:hover {
+    background: #0f172a;
+    border-color: #38bdf8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.5);
+  }
+
+  .hm-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.7fr);
+    gap: 12px 16px;
+    margin-top: 4px;
+  }
+
+  .hm-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .hm-field-full {
+    grid-column: 1 / -1;
+  }
+
+  .hm-field label {
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(226, 232, 240, 0.9);
+  }
+
+  .hm-field input,
+  .hm-field textarea {
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    padding: 8px 10px;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    color: #e5e7eb;
+    background: rgba(15, 23, 42, 0.9);
+  }
+
+  .hm-field textarea {
+    resize: vertical;
+    min-height: 90px;
+  }
+
+  .hm-field input::placeholder,
+  .hm-field textarea::placeholder {
+    color: rgba(148, 163, 184, 0.9);
+  }
+
+  .hm-field input:focus,
+  .hm-field textarea:focus {
+    outline: none;
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.65);
+  }
+
+  .hm-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  .hm-btn-primary {
+    border: none;
+    border-radius: 999px;
+    padding: 9px 22px;
+    font-size: 0.96rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, #22c55e, #0ea5e9);
+    color: #0b1120;
+    cursor: pointer;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.65);
+    transition:
+      transform 0.08s ease,
+      box-shadow 0.12s ease,
+      filter 0.12s ease;
+    white-space: nowrap;
+  }
+
+  .hm-btn-primary:hover:enabled {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 42px rgba(15, 23, 42, 0.8);
+    filter: brightness(1.04);
+  }
+
+  .hm-btn-primary:disabled {
+    opacity: 0.75;
+    cursor: default;
+    transform: none;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.5);
+  }
+
+  .hm-footnote {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    max-width: 28rem;
+    color: rgba(191, 219, 254, 0.85);
+  }
+
+  /* OUTPUT AREA */
+  .hm-output-shell {
+    margin-top: 16px;
+    padding: 16px 15px 14px;
+    border-radius: 18px;
+    border: 1px dashed rgba(148, 163, 184, 0.6);
+    background: radial-gradient(circle at top, #020617, #020617);
+  }
+
+  .hm-output {
+    font-size: 1.05rem;
+    line-height: 1.7;
+  }
+
+  .hm-output p {
+    margin: 0 0 0.9rem;
+  }
+
+  .hm-output h3 {
+    margin: 0.4rem 0 0.3rem;
+    font-size: 1.08rem;
+  }
+
+  .hm-output-empty {
+    opacity: 0.85;
+    font-size: 0.98rem;
+  }
+
+  .hm-output-error p {
+    color: #fecaca;
+  }
+
+  /* NEW: neighbourhood image strip */
+  .hm-suggested {
+    margin-top: 14px;
+  }
+
+  .hm-suggested-title {
+    margin: 0 0 2px;
+    font-size: 0.98rem;
+    font-weight: 600;
+  }
+
+  .hm-suggested-copy {
+    margin: 0 0 10px;
+    font-size: 0.86rem;
+    opacity: 0.85;
+  }
+
+  .hm-suggested-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .hm-suggested-card {
+    display: flex;
+    flex-direction: column;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.55);
+    background: rgba(15, 23, 42, 0.95);
+    text-decoration: none;
+    color: inherit;
+    transition:
+      transform 0.08s ease,
+      box-shadow 0.12s ease,
+      border-color 0.12s ease,
+      background-color 0.12s ease;
+  }
+
+  .hm-suggested-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.75);
+    border-color: #38bdf8;
+    background: #020617;
+  }
+
+  .hm-suggested-img-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+  }
+
+  .hm-suggested-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .hm-suggested-body {
+    padding: 8px 10px 9px;
+  }
+
+  .hm-suggested-body h4 {
+    margin: 0 0 4px;
+    font-size: 0.95rem;
+  }
+
+  .hm-suggested-body p {
+    margin: 0 0 6px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: rgba(226, 232, 240, 0.92);
+  }
+
+  .hm-suggested-cta {
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 0.16em;
+  }
+
+  /* NEXT ACTIONS INSIDE CARD */
+  .hm-next-actions {
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(148, 163, 184, 0.35);
+  }
+
+  .hm-next-heading {
+    margin: 0 0 2px;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .hm-next-copy {
+    margin: 0 0 10px;
+    font-size: 0.86rem;
+    opacity: 0.85;
+    max-width: 32rem;
+  }
+
+  .hm-next-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hm-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 0.86rem;
+    font-weight: 500;
+    border: 1px solid rgba(148, 163, 184, 0.8);
+    background: rgba(15, 23, 42, 0.9);
+    color: #e5e7eb;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background-color 0.12s ease,
+      border-color 0.12s ease,
+      transform 0.08s ease,
+      box-shadow 0.12s ease;
+  }
+
+  .hm-btn-ghost:hover {
+    background: #0f172a;
+    border-color: #38bdf8;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.7);
+  }
+
+  .hm-btn-accent {
+    border-color: #22c55e;
+  }
+
+  .hm-btn-accent:hover {
+    border-color: #4ade80;
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .hm-card {
+      border-radius: 20px;
+      padding: 18px 16px 16px;
+    }
+
+    .hm-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .hm-actions-row {
+      align-items: flex-start;
+    }
+
+    .hm-suggested-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .hm-actions-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .hm-btn-primary {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .hm-next-buttons {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .hm-btn-ghost {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .hm-suggested-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

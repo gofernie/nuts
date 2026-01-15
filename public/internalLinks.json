@@ -1,0 +1,200 @@
+[
+  {
+    "label": "Fernie neighbourhoods overview",
+    "url": "/neighbourhoods/",
+    "type": "neighbourhood_hub",
+    "priority": 3
+  },
+  {
+    "label": "Ski Hill neighbourhood",
+    "url": "/neighbourhoods/skihill/",
+    "type": "neighbourhood",
+    "priority": 3
+  },
+  {
+    "label": "Ski Hill condos",
+    "url": "/neighbourhood_type/fernie-ski-hill-condos/",
+    "type": "neighbourhood_type",
+    "priority": 3
+  },
+  {
+    "label": "Ski Hill homes",
+    "url": "/neighbourhood_type/fernie-ski-hill-homes/",
+    "type": "neighbourhood_type",
+    "priority": 3
+  },
+  {
+    "label": "Ski Hill townhomes",
+    "url": "/neighbourhood_type/fernie-ski-hill-townhomes/",
+    "type": "neighbourhood_type",
+    "priority": 3
+  },
+  {
+    "label": "Montane neighbourhood",
+    "url": "/neighbourhoods/montane/",
+    "type": "neighbourhood",
+    "priority": 3
+  },
+  {
+    "label": "The Cedars neighbourhood",
+    "url": "/neighbourhoods/the-cedars/",
+    "type": "neighbourhood",
+    "priority": 3
+  },
+  {
+    "label": "The Annex neighbourhood",
+    "url": "/neighbourhoods/the-annex/",
+    "type": "neighbourhood",
+    "priority": 2
+  },
+  {
+    "label": "Alpine Trails neighbourhood",
+    "url": "/neighbourhoods/alpine-trails/",
+    "type": "neighbourhood",
+    "priority": 2
+  },
+  {
+    "label": "Riverside neighbourhood",
+    "url": "/neighbourhoods/riverside/",
+    "type": "neighbourhood",
+    "priority": 2
+  },
+  {
+    "label": "West Fernie neighbourhood",
+    "url": "/neighbourhoods/west-fernie/",
+    "type": "neighbourhood",
+    "priority": 2
+  },
+  {
+    "label": "Ridgemont neighbourhood",
+    "url": "/neighbourhoods/ridgemont/",
+    "type": "neighbourhood",
+    "priority": 2
+  },
+  {
+    "label": "Fernie Airport area",
+    "url": "/neighbourhoods/the-airport/",
+    "type": "neighbourhood",
+    "priority": 1
+  },
+  {
+    "label": "Downtown Fernie",
+    "url": "/neighbourhoods/downtown/",
+    "type": "neighbourhood",
+    "priority": 3
+  },
+  {
+    "label": "Parkland Terraces",
+    "url": "/neighbourhoods/parkland-terraces/",
+    "type": "neighbourhood",
+    "priority": 2
+  },
+  {
+    "label": "Homes for sale in Fernie",
+    "url": "/types/homes-for-sale-in-fernie-bc/",
+    "type": "type",
+    "priority": 3
+  },
+  {
+    "label": "Condos & townhomes for sale in Fernie",
+    "url": "/types/condos-and-townhomes-for-sale-in-fernie-bc/",
+    "type": "type",
+    "priority": 3
+  },
+  {
+    "label": "Lots & land for sale in Fernie",
+    "url": "/types/lots-and-land-for-sale-in-fernie-bc/",
+    "type": "type",
+    "priority": 2
+  },
+  {
+    "label": "Investment properties for sale in Fernie",
+    "url": "/types/investment-properties-for-sale-in-fernie-bc/",
+    "type": "type",
+    "priority": 3
+  },
+  {
+    "label": "Luxury homes for sale in Fernie",
+    "url": "/types/luxury-homes-for-sale-in-fernie-bc/",
+    "type": "type",
+    "priority": 2
+  },
+  {
+    "label": "Starter homes for sale in Fernie",
+    "url": "/types/starter-homes-for-sale-in-fernie-bc/",
+    "type": "type",
+    "priority": 2
+  },
+  {
+    "label": "Commercial real estate in Fernie",
+    "url": "/types/commercial-real-estate-fernie/",
+    "type": "type",
+    "priority": 2
+  },
+  {
+    "label": "New listings in Fernie",
+    "url": "/types/new-listings-fernie/",
+    "type": "type",
+    "priority": 3
+  },
+  {
+    "label": "Fernie property types overview",
+    "url": "/types/",
+    "type": "type_hub",
+    "priority": 2
+  },
+  {
+    "label": "Fernie areas overview",
+    "url": "/areas/",
+    "type": "area_hub",
+    "priority": 2
+  },
+  {
+    "label": "Hosmer area",
+    "url": "/areas/hosmer/",
+    "type": "area",
+    "priority": 2
+  },
+  {
+    "label": "Sparwood area",
+    "url": "/areas/sparwood/",
+    "type": "area",
+    "priority": 2
+  },
+  {
+    "label": "Tie & Rosen Lakes area",
+    "url": "/areas/tie-and-rosen-lakes/",
+    "type": "area",
+    "priority": 1
+  },
+  {
+    "label": "Elkford area",
+    "url": "/areas/elkford/",
+    "type": "area",
+    "priority": 1
+  },
+  {
+    "label": "Jaffray area",
+    "url": "/areas/jarrfay/",
+    "type": "area",
+    "priority": 1
+  },
+  {
+    "label": "Kimberley area",
+    "url": "/areas/kimberley/",
+    "type": "area",
+    "priority": 1
+  },
+  {
+    "label": "Living in Fernie hub",
+    "url": "/living-in-fernie/",
+    "type": "living_hub",
+    "priority": 3
+  },
+  {
+    "label": "Fernie real estate blog",
+    "url": "/blog/",
+    "type": "blog_hub",
+    "priority": 3
+  }
+]

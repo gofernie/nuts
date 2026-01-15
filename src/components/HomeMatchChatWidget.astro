@@ -1,0 +1,833 @@
+---
+// File: src/components/HomeMatchChatWidget.astro
+const {
+  title = "Home Match",
+  launcherText = "Ask Home Match",
+  placeholder = "Ask about neighbourhoods, buildings, STR, lifestyle...",
+  endpoint = "/api/homematch-chat",
+  formspreeEndpoint = "", // optional
+} = Astro.props;
+---
+
+<style is:global>
+  /* --- launcher --- */
+  .hm-launcher {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 2147483647;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(0,0,0,0.12);
+    background: #111;
+    color: #fff;
+    font-weight: 650;
+    font-size: 14px;
+    box-shadow: 0 14px 34px rgba(0,0,0,0.22);
+    cursor: pointer;
+  }
+  .hm-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #39d98a;
+    box-shadow: 0 0 0 4px rgba(57,217,138,0.18);
+  }
+
+  /* --- overlay --- */
+  .hm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483646;
+    background: rgba(0,0,0,0.25);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+  }
+  .hm-overlay[data-open="true"] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* --- drawer --- */
+  .hm-drawer {
+    position: fixed;
+    right: 18px;
+    bottom: 78px;
+    width: min(420px, calc(100vw - 36px));
+    height: min(620px, calc(100vh - 120px));
+    z-index: 2147483647;
+
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+
+    border-radius: 18px;
+    border: 1px solid rgba(0,0,0,0.12);
+    background: #fff;
+    box-shadow: 0 18px 60px rgba(0,0,0,0.24);
+    overflow: hidden;
+
+    transform: translateY(16px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 220ms ease, opacity 220ms ease;
+  }
+  .hm-drawer[data-open="true"] {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* --- header --- */
+  .hm-head {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .hm-title {
+    display: grid;
+    gap: 4px;
+    line-height: 1.2;
+  }
+  .hm-title strong { font-size: 16px; }
+  .hm-title span { font-size: 13.5px; color: rgba(0,0,0,0.6); }
+
+  .hm-actions { display: flex; gap: 8px; }
+  .hm-clear,
+  .hm-close {
+    border: 1px solid rgba(0,0,0,0.12);
+    background: #fff;
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+
+  /* --- body --- */
+  .hm-body { padding: 14px; overflow-y: auto; }
+  .hm-msgs { display: grid; gap: 14px; padding-bottom: 4px; }
+  .hm-meta { font-size: 13px; color: rgba(0,0,0,0.55); }
+
+  /* --- speech bubbles --- */
+  .hm-msg {
+    max-width: 92%;
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(0,0,0,0.08);
+    font-size: 15.5px;
+    line-height: 1.6;
+    position: relative;
+  }
+  .hm-msg.user {
+    margin-left: auto;
+    background: #111;
+    color: #fff;
+    border-color: rgba(255,255,255,0.12);
+    white-space: pre-wrap;
+  }
+  .hm-msg.assistant {
+    background: #fff;
+    color: #111;
+    white-space: normal;
+  }
+
+  .hm-msg.user::after {
+    content: "";
+    position: absolute;
+    right: -6px;
+    bottom: 10px;
+    width: 12px;
+    height: 12px;
+    background: #111;
+    border-right: 1px solid rgba(255,255,255,0.12);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    transform: rotate(45deg);
+    border-radius: 2px;
+  }
+  .hm-msg.assistant::after {
+    content: "";
+    position: absolute;
+    left: -6px;
+    bottom: 10px;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-left: 1px solid rgba(0,0,0,0.08);
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    transform: rotate(45deg);
+    border-radius: 2px;
+  }
+
+  /* Paragraph rhythm */
+  .hm-msg.assistant p { margin: 0 0 12px 0; }
+  .hm-msg.assistant p:last-child { margin-bottom: 0; }
+
+  /* Neighbourhood header link style */
+  .hm-msg.assistant a.hm-hdr {
+    display: block;
+    margin-top: 14px;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 750;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #111;
+    text-decoration: none;
+  }
+  .hm-msg.assistant a.hm-hdr:hover { text-decoration: underline; }
+  .hm-msg.assistant a.hm-hdr:first-child { margin-top: 0; }
+
+  /* Normal links inside assistant paragraphs */
+  .hm-msg.assistant a {
+    color: #111;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  /* Block spacing between neighbourhoods */
+  .hm-block { margin-bottom: 18px; }
+
+  /* --- typing indicator --- */
+  .hm-typing { display: inline-flex; gap: 6px; align-items: center; }
+  .hm-typing span {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.35);
+    display: inline-block;
+    animation: hmDot 1.2s infinite ease-in-out;
+  }
+  .hm-typing span:nth-child(2) { animation-delay: 0.15s; }
+  .hm-typing span:nth-child(3) { animation-delay: 0.30s; }
+  @keyframes hmDot {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+    40% { transform: translateY(-4px); opacity: 0.85; }
+  }
+
+  /* --- footer --- */
+  .hm-foot {
+    padding: 14px;
+    border-top: 1px solid rgba(0,0,0,0.08);
+    display: grid;
+    gap: 10px;
+    background: #fff;
+  }
+
+  .hm-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .hm-input {
+    width: 100%;
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 15.5px;
+    line-height: 1.4;
+    resize: none;
+    min-height: 44px;
+    max-height: 120px;
+  }
+
+  .hm-send {
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: #fff;
+    font-weight: 650;
+    cursor: pointer;
+    min-width: 74px;
+  }
+  .hm-send[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .hm-hint {
+    font-size: 12.5px;
+    color: rgba(0,0,0,0.55);
+    padding: 0 2px;
+  }
+
+  /* --- optional email CTA --- */
+  .hm-email-cta {
+    display: none;
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 650;
+    font-size: 13.5px;
+    justify-self: start;
+  }
+  .hm-email-cta[data-show="true"] { display: inline-flex; }
+
+  .hm-email {
+    display: none;
+    border: 1px solid rgba(0,0,0,0.10);
+    border-radius: 14px;
+    padding: 10px;
+    background: rgba(0,0,0,0.02);
+  }
+  .hm-email[data-open="true"] { display: grid; gap: 8px; }
+  .hm-email-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+  .hm-email-close {
+    border: 1px solid rgba(0,0,0,0.12);
+    background: #fff;
+    border-radius: 10px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .hm-email-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+  }
+  .hm-email-input {
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 14.5px;
+  }
+  .hm-email-send {
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #fff;
+    cursor: pointer;
+    font-weight: 650;
+    font-size: 13.5px;
+  }
+  .hm-email-hint { font-size: 12.5px; color: rgba(0,0,0,0.55); line-height: 1.4; }
+
+  @media (max-width: 640px) {
+    .hm-drawer {
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      height: min(78vh, 680px);
+    }
+  }
+</style>
+
+<div data-hm-root data-endpoint={endpoint} data-formspree={formspreeEndpoint}>
+  <button class="hm-launcher" type="button" data-hm-launcher aria-haspopup="dialog" aria-expanded="false">
+    <span class="hm-dot" aria-hidden="true"></span>
+    <span>{launcherText}</span>
+  </button>
+
+  <div class="hm-overlay" data-hm-overlay data-open="false" aria-hidden="true"></div>
+
+  <section class="hm-drawer" data-hm-drawer data-open="false" role="dialog" aria-label="Home Match chat">
+    <header class="hm-head">
+      <div class="hm-title">
+        <strong>{title}</strong>
+        <span>Ask anything - I’ll suggest next steps + links</span>
+      </div>
+      <div class="hm-actions">
+        <button class="hm-clear" type="button" data-hm-clear>Clear</button>
+        <button class="hm-close" type="button" data-hm-close aria-label="Close chat">✕</button>
+      </div>
+    </header>
+
+    <div class="hm-body" data-hm-body>
+      <div class="hm-msgs" data-hm-msgs></div>
+    </div>
+
+    <div class="hm-foot">
+      <button class="hm-email-cta" type="button" data-hm-email-cta data-show="false">Send me matching homes</button>
+
+      <div class="hm-email" data-hm-email data-open="false">
+        <div class="hm-email-top">
+          <div><strong>Get matches by email</strong></div>
+          <button class="hm-email-close" type="button" data-hm-email-close>Close</button>
+        </div>
+
+        <form class="hm-email-form" data-hm-email-form>
+          <input class="hm-email-input" name="email" type="email" autocomplete="email" placeholder="Email address" required />
+          <button class="hm-email-send" type="submit">Send</button>
+        </form>
+
+        <div class="hm-email-hint">I’ll send a short list of homes that match what you’ve shared above.</div>
+      </div>
+
+      <form class="hm-row" data-hm-form>
+        <textarea class="hm-input" name="message" rows="1" placeholder={placeholder}></textarea>
+        <button class="hm-send" type="submit" data-hm-send>Send</button>
+      </form>
+
+      <div class="hm-hint">Enter to send - Shift+Enter for new line</div>
+    </div>
+  </section>
+</div>
+
+<script is:inline>
+  console.log("🔥 HM WIDGET VERSION: 2026-01-09-C (V3 KEYS + SANITIZE HISTORY + SELF-HEAL STORAGE) 🔥");
+
+  (() => {
+    function initOne(root) {
+      if (!root) return;
+      if (root.dataset.hmInit === "true") return;
+      root.dataset.hmInit = "true";
+
+      const endpoint = root.getAttribute("data-endpoint") || "/api/homematch-chat";
+      const formspree = root.getAttribute("data-formspree") || "";
+
+      const launcher = root.querySelector("[data-hm-launcher]");
+      const drawer = root.querySelector("[data-hm-drawer]");
+      const overlay = root.querySelector("[data-hm-overlay]");
+      const closeBtn = root.querySelector("[data-hm-close]");
+      const clearBtn = root.querySelector("[data-hm-clear]");
+
+      const body = root.querySelector("[data-hm-body]");
+      const msgs = root.querySelector("[data-hm-msgs]");
+      const form = root.querySelector("[data-hm-form]");
+      const input = root.querySelector(".hm-input");
+      const sendBtn = root.querySelector("[data-hm-send]");
+
+      const emailCTA = root.querySelector("[data-hm-email-cta]");
+      const emailWrap = root.querySelector("[data-hm-email]");
+      const emailClose = root.querySelector("[data-hm-email-close]");
+      const emailForm = root.querySelector("[data-hm-email-form]");
+
+      if (!launcher || !drawer || !overlay || !msgs || !form || !input || !sendBtn) return;
+
+      // ✅ v3 keys
+      const HISTORY_KEY = "hm-history-v3";
+      const STATE_KEY = "hm-state-v3";
+
+      let epoch = 0;
+
+      const INITIAL_HTML = `
+        <div class="hm-meta">Tip - ask one question or describe your situation.</div>
+        <div class="hm-msg assistant">
+          Hey - tell me what you’re looking for (budget - timing - must-haves) and I’ll point you to the best fits.
+        </div>
+      `;
+
+      function setOpen(isOpen) {
+        drawer.setAttribute("data-open", isOpen ? "true" : "false");
+        overlay.setAttribute("data-open", isOpen ? "true" : "false");
+        launcher.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        overlay.setAttribute("aria-hidden", isOpen ? "false" : "true");
+        if (isOpen) setTimeout(() => input.focus(), 0);
+      }
+
+      function scrollToBottom() {
+        if (!body) return;
+        body.scrollTop = body.scrollHeight + 9999;
+      }
+
+      function showEmailCTA(show) {
+        if (!emailCTA) return;
+        emailCTA.setAttribute("data-show", show ? "true" : "false");
+      }
+
+      function openEmail(open) {
+        if (!emailWrap) return;
+        emailWrap.setAttribute("data-open", open ? "true" : "false");
+        if (open) setTimeout(() => input.focus(), 0);
+        if (open && emailCTA) emailCTA.setAttribute("data-show", "false");
+      }
+
+      function resetDomToInitial() {
+        msgs.innerHTML = INITIAL_HTML;
+        showEmailCTA(false);
+        openEmail(false);
+        input.value = "";
+        input.style.height = "auto";
+        input.disabled = false;
+        sendBtn.disabled = false;
+        scrollToBottom();
+      }
+
+      function nukeAllHmStorage() {
+        try {
+          localStorage.removeItem(HISTORY_KEY);
+          localStorage.removeItem(STATE_KEY);
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (!k) continue;
+            if (k.startsWith("hm-history-") || k.startsWith("hm-state-")) localStorage.removeItem(k);
+          }
+        } catch {}
+      }
+
+      launcher.addEventListener("click", () => setOpen(true));
+      overlay.addEventListener("click", () => setOpen(false));
+      closeBtn && closeBtn.addEventListener("click", () => setOpen(false));
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") setOpen(false);
+      });
+
+      function safeJsonParse(s, fallback) {
+        try { return JSON.parse(s); } catch { return fallback; }
+      }
+
+      function saveHistory(history) {
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-24))); } catch {}
+      }
+      function loadHistory() {
+        try { return safeJsonParse(localStorage.getItem(HISTORY_KEY) || "[]", []); } catch { return []; }
+      }
+
+      function loadState() {
+        try {
+          const v = safeJsonParse(localStorage.getItem(STATE_KEY) || "null", null);
+          return v && typeof v === "object" ? v : null;
+        } catch { return null; }
+      }
+      function saveState(state) {
+        try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch {}
+      }
+
+      function uniq(arr) {
+        const out = [];
+        const seen = new Set();
+        for (const x of (arr || [])) {
+          const k = String(x || "").trim().toLowerCase();
+          if (!k) continue;
+          if (seen.has(k)) continue;
+          seen.add(k);
+          out.push(String(x).trim());
+        }
+        return out;
+      }
+
+      function mergeState(prev, next) {
+        if (!prev && next) return next;
+        if (prev && !next) return prev;
+        if (!prev && !next) return null;
+
+        return {
+          ...prev,
+          ...next,
+          asked: { ...(prev.asked || {}), ...(next.asked || {}) },
+          mustHaves: uniq([...(prev.mustHaves || []), ...(next.mustHaves || [])]),
+          dealbreakers: uniq([...(prev.dealbreakers || []), ...(next.dealbreakers || [])]),
+          shownAreas: uniq([...(prev.shownAreas || []), ...(next.shownAreas || [])]),
+          shownTypes: uniq([...(prev.shownTypes || []), ...(next.shownTypes || [])]),
+        };
+      }
+
+      // ✅ Drop assistant-prompts that ever got saved as role:"user"
+      function sanitizeHistoryForApi(h) {
+        const out = [];
+        for (const m of (h || [])) {
+          if (!m || (m.role !== "user" && m.role !== "assistant")) continue;
+
+          const txt = String(m.content || "").trim();
+          if (!txt) continue;
+
+          const low = txt.toLowerCase();
+          const looksPrompt =
+            low.includes("what’s your max budget") ||
+            low.includes("what's your max budget") ||
+            low.includes("minimum bedrooms") ||
+            low.includes("how many bedrooms") ||
+            low.includes("what type are you looking for") ||
+            low.includes("tell me 1 - 2 must-haves") ||
+            low.includes("must-haves") ||
+            low.includes("dealbreakers") ||
+            low.includes("any preferred neighbourhood") ||
+            low.includes("any preferred neighborhood") ||
+            low.includes("want me to suggest a few neighbourhoods") ||
+            low.includes("want me to suggest a few neighborhoods") ||
+            low.includes("jump straight to current listings") ||
+            low.includes("example:") ||
+            low.includes("$900k");
+
+          if (looksPrompt && m.role === "user") continue;
+
+          out.push({ role: m.role, content: txt });
+        }
+        return out.slice(-24);
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function linkifyRawUrls(htmlEscapedText) {
+        return String(htmlEscapedText).replace(
+          /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g,
+          (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`
+        );
+      }
+
+      function renderParagraphs(text) {
+        const s = String(text || "").trim();
+        if (!s) return "";
+        return s
+          .split(/\n\s*\n+/)
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .map((p) => `<p>${linkifyRawUrls(escapeHtml(p).replace(/\n/g, "<br/>"))}</p>`)
+          .join("");
+      }
+
+      function renderAssistantTextToHtml(raw) {
+        const text = String(raw || "").trim().replace(/\r\n/g, "\n");
+
+        const blockRe =
+          /(^|\n)([A-Za-z][^\n]{1,80})(?:\s*\n|\s+)(https?:\/\/(?:www\.)?fernie\.homes\/[^\s]+)\n([\s\S]*?)(?=\n[A-Za-z][^\n]{1,80}(?:\s*\n|\s+)https?:\/\/(?:www\.)?fernie\.homes\/|$)/g;
+
+        let html = "";
+        let lastIndex = 0;
+        let m;
+
+        while ((m = blockRe.exec(text)) !== null) {
+          html += renderParagraphs(text.slice(lastIndex, m.index));
+
+          const title = escapeHtml(m[2].trim());
+          const url = escapeHtml(m[3].trim());
+          const copyRaw = String(m[4] || "").trim();
+
+          html += `
+            <div class="hm-block">
+              <a class="hm-hdr" href="${url}" target="_blank" rel="noopener">${title}</a>
+              ${renderParagraphs(copyRaw)}
+            </div>
+          `;
+
+          lastIndex = blockRe.lastIndex;
+        }
+
+        html += renderParagraphs(text.slice(lastIndex));
+        return html.trim();
+      }
+
+      function addMsg(role, content, opts) {
+        const el = document.createElement("div");
+        el.className = `hm-msg ${role}`;
+
+        if (opts && opts.typing) {
+          el.innerHTML = `<div class="hm-typing" aria-label="Typing"><span></span><span></span><span></span></div>`;
+          el.dataset.typing = "true";
+        } else if (role === "assistant") {
+          el.innerHTML = renderAssistantTextToHtml(content);
+        } else {
+          el.textContent = String(content || "");
+        }
+
+        msgs.appendChild(el);
+        scrollToBottom();
+        return el;
+      }
+
+      function shouldShowEmailCTA(assistantText, userText) {
+        if (!formspree) return false;
+        const s = `${assistantText || ""}\n${userText || ""}`.toLowerCase();
+        return (s.includes("send") || s.includes("email")) && (s.includes("homes") || s.includes("listings") || s.includes("options"));
+      }
+
+      resetDomToInitial();
+
+      try {
+        const qs = new URLSearchParams(location.search);
+        if (qs.has("hm_reset")) {
+          nukeAllHmStorage();
+          resetDomToInitial();
+
+          qs.delete("hm_reset");
+          const clean = location.pathname + (qs.toString() ? `?${qs.toString()}` : "") + location.hash;
+          history.replaceState(null, "", clean);
+
+          console.log("🧹 hm_reset done");
+        }
+      } catch {}
+
+      function hydrateFromStorage() {
+        const raw = loadHistory();
+
+        // ✅ If chat has no history, state MUST be empty too (prevents ghost budgets)
+        if (!raw.length) {
+          try { localStorage.removeItem(STATE_KEY); } catch {}
+          return;
+        }
+
+        // ✅ self-heal: rewrite storage as sanitized history
+        const clean = sanitizeHistoryForApi(raw);
+        if (clean.length !== raw.length) saveHistory(clean);
+
+        msgs.innerHTML = `<div class="hm-meta">Tip - ask one question or describe your situation.</div>`;
+        for (const m of clean) addMsg(m.role, m.content);
+        scrollToBottom();
+      }
+      hydrateFromStorage();
+
+      clearBtn && clearBtn.addEventListener("click", () => {
+        epoch++;
+        nukeAllHmStorage();
+        resetDomToInitial();
+      });
+
+      emailCTA && emailCTA.addEventListener("click", () => openEmail(true));
+      emailClose && emailClose.addEventListener("click", () => openEmail(false));
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          form.requestSubmit();
+        }
+      });
+      input.addEventListener("input", () => {
+        input.style.height = "auto";
+        input.style.height = Math.min(input.scrollHeight, 120) + "px";
+      });
+
+      async function sendToChat(message) {
+        const stateBefore = loadState();
+        const myEpoch = epoch;
+
+        // build history that includes this message
+        const raw = loadHistory().slice(-24);
+        raw.push({ role: "user", content: message });
+
+        // ✅ sanitize before sending (and self-heal storage)
+        const clean = sanitizeHistoryForApi(raw);
+        saveHistory(clean);
+
+        const trimmed = clean.slice(-12);
+
+        const payload = {
+          message,
+          history: trimmed,
+          state: stateBefore,
+          context: { path: location.pathname, title: document.title, url: location.href, origin: location.origin },
+        };
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) throw new Error("Chat request failed");
+        const data = await res.json();
+
+        if (myEpoch !== epoch) return { reply: "", state: null };
+
+        return { reply: String((data && data.reply) || "").trim(), state: (data && data.state) || null };
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const msg = String(input.value || "").trim();
+        if (!msg) return;
+
+        const myEpoch = epoch;
+
+        sendBtn.disabled = true;
+        input.disabled = true;
+
+        input.value = "";
+        input.style.height = "auto";
+
+        addMsg("user", msg);
+        const typingEl = addMsg("assistant", "", { typing: true });
+
+        // write the user message immediately (sendToChat will sanitize+rewrite)
+        const local = loadHistory();
+        local.push({ role: "user", content: msg });
+        saveHistory(local);
+
+        try {
+          const out = await sendToChat(msg);
+          if (myEpoch !== epoch) return;
+
+          if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+
+          // ✅ Always persist state if provided
+          if (out.state) {
+            const merged = mergeState(loadState(), out.state);
+            if (merged) saveState(merged);
+          }
+
+          if (out.reply) {
+            addMsg("assistant", out.reply);
+
+            const cleanNow = sanitizeHistoryForApi(loadHistory());
+            cleanNow.push({ role: "assistant", content: out.reply });
+            saveHistory(cleanNow);
+
+            showEmailCTA(shouldShowEmailCTA(out.reply, msg));
+          }
+        } catch {
+          if (myEpoch !== epoch) return;
+          if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+          addMsg("assistant", "Sorry - something failed. Please try again.");
+        } finally {
+          if (myEpoch !== epoch) return;
+          sendBtn.disabled = false;
+          input.disabled = false;
+          input.focus();
+        }
+      });
+
+      if (emailForm && formspree) {
+        emailForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const fd = new FormData(emailForm);
+          const email = String(fd.get("email") || "").trim();
+          if (!email) return;
+
+          const local = loadHistory();
+          const transcript = local.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
+
+          try {
+            const payload = new FormData();
+            payload.append("email", email);
+            payload.append("source", "Home Match Chat");
+            payload.append("page", location.href);
+            payload.append("notes", transcript.slice(0, 8000));
+
+            const resp = await fetch(formspree, {
+              method: "POST",
+              headers: { Accept: "application/json" },
+              body: payload,
+            });
+
+            if (!resp.ok) throw new Error("Formspree failed");
+
+            addMsg("assistant", "Perfect - I’ve got your email.\n\nAny must-haves before I pull options (bedrooms - garage - neighbourhood)?");
+            openEmail(false);
+          } catch {
+            addMsg("assistant", "Sorry - I could not submit that email. Try again, or just reply with your email.");
+          }
+        });
+      }
+    }
+
+    function initAll() {
+      document.querySelectorAll("[data-hm-root]").forEach(initOne);
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initAll, { once: true });
+    } else {
+      initAll();
+    }
+
+    document.addEventListener("astro:page-load", initAll);
+  })();
+</script>

@@ -1,0 +1,752 @@
+---
+// File: src/pages/neighbourhoods/[parent]/buildings/[slug].astro
+export const prerender = true;
+
+import Site from "../../../../layouts/Site.astro";
+import RVEmbed from "../../../../components/RVEmbed.astro";
+import { getJson } from "../../../../lib/fetchJson";
+import { heroPath } from "../../../../lib/paths";
+import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../../../../lib/categoryColours";
+import sanitizeHtml from "sanitize-html";
+
+// ✅ IMPORTANT: use the file you actually have
+import "../../../../styles/building-detail.css";
+
+const PATH_BASE = "/neighbourhoods";
+
+/* ---------------- helpers (FUNCTIONS so getStaticPaths can see them) ---------------- */
+function get(r: any, k: string) {
+  if (!r) return "";
+  if (r[k] != null) return String(r[k]).trim();
+  const lk = String(k).toLowerCase();
+  if (r[lk] != null) return String(r[lk]).trim();
+  const uk = String(k).toUpperCase();
+  if (r[uk] != null) return String(r[uk]).trim();
+  return "";
+}
+
+function slugify(v: any) {
+  return String(v ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeRows(raw: any) {
+  return Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.data)
+    ? raw.data
+    : Array.isArray(raw?.rows)
+    ? raw.rows
+    : [];
+}
+
+function stripMeta(s: string = "") {
+  return s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isAbs(s: string = "") {
+  return /^https?:\/\//i.test(s);
+}
+
+function splitList(v: any) {
+  return String(v ?? "")
+    .split(/[,\n|]+/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function niceTitle(s: string) {
+  return String(s ?? "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/* ---------------- sanitize ---------------- */
+const ALLOWED = {
+  allowedTags: ["p","h2","h3","h4","ul","ol","li","a","strong","em","br","hr","span","blockquote","code","pre"],
+  allowedAttributes: { a: ["href","target","rel"], span: ["data-embed"] },
+  transformTags: {
+    a: (_: any, attribs: any) => ({
+      tagName: "a",
+      attribs: { ...attribs, target: "_blank", rel: "noopener noreferrer" },
+    }),
+  },
+} as const;
+
+/* ---------------- static paths ---------------- */
+export async function getStaticPaths() {
+  const buildingsUrl = import.meta.env.PUBLIC_BUILDINGS_JSON;
+  if (!buildingsUrl) return [];
+
+  const get = (r: any, k: string) =>
+    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+      .toString()
+      .trim();
+
+  const slugify = (v: any) =>
+    String(v ?? "")
+      .toLowerCase()
+      .trim()
+      .replace(/&/g, "-and-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  const normalizeRows = (raw: any) =>
+    Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
+
+  const raw = await getJson(buildingsUrl);
+  const rows = normalizeRows(raw);
+
+  return rows
+    .map((r: any) => {
+      const parentVal =
+        get(r, "parent_area_slug") ||
+        get(r, "parent_slug") ||
+        get(r, "parent") ||
+        get(r, "area_slug") ||
+        get(r, "neighbourhood_slug") ||
+        get(r, "neighbourhood") ||
+        get(r, "Neighborhood") ||
+        get(r, "Parent");
+
+      const slugVal =
+        get(r, "slug") ||
+        get(r, "building_slug") ||
+        get(r, "name") ||
+        get(r, "Name");
+
+      const parent = slugify(parentVal);
+      const slug = slugify(slugVal);
+      if (!parent || !slug) return null;
+
+      return { params: { parent, slug } };
+    })
+    .filter(Boolean);
+}
+
+/* ---------------- params ---------------- */
+const { parent, slug } = Astro.params;
+const parentSlug = slugify(parent);
+const buildingSlug = slugify(slug);
+
+/* ---------------- load row (works in build + dev) ---------------- */
+let row: any = null;
+let error: string | null = null;
+
+try {
+  const buildingsUrl = import.meta.env.PUBLIC_BUILDINGS_JSON;
+  if (!buildingsUrl) throw new Error("Missing PUBLIC_BUILDINGS_JSON in .env (restart dev).");
+
+  const raw = await getJson<any>(buildingsUrl);
+  const rows = normalizeRows(raw);
+
+  row = rows.find((r: any) => {
+    const parentVal =
+      get(r, "parent_area_slug") ||
+      get(r, "parent_slug") ||
+      get(r, "parent") ||
+      get(r, "area_slug") ||
+      get(r, "neighbourhood_slug") ||
+      get(r, "neighbourhood") ||
+      get(r, "Neighborhood") ||
+      get(r, "Parent");
+
+    const slugVal =
+      get(r, "slug") ||
+      get(r, "building_slug") ||
+      get(r, "name") ||
+      get(r, "Name");
+
+    return slugify(parentVal) === parentSlug && slugify(slugVal) === buildingSlug;
+  });
+
+  if (!row) error = `Not found - no building row for ${parentSlug} / ${buildingSlug}.`;
+} catch (e: any) {
+  error = e?.message || "Failed to load buildings data.";
+}
+
+/* ---------------- core fields ---------------- */
+const name = row ? (get(row, "name") || get(row, "Name") || "Building") : "Building";
+const area = row ? get(row, "area") : "";
+
+const positioning = row ? get(row, "positioning_line") : "";
+const short = row ? get(row, "short_summary") : "";
+
+/* ---------------- listings ---------------- */
+const listingsId =
+  row
+    ? (
+        get(row, "listings") ||
+        get(row, "listing s") || // in case your header really has a space
+        get(row, "listing") ||
+        get(row, "listing_id") ||
+        get(row, "realtyvis") ||
+        ""
+      )
+        .toString()
+        .trim()
+    : "";
+
+const seoTitle =
+  row
+    ? (get(row, "seo_title") || `${name} - ${niceTitle(parentSlug)} Buildings`)
+    : `${niceTitle(buildingSlug)} - Building`;
+
+const seoDesc = stripMeta(row ? (get(row, "seo_description") || short || positioning) : "");
+
+const parentLabel = niceTitle(parentSlug);
+const headerAccent = CATEGORY_COLOURS.neighbourhoods ?? DEFAULT_ACCENT;
+const gradId = `mountainFadeBuilding_${parentSlug}_${buildingSlug}`;
+
+/* ---------------- images ---------------- */
+const heroRaw = row ? get(row, "hero_image") : "";
+const heroImg = heroRaw ? (isAbs(heroRaw) ? heroRaw : heroPath(heroRaw)) : "";
+
+const cardRaw = row ? get(row, "card_image") : "";
+const cardImg = cardRaw ? (isAbs(cardRaw) ? cardRaw : heroPath(cardRaw)) : "";
+
+const galleryRaw = row ? get(row, "gallery_images") : "";
+const gallery = row ? splitList(galleryRaw).map((g) => (isAbs(g) ? g : heroPath(g))) : [];
+
+/* ---------------- facts ---------------- */
+const facts = row
+  ? [
+      ["Address", get(row, "fact_address")],
+      ["Location", get(row, "fact_location")],
+      ["Building type", get(row, "fact_building_type")],
+      ["Layouts", get(row, "fact_layouts")],
+      ["Interior features", get(row, "fact_interior_features")],
+      ["Outdoor features", get(row, "fact_outdoor_features")],
+      ["Access", get(row, "fact_access")],
+      ["Storage", get(row, "fact_storage")],
+      ["Parking", get(row, "fact_parking")],
+      ["Strata", get(row, "fact_strata")],
+      ["Rentals", get(row, "fact_rentals")],
+      ["Tax", get(row, "fact_tax")],
+    ].filter(([, v]) => String(v ?? "").trim())
+  : [];
+
+/* ---------------- sections ---------------- */
+const sections = row
+  ? [
+      ["Building", get(row, "section_building")],
+      ["Interiors", get(row, "section_interiors")],
+      ["Outdoor", get(row, "section_outdoor")],
+      ["Access", get(row, "section_access")],
+      ["Ownership", get(row, "section_ownership")],
+    ].filter(([, v]) => String(v ?? "").trim())
+  : [];
+
+/* ---------------- who it suits ---------------- */
+const suits = row
+  ? [get(row, "suits_1"), get(row, "suits_2"), get(row, "suits_3"), get(row, "suits_4"), get(row, "suits_5")]
+      .map((s) => String(s ?? "").trim())
+      .filter(Boolean)
+  : [];
+
+const pageKicker = area ? `${niceTitle(area)} - ${parentLabel}` : parentLabel;
+---
+
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} wrapContent={false}>
+  <div class="page-shell pad-x">
+    <section class="page-intro" style={`--accent:${headerAccent};`}>
+      <nav class="types-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <a href={PATH_BASE}>Neighbourhoods</a>
+        <span>/</span>
+        <a href={`${PATH_BASE}/${parentSlug}`}>{parentLabel}</a>
+        <span>/</span>
+        <a href={`${PATH_BASE}/${parentSlug}/buildings`}>Buildings</a>
+        <span>/</span>
+        <span class="types-breadcrumb-current">{name}</span>
+      </nav>
+
+      <div class="types-title-block">
+        <div class="accent-bars" aria-hidden="true">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
+
+        <div class="title-row">
+          <div class="title-stack">
+            <p class="kicker">{pageKicker}</p>
+            <h1 class="page-title">{name}</h1>
+            {(positioning || short) && <p class="page-subhead">{positioning || short}</p>}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gradId} x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M0 18 L5 8 L11 14 L18 5 L25 13 L32 4 L40 12 L48 3 L56 11 L64 4 L72 13 L80 6 L90 15 L100 7 L100 20 L0 20 Z"
+          fill={`url(#${gradId})`}
+        />
+      </svg>
+    </div>
+
+    {error && <p class="err">{error}</p>}
+
+    {!error && row && (
+      <>
+        {(heroImg || cardImg) && (
+          <section class="hero-media">
+            <img src={heroImg || cardImg} alt={name} loading="eager" decoding="async" />
+          </section>
+        )}
+
+        <section class="grid">
+          <div class="stack">
+            {facts.length > 0 && (
+              <section class="card">
+                <h2 class="h2">Fast facts</h2>
+                <dl class="facts">
+                  {facts.map(([k, v]) => (
+                    <>
+                      <dt>{k}</dt>
+                      <dd>{v}</dd>
+                    </>
+                  ))}
+                </dl>
+              </section>
+            )}
+
+            {/* ✅ LISTINGS (map + results) + Formspree micro-form (in-page success message) */}
+<section class="card" id="listings" data-listings-card>
+  <h2 class="h2">{name} listings</h2>
+
+  {listingsId ? (
+    <>
+      <p class="muted">
+        Active listings in {name}. If nothing appears, there may be no current inventory.
+      </p>
+
+      <div class="rv-wrap" data-rv-wrap>
+        <RVEmbed block={listingsId} />
+      </div>
+
+      {/* CTA area (message swaps based on results) */}
+      <div class="listings-fallback" data-cta data-has-listings="1">
+        {/* When RESULTS exist */}
+        <div data-msg="has">
+          <p class="fallback-title">Not seeing the right one?</p>
+          <p class="fallback-text">
+            If you like {name} but don’t see a layout, view, or price point that fits, leave your details and I’ll send options when a better match shows up.
+          </p>
+        </div>
+
+        {/* When NO RESULTS exist */}
+        <div data-msg="none" hidden>
+          <p class="fallback-title">No active listings right now</p>
+          <p class="fallback-text">
+            {name} comes up infrequently. Leave your details and I’ll let you know when something hits the market here.
+          </p>
+        </div>
+
+        <form
+          class="inline-alert-form"
+          method="POST"
+          action="https://formspree.io/f/xaqnlnar"
+          data-alert-form
+        >
+          {/* context sent to you */}
+          <input type="hidden" name="Building" value={name} />
+          <input type="hidden" name="Building slug" value={buildingSlug} />
+          <input type="hidden" name="Neighbourhood" value={parentSlug} />
+          <input type="hidden" name="_subject" value={`Building alert - ${name}`} />
+
+          <div class="inline-fields">
+            <input
+              type="text"
+              name="First name"
+              placeholder="First name"
+              aria-label="First name"
+              autocomplete="given-name"
+            />
+
+            <input
+              type="email"
+              name="Email"
+              placeholder="Email address"
+              aria-label="Email address"
+              autocomplete="email"
+              required
+            />
+
+            <button type="submit" class="btn btn-primary" data-submit>
+              Get options
+            </button>
+          </div>
+
+          {/* ✅ in-page success/error message */}
+          <p class="form-note" data-note aria-live="polite"></p>
+        </form>
+      </div>
+    </>
+  ) : (
+    <>
+      <p class="muted">
+        There are no active listings in {name} right now.
+      </p>
+
+      <div class="listings-fallback" data-cta data-has-listings="0">
+        <p class="fallback-title">No active listings right now</p>
+        <p class="fallback-text">
+          {name} comes up infrequently. Leave your details and I’ll let you know when something hits the market here.
+        </p>
+
+        <form
+          class="inline-alert-form"
+          method="POST"
+          action="https://formspree.io/f/xaqnlnar"
+          data-alert-form
+        >
+          <input type="hidden" name="Building" value={name} />
+          <input type="hidden" name="Building slug" value={buildingSlug} />
+          <input type="hidden" name="Neighbourhood" value={parentSlug} />
+          <input type="hidden" name="_subject" value={`Building alert - ${name}`} />
+
+          <div class="inline-fields">
+            <input
+              type="text"
+              name="First name"
+              placeholder="First name"
+              aria-label="First name"
+              autocomplete="given-name"
+            />
+
+            <input
+              type="email"
+              name="Email"
+              placeholder="Email address"
+              aria-label="Email address"
+              autocomplete="email"
+              required
+            />
+
+            <button type="submit" class="btn btn-primary" data-submit>
+              Get options
+            </button>
+          </div>
+
+          <p class="form-note" data-note aria-live="polite"></p>
+        </form>
+      </div>
+    </>
+  )}
+
+  {/* ✅ 1) Detect “No results found” inside RV embed and swap the message */}
+  {/* ✅ 2) Bind Formspree submit so it DOES NOT redirect */}
+  <script is:inline>
+    (() => {
+      const root = document.querySelector("[data-listings-card]");
+      if (!root) return;
+
+      // ----- swap CTA copy if RV says "No results found"
+      const cta = root.querySelector("[data-cta]");
+      const wrap = root.querySelector("[data-rv-wrap]");
+
+      const showNoResultsCopy = () => {
+        if (!cta) return;
+        const has = cta.querySelector('[data-msg="has"]');
+        const none = cta.querySelector('[data-msg="none"]');
+        if (has) has.hidden = true;
+        if (none) none.hidden = false;
+      };
+
+      const showHasResultsCopy = () => {
+        if (!cta) return;
+        const has = cta.querySelector('[data-msg="has"]');
+        const none = cta.querySelector('[data-msg="none"]');
+        if (has) has.hidden = false;
+        if (none) none.hidden = true;
+      };
+
+      // if page doesn't have listingsId, we already render "no listings" copy
+      // if it DOES, watch the embed for its empty-state text
+      if (wrap && cta && cta.getAttribute("data-has-listings") === "1") {
+        const check = () => {
+          const txt = (wrap.innerText || "").trim();
+          // RealityVis empty state usually contains this exact phrase
+          if (/no results found/i.test(txt)) showNoResultsCopy();
+          else showHasResultsCopy();
+        };
+
+        // initial check + observe changes as RV loads
+        check();
+        const mo = new MutationObserver(check);
+        mo.observe(wrap, { childList: true, subtree: true, characterData: true });
+        setTimeout(check, 1200);
+        setTimeout(check, 2500);
+      }
+
+      // ----- in-page Formspree submit (no redirect)
+      const forms = Array.from(root.querySelectorAll("[data-alert-form]"));
+
+      const bind = (form) => {
+        if (!form || form.dataset.bound === "1") return;
+        form.dataset.bound = "1";
+
+        const note = form.querySelector("[data-note]");
+        const btn = form.querySelector("[data-submit]");
+        const email = form.querySelector('input[type="email"]');
+
+        const setNote = (msg, ok) => {
+          if (!note) return;
+          note.textContent = msg;
+          note.classList.toggle("ok", !!ok);
+          note.classList.toggle("err", !ok);
+        };
+
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          if (email && !email.checkValidity()) {
+            email.reportValidity();
+            return;
+          }
+
+          if (btn) {
+            btn.disabled = true;
+            btn.dataset.label = btn.textContent || "";
+            btn.textContent = "Sending...";
+          }
+
+          setNote("", true);
+
+          try {
+            const res = await fetch(form.action, {
+              method: "POST",
+              body: new FormData(form),
+              headers: { Accept: "application/json" },
+            });
+
+            if (res.ok) {
+              setNote(
+                "Thanks - I’ve got your details and I’ll follow up with a few options that fit.",
+                true
+              );
+              form.reset();
+            } else {
+              setNote("Sorry - something didn’t work. Please try again.", false);
+            }
+          } catch {
+            setNote("Network issue - please try again.", false);
+          } finally {
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = btn.dataset.label || "Get options";
+            }
+          }
+        });
+      };
+
+      forms.forEach(bind);
+    })();
+  </script>
+</section>
+
+
+            {sections.map(([title, html]) => (
+              <section class="card">
+                <h2 class="h2">{title}</h2>
+                <div class="prose" set:html={sanitizeHtml(String(html), ALLOWED)} />
+              </section>
+            ))}
+          </div>
+
+          <aside class="aside">
+            {suits.length > 0 && (
+              <section class="card">
+                <h2 class="h2">Who it suits</h2>
+                <div class="pill-row">
+                  {suits.map((t) => <span class="pill">{t}</span>)}
+                </div>
+              </section>
+            )}
+
+            {gallery.length > 0 && (
+              <section class="card gallery-card" data-gallery-root>
+                <h2 class="h2">Gallery</h2>
+
+                <div class="gallery" data-gallery>
+                  {gallery.slice(0, 12).map((src, i) => (
+                    <button
+                      type="button"
+                      class="thumb"
+                      data-thumb
+                      data-src={src}
+                      data-idx={i}
+                      aria-label={`Open photo ${i + 1}`}
+                    >
+                      <img src={src} alt={`${name} photo ${i + 1}`} loading="lazy" decoding="async" />
+                    </button>
+                  ))}
+                </div>
+
+                <div class="lightbox" data-lightbox aria-hidden="true">
+                  <div class="lightbox-scrim" data-close></div>
+
+                  <div class="lightbox-panel" role="dialog" aria-modal="true" aria-label="Gallery viewer">
+                    <button class="lb-btn lb-close" type="button" data-close aria-label="Close">✕</button>
+                    <button class="lb-btn lb-prev" type="button" data-prev aria-label="Previous">‹</button>
+                    <button class="lb-btn lb-next" type="button" data-next aria-label="Next">›</button>
+
+                    <div class="lightbox-stage" data-stage>
+                      <img data-full alt="" />
+                    </div>
+
+                    <div class="lightbox-meta">
+                      <span data-count></span>
+                    </div>
+                  </div>
+                </div>
+
+                <script is:inline>
+                  (() => {
+                    const root = document.querySelector("[data-gallery-root]");
+                    if (!root) return;
+
+                    const thumbs = Array.from(root.querySelectorAll("[data-thumb]"));
+                    if (!thumbs.length) return;
+
+                    const lb = root.querySelector("[data-lightbox]");
+                    const img = root.querySelector("[data-full]");
+                    const count = root.querySelector("[data-count]");
+                    const btnPrev = root.querySelector("[data-prev]");
+                    const btnNext = root.querySelector("[data-next]");
+                    const stage = root.querySelector("[data-stage]");
+                    const closers = Array.from(root.querySelectorAll("[data-close]"));
+
+                    const urls = thumbs.map(b => b.getAttribute("data-src")).filter(Boolean);
+                    if (!lb || !img || !urls.length) return;
+
+                    let idx = 0;
+
+                    const preload = (i) => {
+                      const u = urls[i];
+                      if (!u) return;
+                      const im = new Image();
+                      im.src = u;
+                    };
+
+                    const show = (i) => {
+                      idx = (i + urls.length) % urls.length;
+                      const u = urls[idx];
+                      img.src = u;
+                      img.alt = `Photo ${idx + 1}`;
+                      if (count) count.textContent = `${idx + 1} / ${urls.length}`;
+                      preload((idx + 1) % urls.length);
+                      preload((idx - 1 + urls.length) % urls.length);
+                    };
+
+                    const lockScroll = () => {
+                      const y = window.scrollY || 0;
+                      const sbw = window.innerWidth - document.documentElement.clientWidth;
+                      lb.dataset.scrollY = String(y);
+                      document.body.style.position = "fixed";
+                      document.body.style.top = `-${y}px`;
+                      document.body.style.left = "0";
+                      document.body.style.right = "0";
+                      document.body.style.width = "100%";
+                      document.body.style.paddingRight = sbw > 0 ? `${sbw}px` : "";
+                    };
+
+                    const unlockScroll = () => {
+                      const y = Number(lb.dataset.scrollY || "0");
+                      document.body.style.position = "";
+                      document.body.style.top = "";
+                      document.body.style.left = "";
+                      document.body.style.right = "";
+                      document.body.style.width = "";
+                      document.body.style.paddingRight = "";
+                      window.scrollTo(0, y);
+                    };
+
+                    const open = (i) => {
+                      lb.classList.add("open");
+                      lb.setAttribute("aria-hidden", "false");
+                      lockScroll();
+                      show(i);
+                    };
+
+                    const close = () => {
+                      lb.classList.remove("open");
+                      lb.setAttribute("aria-hidden", "true");
+                      unlockScroll();
+                      setTimeout(() => { img.src = ""; }, 120);
+                    };
+
+                    thumbs.forEach((b) => {
+                      b.addEventListener("click", () => {
+                        const i = Number(b.getAttribute("data-idx") || "0");
+                        open(i);
+                      });
+                    });
+
+                    btnPrev?.addEventListener("click", () => show(idx - 1));
+                    btnNext?.addEventListener("click", () => show(idx + 1));
+                    closers.forEach((c) => c.addEventListener("click", close));
+
+                    window.addEventListener("keydown", (e) => {
+                      if (!lb.classList.contains("open")) return;
+                      if (e.key === "Escape") close();
+                      if (e.key === "ArrowLeft") show(idx - 1);
+                      if (e.key === "ArrowRight") show(idx + 1);
+                    });
+
+                    let startX = 0, startY = 0, dragging = false;
+
+                    stage?.addEventListener("touchstart", (e) => {
+                      if (!lb.classList.contains("open")) return;
+                      const t = e.touches[0];
+                      startX = t.clientX; startY = t.clientY;
+                      dragging = true;
+                    }, { passive: true });
+
+                    stage?.addEventListener("touchend", (e) => {
+                      if (!dragging) return;
+                      dragging = false;
+                      const t = e.changedTouches[0];
+                      const dx = t.clientX - startX;
+                      const dy = t.clientY - startY;
+                      if (Math.abs(dy) > Math.abs(dx)) return;
+
+                      const THRESH = 45;
+                      if (dx > THRESH) show(idx - 1);
+                      else if (dx < -THRESH) show(idx + 1);
+                    }, { passive: true });
+                  })();
+                </script>
+              </section>
+            )}
+          </aside>
+        </section>
+      </>
+    )}
+  </div>
+</Site>

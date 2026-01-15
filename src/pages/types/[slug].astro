@@ -3,49 +3,77 @@
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import HeroBleed from "../../components/HeroBleed.astro";
 import RVEmbed from "../../components/RVEmbed.astro";
 import CTAForm from "../../components/CTAForm.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
-
-/* ---------- tiny util ---------- */
-const slugify = (v:string) =>
-  (v ?? "").toLowerCase().trim()
-    .replace(/&/g,"-and-")
-    .replace(/[^a-z0-9]+/g,"-")
-    .replace(/^-+|-+$/g,"");
-
-/* ✅ Clean SEO text (no truncation) */
-const stripMeta = (s:string="") =>
-  s.replace(/<[^>]+>/g," ")
-   .replace(/&[^;\s]+;/g," ")
-   .replace(/\s+/g," ")
-   .trim();
+import { Fragment } from "astro/jsx-runtime";
+import { accentForTypeSlug } from "../../lib/categoryColours";
 
 /* ---------- static paths ---------- */
 export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_TYPES_JSON;
   if (!url) return [];
-  let rows:any[] = [];
+
+  let rows: any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch { return []; }
+    rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
+  } catch {
+    return [];
+  }
 
-  const items = rows.map((r:any) => {
-    const status  = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
-    const rawSlug = String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase();
-    const hidden = status === "hidden" || status === "inactive" || rawSlug === "index";
-    if (hidden) return null;
-    const title  = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-    const slug   = (rawSlug || slugify(title)).toLowerCase();
-    return slug ? { params: { slug }, props: { row: r } } : null;
-  }).filter(Boolean) as any[];
+  const items = rows
+    .map((r: any) => {
+      const status = String(r?.status ?? r?.Status ?? r?.STATUS ?? "")
+        .trim()
+        .toLowerCase();
+      const rawSlug = String(r?.slug ?? r?.Slug ?? r?.SLUG ?? "")
+        .trim()
+        .toLowerCase();
+
+      const hidden = status === "hidden" || status === "inactive" || rawSlug === "index";
+      if (hidden) return null;
+
+      const title = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
+
+      const safeSlug =
+        rawSlug ||
+        title
+          .toLowerCase()
+          .trim()
+          .replace(/&/g, "-and-")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+
+      return safeSlug ? { params: { slug: safeSlug }, props: { row: r } } : null;
+    })
+    .filter(Boolean) as any[];
 
   return items;
+}
+
+/* ---------- helpers ---------- */
+const get = (r: any, ...keys: string[]) => {
+  for (const k of keys) {
+    const v = r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()];
+    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+  }
+  return "";
+};
+
+function resolveImgFromCell(v: string): string {
+  const s = (v ?? "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("/")) return s;
+  return heroPath(s);
 }
 
 /* ---------- page data ---------- */
@@ -56,176 +84,317 @@ type Row = {
   hero_img?: string; heroImg?: string; HeroImg?: string;
   seo_title?: string; seoTitle?: string;
   seo_description?: string; seoDescription?: string;
-  kicker?: string; subhead?: string;
+  kicker?: string; Kicker?: string; KICKER?: string;
+  subhead?: string; Subhead?: string; SUBHEAD?: string;
   cta1?: string; rv_block?: string; slug?: string; status?: string;
+  url?: string;
+  spare_1?: string; Spare_1?: string; SPARE_1?: string;
+  spare_2?: string; Spare_2?: string; SPARE_2?: string;
+  spare_3?: string; Spare_3?: string; SPARE_3?: string;
 };
+
 const { row: rowIn } = Astro.props as { row?: Row };
 const row = rowIn ?? ({} as Row);
 
-const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Property Type").trim();
-const summary  = String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
-const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
-const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
-const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
-const seoDesc  = stripMeta(String(row?.seo_description ?? row?.seoDescription ?? summary ?? ""));
+const title = get(row, "title", "Title", "TITLE") || "Property Type";
+const summary = get(row, "summary", "Summary", "SUMMARY");
+const body = get(row, "long_copy", "longcopy", "LongCopy");
+const heroImgCell = get(row, "hero_img", "heroImg", "HeroImg");
 
-/* ---------- kicker/subhead ---------- */
-const kicker = String(
-  row?.kicker ?? row?.Kicker ?? row?.KICKER ??
-  row?.subhead ?? row?.Subhead ?? row?.SUBHEAD ?? ""
-).trim() || "Fernie, BC";
+/* URL field (optional) */
+const rawUrl = (row as any)?.url;
+let url = typeof rawUrl === "string" ? rawUrl.trim() : "";
+if (url === "undefined" || url === "null" || url === "#") url = "";
 
-/* Rich text guards */
-function stripScripts(html:string){ return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,""); }
+/* hero resolve (preload only) */
+const isAbs = (s: string = "") => /^https?:\/\//i.test(s);
+const heroResolved = heroImgCell ? (isAbs(heroImgCell) ? heroImgCell : heroPath(heroImgCell)) : "";
+
+/* spare_2 image to render below listings */
+const spare2Img = resolveImgFromCell(get(row, "spare_2", "Spare_2", "SPARE_2"));
+
+/* gallery (exclude spare_2 so it doesn't duplicate) */
+const gallery = [1, 3]
+  .map((n) => {
+    const src = resolveImgFromCell(get(row, `spare_${n}`));
+    const cap = get(row, `spare_${n}_caption`);
+    return src ? { src, cap } : null;
+  })
+  .filter(Boolean) as { src: string; cap: string }[];
+
+/* SEO */
+const stripMeta = (s: string = "") =>
+  s.replace(new RegExp("<[^>]+>", "g"), " ")
+   .replace(/&[^;\s]+;/g, " ")
+   .replace(/\s+/g, " ")
+   .trim();
+
+const seoTitle = get(row, "seo_title", "seoTitle") || title;
+const seoDesc = stripMeta(get(row, "seo_description", "seoDescription") || summary || "");
+
+/* kicker/subhead */
+const rawKicker =
+  get(row, "kicker", "Kicker", "KICKER") ||
+  get(row, "subhead", "Subhead", "SUBHEAD");
+const pageSubhead = rawKicker || "Fernie, BC";
+
+/* HTML cleaners */
+const stripScripts = (html: string = "") => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
 const SUMMARY_IS_HTML = true;
 const BODY_IS_HTML = true;
 const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summary) : "";
 const bodyHtml = BODY_IS_HTML ? stripScripts(body) : "";
 
-/* ---------- listings (RealtyVis) — robust parsing ---------- */
-const rawCta =
-  String(row?.cta1 ?? row?.rv_block ?? "").trim() ||
-  String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
+/* RV embed */
+const rawCta = get(row, "cta1", "rv_block") || String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
+const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
 
-const LOOSE_ID_RE = /([A-Z0-9]{8}-[A-Z0-9]{8})/i;
-function extractRvId(anyHtmlOrUrl: string) {
-  const s = String(anyHtmlOrUrl || "");
-  if (!s) return "";
-  // data-rv-block="XXXX-XXXX"
-  let m = s.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
-           .match(/data-?rv-?block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
-  if (m?.[1]) return m[1];
-  // ?block=XXXX-XXXX (handles embed URLs)
-  m = s.match(/[?&]block=([A-Z0-9]{8}-[A-Z0-9]{8})/i);
-  if (m?.[1]) return m[1];
-  // last resort: first token that looks like an ID anywhere
-  m = s.match(LOOSE_ID_RE);
+function extractRvId(html: string) {
+  const clean = stripScripts(html);
+  const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
   return m?.[1] || "";
 }
-const rvBlockId =
-  (LOOSE_ID_RE.test(rawCta) ? (rawCta.match(LOOSE_ID_RE)?.[1] || "") : extractRvId(rawCta));
-const hasValidBlock = !!rvBlockId;
 
-/* ---------- hero preload ---------- */
-const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
+const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
+const hasValidBlock = ID_RE.test(rvBlockId);
 
-/* ---------- Formspree ---------- */
+/* preload */
+const heroPreload = heroResolved ? { href: heroResolved, imagesizes: "100vw" } : null;
+
+/* ACCENT - single source of truth */
+const slugParam = String(Astro.params.slug ?? "").replace(/^\/+|\/+$/g, "");
+const headerAccent = accentForTypeSlug(slugParam || get(row, "slug") || "");
+
+/* formspree */
 const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdHere");
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
-  <HeroBleed
-    src={heroImg ? heroPath(heroImg) : ""}
-    title={title}
-    kicker={kicker}
-    containerMax={1200}
-    containerPad={12}
-    flush={false}
-    preload={false}
-  />
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  wrapContent={false}
+  heroPreload={heroPreload}
+>
+  <Fragment slot="head">
+    <link rel="preconnect" href="https://imagedelivery.net" />
+  </Fragment>
 
-  {summary && (
-    <section>
-      <div class="container summary-wrap">
-        {SUMMARY_IS_HTML
-          ? <div class="lead" set:html={summaryHtml}></div>
-          : <p class="lead">{summary}</p>}
+  <div class="page-shell pad-x">
+    <section class="page-intro" style={`--accent:${headerAccent};`}>
+      <nav class="types-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <a href="/types">Property Types</a>
+        <span>/</span>
+        <span class="types-breadcrumb-current">{title}</span>
+      </nav>
+
+      <div class="types-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
+
+        <div class="title-row">
+          <h1 class="page-title">{title}</h1>
+        </div>
+
+        {pageSubhead && <p class="page-subhead">{pageSubhead}</p>}
       </div>
     </section>
-  )}
 
-  {/* ✅ Listings — matches the gold page */}
-  <div class="container listings-wrap">
-    <h2 class="h2">Current {title} Listings</h2>
-
-    {hasValidBlock ? (
-      <div class="rv-host">
-        <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
-      </div>
-    ) : (
-      <div class="rv-fallback">
-        <p><strong>Heads-up:</strong> Listings are unavailable for this page right now.</p>
-        <p><a href="/search">Browse all listings</a></p>
-      </div>
-    )}
-
-    {/* Hover-to-warm connections for RV */}
-    {hasValidBlock && (
-      <script is:inline>
-{`(function(){
-  let warmed=false;
-  function warm(){
-    if(warmed) return; warmed=true;
-    new Image().src="https://app.realtyvis.com/favicon.ico";
-    new Image().src="https://cdn.realtyvis.com/favicon.ico";
-    try{
-      fetch("https://app.realtyvis.com/css/site.min.css",{mode:"no-cors"}).catch(()=>{});
-      fetch("https://app.realtyvis.com/js/site.min.js",{mode:"no-cors"}).catch(()=>{});
-    }catch(e){}
-  }
-  const host=document.querySelector(".rv-host")||document.querySelector(".listings-wrap");
-  if(!host) return;
-  ["pointerover","touchstart","focusin"].forEach(ev=>{
-    host.addEventListener(ev,warm,{once:true,passive:true});
-  });
-})();`}
-      </script>
-    )}
-  </div>
-
-  {body && (
-    <div class="container body-wrap">
-      {BODY_IS_HTML
-        ? <div class="lead" set:html={bodyHtml}></div>
-        : <p class="lead">{body}</p>}
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mountainFadeType" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="
+            M0 18
+            L5 8
+            L11 14
+            L18 5
+            L25 13
+            L32 4
+            L40 12
+            L48 3
+            L56 11
+            L64 4
+            L72 13
+            L80 6
+            L90 15
+            L100 7
+            L100 20
+            L0 20
+            Z
+          "
+          fill="url(#mountainFadeType)"
+        />
+      </svg>
     </div>
-  )}
 
-  <!-- CTA lives outside .lead -->
-  <div class="container cta-bottom-wrap">
-    <CTAForm formId={formspreeId} pageSlug={Astro.params.slug} pageTitle={title} />
+    {summary && (
+      <section class="summary-wrap">
+        {SUMMARY_IS_HTML ? <div class="lead" set:html={summaryHtml}></div> : <p class="lead">{summary}</p>}
+      </section>
+    )}
+
+    {gallery.length > 0 && (
+      <section class="gallery-wrap">
+        <div class="gallery">
+          {gallery.map(({ src, cap }) => (
+            <figure class="tile">
+              <img loading="lazy" decoding="async" src={src} alt={cap || title} />
+              {cap && <figcaption>{cap}</figcaption>}
+            </figure>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <section class="listings-wrap">
+      <h2 class="h2">Current {title} Listings</h2>
+
+      {hasValidBlock ? (
+        <div class="rv-host">
+          <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
+        </div>
+      ) : (
+        <div class="rv-fallback">
+          <p><strong>Heads-up:</strong> Listings are unavailable for this page right now.</p>
+          <p><a href="/search">Browse all listings</a></p>
+        </div>
+      )}
+    </section>
+
+    {/* spare_2 image moved below listings */}
+    {spare2Img && (
+      <section class="hero-under-listings">
+        <img src={spare2Img} alt={title} loading="lazy" decoding="async" />
+      </section>
+    )}
+
+    {body && (
+      <section class="body-wrap">
+        {BODY_IS_HTML ? <div class="lead" set:html={bodyHtml}></div> : <p class="lead">{body}</p>}
+      </section>
+    )}
+
+    <section class="cta-bottom-wrap">
+      <CTAForm formId={formspreeId} pageSlug={Astro.params.slug} pageTitle={title} />
+    </section>
   </div>
 
   <style>
-    .container { max-width: 1200px; margin-inline: auto; padding-inline: 12px; }
+    .page-shell { max-width: 1280px; margin-inline: auto; margin-top: 14px; margin-bottom: 40px; }
+    .pad-x { padding-inline: var(--edge-pad) !important; }
+    @media (min-width: 900px) { .pad-x { padding-inline: var(--edge-pad-lg) !important; } }
 
-    /* unified summary (underline, no card) */
-    .summary-wrap{
-      padding-top:10px;
-      padding-bottom:10px;
-      border-bottom:1px solid #e5e7eb;
-      margin-bottom:35px;
+    .page-intro { max-width: var(--container-max); margin: 0 auto 10px; padding-top: 28px; }
+
+    .types-breadcrumb{
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
     }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-   
-    .listings-wrap { padding-top: 16px; padding-bottom: 8px; }
-    .h2 { font-size: clamp(20px, 2.6vw, 28px); margin: 0 0 10px; }
+    .types-breadcrumb a{ text-decoration: none; border-bottom: 1px solid transparent; }
+    .types-breadcrumb a:hover{ border-bottom-color: var(--accent); }
+    .types-breadcrumb-current{ opacity: 0.7; }
 
-    .rv-fallback {
-      margin-top: 12px; padding: 12px 16px;
-      background: #fff3cd; border: 1px solid #ffe69c; border-radius: 10px; color: #5c3c00;
+    .types-title-block{ max-width: 48rem; }
+
+    .accent-bars{ display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+    .accent-bar{ height: 4px; border-radius: 999px; background: var(--accent); }
+    .accent-bar.primary{ width: 80px; opacity: 0.9; }
+    .accent-bar.secondary{ width: 40px; opacity: 0.45; }
+
+    .title-row{ display: flex; align-items: flex-start; gap: 0.75rem; }
+
+    .page-title{
+      margin: 0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height: 1.08;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #111827;
     }
 
-    .body-wrap::after { content:""; display:block; clear:both; }
-    .cta-bottom-wrap { padding: 18px 0 28px; clear: both; }
-
-    .rv-host { min-height: 1000px; }
-
-    /* ✅ Match the gold page skeleton handling + centering */
-    .rv-host [data-skeleton],
-    .rv-host .rv-skeleton {
-      animation: none !important;
-      background: none !important;
-      background-image: none !important;
-      box-shadow: none !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
+    .page-subhead{
+      margin: 6px 0 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
     }
-    .rv-host .rv-root,
-    .rv-host .rv-container,
-    .rv-host .rv-shell {
-      max-width: 1200px;
-      margin-inline: auto;
+
+    .mountain-strip{
+      margin: 8px auto 24px;
+      height: 48px;
+      max-height: 60px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
     }
+    .mountain-strip svg{ width: 100%; height: 100%; opacity: 0.9; mix-blend-mode: multiply; }
+
+    .summary-wrap{ padding-top: 12px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; margin-bottom: 8px; }
+    .lead{ margin: 0; font-size: 1.075rem; line-height: 1.6; color: #111827; }
+    .lead :where(p, ul, ol){ margin: 0 0 .8rem; }
+    .lead :where(a){ text-decoration: underline; }
+
+    .gallery-wrap{ padding-top: 14px; padding-bottom: 6px; }
+    .gallery{ display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+    .tile{ position: relative; overflow: hidden; border-radius: 6px; background: transparent; margin: 0; padding: 0; }
+    .tile img{ display: block; width: 100%; height: auto; border-radius: inherit; object-fit: cover; }
+
+    .tile figcaption{
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.55);
+      color: #fff;
+      font-size: 0.85rem;
+      border-radius: 8px;
+    }
+
+    .listings-wrap{ padding-top: 16px; padding-bottom: 8px; }
+    .h2{ font-size: clamp(20px, 2.6vw, 28px); margin: 0 0 10px; }
+
+    .rv-fallback{
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: #fff3cd;
+      border: 1px solid #ffe69c;
+      border-radius: 10px;
+      color: #5c3c00;
+    }
+
+    .body-wrap{ margin-top: 20px; }
+
+    /* spare_2 image below listings */
+    .hero-under-listings{
+      margin: 16px 0 22px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(0,0,0,0.02);
+    }
+    .hero-under-listings img{
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .cta-bottom-wrap{ padding: 18px 0 28px; clear: both; }
+    .rv-host{ min-height: 1000px; }
   </style>
 </Site>

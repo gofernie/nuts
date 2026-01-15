@@ -1,48 +1,53 @@
 ---
 /**
- * HeroBleed
- * - Renders hero image as <img> for proper LCP discovery
- * - Defaults to 1200 × 800 intrinsic dimensions
- * - Title first, then kicker; soft scrim for readability
- * - Preload handled by Site.astro (heroPreload)
+ * Full-bleed hero with zero-CLS height reservation.
+ * aspect: "21:9" (default) | "16:9"
+ *
+ * Props:
+ *  - src, alt
+ *  - position: "top-left" | "bottom-left" (default: "bottom-left")
+ *  - titleInset: vertical offset from top/bottom (px)
+ *  - link, linkLabel (optional) – shows bottom-centre CTA if link present
  */
-
 const {
   src = "",
   alt = "",
-
-  // Accept BOTH conventions; prefer short names if present
   srcset: srcsetProp = "",
   sizes: sizesProp = "100vw",
   imagesrcset: imageSrcsetProp = "",
   imagesizes: imageSizesProp = "",
 
-  width = 1200,
-  height = 800,
-  title = "",
-  kicker = "",
-  containerMax = 1200,
-  containerPad = 12,
-  flush = false,
-  position = "top-left",
-  titleInset = 15
+  width = 2100,
+  height = 900,
+
+  position = "bottom-left",      // "top-left" | "bottom-left"
+  titleInset = 20,               // vertical offset from edge
+  flush = true,
+  aspect = "21:9",
+
+  // NEW: CTA props
+  link = "",
+  linkLabel = "Like this listing? Click to view →",
 } = Astro.props;
 
-// Resolve responsive attributes with backwards-compat aliases
 const resolvedSrcset = srcsetProp || imageSrcsetProp || "";
 const resolvedSizes  = sizesProp   || imageSizesProp   || "100vw";
+const hasImage = !!src;
 
-const hasImage = Boolean(src);
-const styleVars = `
-  --container-max:${containerMax}px;
-  --container-pad:${containerPad}px;
-  --title-inset:${titleInset}px;
-`;
+const aspectMap = { "21:9": 21/9, "16:9": 16/9 };
+const ar  = aspectMap[aspect] ?? aspectMap["21:9"];
+const pct = (1 / ar) * 100;
 ---
 
-<section class={`hero-bleed${flush ? " hero-bleed--flush" : ""}`} style={styleVars}>
-  {hasImage && (
-    <picture class="hero-bleed__media" aria-hidden="true">
+<section
+  class={`hero-bleed${flush ? " hero-bleed--flush" : ""}`}
+  style={`--ar:${ar};--ar-pct:${pct}%;--title-inset:${titleInset}px;`}
+>
+  <!-- Height reservation wrapper -->
+  <div class="hero-bleed__media" aria-hidden="true">
+    <div class="hero-bleed__shim"></div>
+
+    {hasImage && (
       <img
         src={src}
         {...(resolvedSrcset ? { srcset: resolvedSrcset } : {})}
@@ -55,37 +60,70 @@ const styleVars = `
         fetchpriority="high"
         class="hero-bleed__img"
       />
-    </picture>
-  )}
+    )}
+  </div>
 
+  <!-- Scrim -->
   <div class={`hero-bleed__scrim hero-bleed__scrim--${position}`} aria-hidden="true"></div>
 
+  <!-- Content overlay: slot only -->
   <div class={`hero-bleed__content hero-bleed__content--${position}`}>
-    {title && <h1 class="hero-bleed__title">{title}</h1>}
-    {kicker && <p class="hero-bleed__kicker">{kicker}</p>}
-    <slot />
+    <!-- pad-x + wrap-1280 so any slotted content aligns with site rail -->
+    <div class="hero-bleed__inner">
+      <div class="pad-x">
+        <div class="wrap-1280">
+          <slot />
+        </div>
+      </div>
+    </div>
   </div>
+
+  {link && (
+    <div class="hero-bleed__cta">
+      <a href={link} class="hero-bleed__cta-btn">
+        {linkLabel}
+      </a>
+    </div>
+  )}
 </section>
 
 <style>
   .hero-bleed {
     position: relative;
-    background: none;
-    border-radius: 10px;
+    display: block;
+    width: 100%;
+    margin: 0;
+    background: #111;
+    border-radius: 0;
     overflow: hidden;
+    isolation: isolate;
   }
+
   .hero-bleed__media {
     position: relative;
     display: block;
     width: 100%;
-    height: clamp(280px, 55vh, 640px);
+    aspect-ratio: var(--ar);
+    min-height: 240px;
+    max-height: 50vh;
+    overflow: hidden;
     background: #111;
   }
+
+  @supports not (aspect-ratio: 1 / 1) {
+    .hero-bleed__media { height: auto; }
+    .hero-bleed__shim { display: block; padding-top: var(--ar-pct); }
+  }
+  @supports (aspect-ratio: 1 / 1) {
+    .hero-bleed__shim { display: none; }
+  }
+
   .hero-bleed__img {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
+    display: block;
     object-fit: cover;
   }
 
@@ -96,50 +134,84 @@ const styleVars = `
     opacity: .95;
     transition: opacity .6s ease;
   }
+
   .hero-bleed__scrim--top-left {
-    background: radial-gradient(140% 100% at 4% 6%, rgba(0,0,0,.45) 0%, rgba(0,0,0,.22) 35%, rgba(0,0,0,0) 70%);
+    background: radial-gradient(
+      140% 100% at 4% 6%,
+      rgba(0,0,0,.45) 0%,
+      rgba(0,0,0,.22) 35%,
+      rgba(0,0,0,0) 70%
+    );
   }
+
   .hero-bleed__scrim--bottom-left {
-    background: radial-gradient(140% 100% at 6% 94%, rgba(0,0,0,.45) 0%, rgba(0,0,0,.22) 35%, rgba(0,0,0,0) 70%);
+    background: radial-gradient(
+      140% 100% at 6% 94%,
+      rgba(0,0,0,.45) 0%,
+      rgba(0,0,0,.22) 35%,
+      rgba(0,0,0,0) 70%
+    );
   }
 
   .hero-bleed__content {
     position: absolute;
-    inset-inline-start: var(--title-inset);
-    max-width: min(var(--container-max), 92vw);
-    padding-inline: var(--container-pad);
+    inset-inline: 0;
+  }
+
+  .hero-bleed__content--top-left {
+    inset-block-start: var(--title-inset);
+  }
+
+  .hero-bleed__content--bottom-left {
+    inset-block-end: var(--title-inset);
+  }
+
+  /* Styling for anything you slot in later (badges, chips, etc.) */
+  .hero-bleed__inner {
     color: #fff;
     text-shadow: 0 1px 2px rgba(0,0,0,.35);
-  }
-  @media (prefers-reduced-motion: no-preference) {
-    .hero-bleed__content {
-      opacity: 0;
-      transform: translateY(6px);
-      animation: heroFade .6s ease .05s forwards;
-    }
-    @keyframes heroFade {
-      to { opacity: 1; transform: translateY(0); }
-    }
+    text-align: left;
   }
 
-  .hero-bleed__content--top-left { inset-block-start: var(--title-inset); }
-  .hero-bleed__content--bottom-left { inset-block-end: var(--title-inset); }
-
-  .hero-bleed--flush .hero-bleed__content {
-    max-width: 100%;
-    padding-inline: clamp(12px, 4vw, 28px);
+  /* Bottom-middle CTA */
+    /* Bottom-middle CTA */
+    /* Bottom-middle CTA */
+  .hero-bleed__cta {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    text-align: center;
+    pointer-events: none;
   }
 
-  .hero-bleed__title {
-    margin: 0 0 6px 0;
-    line-height: 1.05;
-    font-size: clamp(28px, 5.2vw, 52px);
-    font-weight: 700;
+  .hero-bleed__cta-btn {
+    pointer-events: auto;
+    display: inline-block;
+    padding: 0.55rem 1.25rem;
+    border-radius: 999px;
+    border: 1px solid rgba(248, 250, 252, 0.8); /* light outline */
+    background: rgba(15, 23, 42, 0.18);         /* very subtle plate */
+    color: #f9fafb;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+    transition:
+      background 0.18s ease,
+      border-color 0.18s ease,
+      transform 0.15s ease,
+      box-shadow 0.18s ease;
   }
-  .hero-bleed__kicker {
-    margin: 0;
-    font-weight: 600;
-    letter-spacing: .02em;
-    opacity: .95;
+
+  .hero-bleed__cta-btn:hover {
+    background: rgba(15, 23, 42, 0.9);          /* fills in on hover */
+    border-color: transparent;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
   }
+
+
 </style>

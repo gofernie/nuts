@@ -3,15 +3,13 @@
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
-import sanitizeHtml from "sanitize-html";
-import ListingsAccordion from "../../components/ListingsAccordion.astro"; // ✅ NEW
+import { DEFAULT_ACCENT } from "../../lib/categoryColours";
 
 const PATH_BASE = "/to_do";
 
-/* ---------- helpers ---------- */
+/* helpers */
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
 const get = (r:any,k:string)=>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
@@ -28,86 +26,61 @@ const visible = (r:any) => {
   return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
 
-/* Pull first http(s) URL out of a possibly-wrapped cell */
-const firstHttp = (s:string="") => {
-  const t = (s || "").replace(/\u00A0/g, " ").trim(); // strip NBSPs
-  const m = t.match(/https?:\/\/[^\s"'<>\u00A0]+/i);
-  return m ? m[0] : t;
+const stripMeta = (s:string="") =>
+  s.replace(/<[^>]*>/g," ")
+   .replace(/&[^;\s]+;/g," ")
+   .replace(/\s+/g," ")
+   .trim();
+
+/* html safe + excerpt */
+const stripScripts = (html:string="") =>
+  html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,"");
+
+const stripTags = (s:string="") =>
+  s.replace(/<[^>]*>/g," ")
+   .replace(/&[^;\s]+;/g," ")
+   .replace(/\s+/g," ")
+   .trim();
+
+const excerpt = (s:string,n=240)=>{
+  const t = stripTags(s);
+  return t.length>n ? t.slice(0,n-1).trimEnd()+"…" : t;
 };
 
-const pick = (...vals:string[]) => vals.find(v => v && v.length > 0) || "";
-const isAbs = (s:string="") => /^https?:\/\//i.test(s);
+/* image helpers */
+const pickCardImg = (r:any) =>
+  get(r,"card_img") || get(r,"card") || get(r,"card_src") || get(r,"cardimg") || "";
 
-/* summaries */
-const toText = (v:string) =>
-  sanitizeHtml(v ?? "", { allowedTags: [], allowedAttributes: {} })
-    .replace(/\s+/g, " ")
-    .trim();
-
-const toHtml = (v:string) => sanitizeHtml(v ?? "", {
-  allowedTags: ["p","strong","em","a","ul","ol","li","br","span"],
-  allowedAttributes: { a:["href","target","rel"] },
-  transformTags: {
-    a: (_:any,attr:any)=>({ tagName:"a", attribs:{...attr, rel:"noopener nofollow ugc"} })
-  }
-});
-
-/* ---------- seasons parsing ---------- */
-const readColumnC = (r:any): string => {
-  try {
-    const vals = Object.values(r);
-    const v = vals.length >= 3 ? (vals[2] ?? "") : "";
-    return (typeof v === "string" ? v : "").toString();
-  } catch { return ""; }
+const resolveCard = (v:string) => {
+  const s = (v ?? "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("/")) return s;
+  return heroPath(s);
 };
 
-const parseSeasons = (r:any) => {
-  let raw = get(r,"seasons") || get(r,"season") || get(r,"tags");
-  if (!raw) raw = readColumnC(r);
-
-  raw = (raw || "").toString().toLowerCase().replace(/\u00a0/g," ").trim();
-
-  if (!raw) return ["all"];
-  if (raw === "both" || raw === "both (all)" || raw === "all" || raw === "any" || raw === "year-round" || raw === "year round") {
-    return ["all"];
-  }
-
-  const parts = raw.split(/[\/,|;]+|\s{2,}/)
-    .map(s => s.trim())
-    .filter(Boolean);
-
-  const map: Record<string,string> = {
-    "summer":"summer","winter":"winter","spring":"spring",
-    "fall":"fall","autumn":"fall","yr":"year-round",
-    "year-round":"year-round","year round":"year-round",
-    "both":"all","both (all)":"all","any":"all","all":"all"
-  };
-
-  const canon = Array.from(new Set(parts.map(p => map[p] ?? p)));
-  return canon.length ? canon : ["all"];
+/* Types */
+type Row={
+  slug?:string;
+  title?:string;
+  summary?:string;
+  long_copy?:string;
+  hero_img?:string;
+  card_img?:string;
+  status?:string;
+  seo_title?:string;
+  seo_description?:string;
+  category?:string;
+  sort?:number|string;
 };
 
-type Row = {
-  slug?: string;
-  title?: string;
-  summary?: string;
-  long_copy?: string;
-  hero_img?: string;
-  card_img?: string;
-  status?: string;
-  seo_title?: string;
-  seo_description?: string;
-  sort?: number|string;
-  seasons?: string[];
-};
+let items:Row[]=[];
+let header:Row|null=null;
+let error:string|null=null;
 
-let items: (Row & { summary_text?: string })[] = [];
-let header: Row | null = null;
-let error: string | null = null;
-
-try {
+try{
   const url = import.meta.env.PUBLIC_TODO_JSON;
-  if (!url) throw new Error("Missing PUBLIC_TODO_JSON in .env (restart dev).");
+  if(!url) throw new Error("Missing PUBLIC_TODO_JSON");
 
   const raw = await getJson<any>(url);
   const rows:any[] =
@@ -115,253 +88,653 @@ try {
     Array.isArray(raw?.data) ? raw.data :
     Array.isArray(raw?.rows) ? raw.rows : [];
 
-  const headerCandidates = rows.filter((r:any) => {
+  const headerCandidates = rows.filter(r=>{
     const slug = get(r,"slug").toLowerCase();
     const status = get(r,"status").toLowerCase();
-    const hasSummary =
+    const has =
       !!get(r,"summary") ||
       !!get(r,"long_copy") ||
       !!get(r,"seo_description") ||
-      !!get(r,"description");
-    return slug === "index" || status === "header" || hasSummary;
+      !!get(r,"description") ||
+      !!get(r,"subhead");
+    return slug==="index" || status==="header" || has;
   });
 
   header =
-    headerCandidates.find(r => get(r,"slug").toLowerCase() === "index") ??
-    headerCandidates.find(r => get(r,"status").toLowerCase() === "header") ??
+    headerCandidates.find(r => get(r,"slug").toLowerCase()==="index") ??
+    headerCandidates.find(r => get(r,"status").toLowerCase()==="header") ??
     headerCandidates[0] ?? null;
 
   items = rows
-    .filter(r => visible(r))
-    .map(r => {
-      const title = get(r,"title");
-      const summaryRaw =
-        get(r,"summary") || get(r,"description") || get(r,"seo_description") || "";
+    .filter(r=>visible(r))
+    .map(r=>({
+      slug: get(r,"slug") || slugify(get(r,"title")),
+      title: get(r,"title"),
+      summary: get(r,"summary"),
+      hero_img: get(r,"hero_img"),
+      card_img: pickCardImg(r),
+      sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
+      category: (get(r,"category") || get(r,"cat") || get(r,"type")).toLowerCase() || "other",
+    }))
+    .filter(r=>r.slug && r.title)
+    .sort((a,b)=>(Number(a.sort)-Number(b.sort)) || a.title!.localeCompare(b.title!));
 
-      const hero_raw = firstHttp(get(r,"hero_img"));
-      const card_raw = firstHttp(get(r,"card_img"));
-      const seasons = parseSeasons(r);
-
-      return {
-        slug: get(r,"slug") || slugify(title),
-        title,
-        summary: summaryRaw,
-        summary_text: toText(summaryRaw),
-        hero_img: hero_raw,
-        card_img: card_raw,
-        sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
-        seasons,
-      };
-    })
-    .filter(r => r.slug && r.title)
-    .sort((a,b) => (Number(a.sort) - Number(b.sort)) || a.title!.localeCompare(b.title!));
-
-} catch (e:any) {
+} catch(e:any){
   error = e?.message || "Failed to load data.";
 }
 
-const pageTitle = get(header,"title") || "Things To Do in Fernie";
+/* header/meta */
+const pageTitle   = get(header,"title") || "Things to Do in Fernie";
+const pageSubhead = get(header,"subhead") || "Ideas for how to spend your time in and around Fernie.";
 const pageSummary =
   get(header,"summary") ||
   get(header,"long_copy") ||
   get(header,"seo_description") ||
   get(header,"description") ||
   "";
+const seoTitle    = get(header,"seo_title") || pageTitle;
+const rawSeoDesc  = get(header,"seo_description") || pageSummary || "";
+const seoDesc     = stripMeta(rawSeoDesc);
 
-const heroImgRaw = firstHttp(get(header,"hero_img"));
-const heroImg = isAbs(heroImgRaw) ? heroImgRaw : (heroImgRaw ? heroPath(heroImgRaw) : "");
+const summaryHtml = stripScripts(pageSummary);
 
-const seoTitle = get(header,"seo_title") || pageTitle;
-const seoDesc  = toText(get(header,"seo_description") || pageSummary);
+/* categories (for filters) */
+const categories = Array.from(
+  new Set(items.map(i=>i.category || "other"))
+).sort((a,b)=>a.localeCompare(b));
 
-const SUMMARY_IS_HTML = true;
-const pageSummaryHtml = SUMMARY_IS_HTML ? toHtml(pageSummary) : "";
+const initialCat =
+  new URL(Astro.request.url).searchParams.get("cat")?.toLowerCase() || "all";
 
-/* ---------- filter pills ---------- */
-const core = ["all","summer","winter"];
-const present = new Set(items.flatMap(i => i.seasons ?? []));
-const extra = Array.from(present).filter(s => !core.includes(s)).sort();
-const filterTokens = core.concat(extra);
-const label = (t:string) => (t==="all"?"All":t==="year-round"?"Year-Round":t.replace(/\b\w/g,c=>c.toUpperCase()));
+/* seasonal palette: key off the category text */
+const accentForCategory = (cat:string="other")=>{
+  const key = (cat || "other").toLowerCase();
 
-/* ---------- NEW: listings accordion inputs from header ---------- */
-const listingsLabel = "Explore Fernie real estate listings";
-const listingsSub   = "See the newest listings currently active on the MLS.";
-const headerCTA1    = get(header,"cta1") || get(header,"CTA1");
-const headerBlock   = get(header,"rv_block_id") || get(header,"rv_block");
+  if (key.includes("winter") || key.includes("snow") || key.includes("ski")) {
+    return "#38bdf8";
+  }
+  if (key.includes("summer") || key.includes("bike") || key.includes("hike")) {
+    return "#10b981";
+  }
+  if (key.includes("year") || key.includes("all")) {
+    return "#fbbf24";
+  }
+  return "#8b5cf6";
+};
+
+const labelForCategory = (cat:string="")=>{
+  const key = (cat || "").trim();
+  if (!key) return "Explore";
+
+  const norm = key.toLowerCase();
+  if (norm === "year-round" || norm === "year round") return "Year-round";
+  if (norm === "all-season" || norm === "all season") return "All-season";
+
+  return key.charAt(0).toUpperCase() + key.slice(1);
+};
+
+/* header accent - use site brand */
+const headerAccent = DEFAULT_ACCENT;
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
-  <HeroBleed
-    src={heroImg}
-    title={pageTitle}
-    containerMax={1200}
-    containerPad={12}
-    flush={false}
-    kicker="Things To Do highlights Fernie experiences across seasons, styles, budgets, lifestyles."
-    preload
-  />
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  wrapContent={false}
+>
+  <div class="page-shell pad-x">
+    {/* INTRO HEADER - match Areas slug treatment */}
+    <section class="page-intro" style={`--accent:${headerAccent};`}>
+      <nav class="area-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <span class="area-breadcrumb-current">{pageTitle}</span>
+      </nav>
 
-  {pageSummary && (
-    <div class="container summary-wrap">
-      {SUMMARY_IS_HTML
-        ? <div class="lead" set:html={pageSummaryHtml}></div>
-        : <p class="lead">{pageSummary}</p>}
-    </div>
-  )}
+      <div class="area-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
 
-  <div class="container">
-    {/* Filter Pills */}
-    <div class="filters" role="tablist" aria-label="Filter by season">
-      {filterTokens.map((tok) => (
-        <button
-          role="tab"
-          class={`pill ${tok === "all" ? "is-active" : ""}`}
-          data-filter={tok}
-          aria-selected={tok === "all" ? "true" : "false"}
-          aria-controls="todo-grid"
-        >
-          {label(tok)}
-        </button>
-      ))}
+        <div class="title-row">
+          <h1 class="page-title">{pageTitle}</h1>
+        </div>
+
+        {pageSubhead && <p class="todo-subhead">{pageSubhead}</p>}
+
+      </div>
+    </section>
+
+    {/* FADED MOUNTAIN STRIP */}
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mountainFadeToDoIndex" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="
+            M0 18
+            L5 8
+            L11 14
+            L18 5
+            L25 13
+            L32 4
+            L40 12
+            L48 3
+            L56 11
+            L64 4
+            L72 13
+            L80 6
+            L90 15
+            L100 7
+            L100 20
+            L0 20
+            Z
+          "
+          fill="url(#mountainFadeToDoIndex)"
+        />
+      </svg>
     </div>
+
+    {pageSummary && (
+      <div class="summary-wrap">
+        <div class="lead" set:html={summaryHtml}></div>
+      </div>
+    )}
 
     {error && <p class="err">{error}</p>}
 
     {!error && (
-      <div id="todo-grid" class="grid" role="tabpanel">
-        {items.map((it) => {
-          const raw = pick(it.card_img || "", it.hero_img || "");
-          const img = raw ? (isAbs(raw) ? raw : heroPath(raw)) : "";
-          const seasonsAttr = (it.seasons ?? []).join(",");
+      <>
+        {/* Filter pills */}
+        <div class="filters" role="tablist" aria-label="Filter things to do by category">
+          {/* "All" = neutral grey, no accent */}
+          <button
+            class={`chip ${initialCat === "all" ? "chip-active" : ""}`}
+            data-cat="all"
+            role="tab"
+            aria-selected={initialCat === "all"}
+          >
+            All
+          </button>
 
-          return (
-            <a
-              class="card"
-              href={`${PATH_BASE}/${it.slug}`}
-              data-astro-prefetch="hover"
-              aria-label={it.title}
-              data-seasons={seasonsAttr}
-            >
-              {img && (
-                <img
-                  src={img}
-                  alt={it.title}
-                  loading="lazy"
-                  decoding="async"
-                  sizes="(min-width: 1200px) 25vw, (min-width: 900px) 33vw, 50vw"
-                  onerror="this.remove()"
-                />
-              )}
-              <div class="body">
-                <h2>{it.title}</h2>
-                {it.summary_text && <p>{it.summary_text}</p>}
-              </div>
-            </a>
-          );
-        })}
-      </div>
+          {/* Category chips – coloured like blog */}
+          {categories.map((cat) => {
+            const accent = accentForCategory(cat);
+            const isActive = initialCat === cat;
+            return (
+              <button
+                class={`chip ${isActive ? "chip-active" : ""}`}
+                data-cat={cat}
+                role="tab"
+                aria-selected={isActive}
+                style={`--accent:${accent};`}
+              >
+                {labelForCategory(cat)}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Cards */}
+        <div class="posts-grid" id="todoGrid">
+          {items.map(it=>{
+            const cardSrc =
+              resolveCard(it.card_img || "") ||
+              (it.hero_img ? heroPath(it.hero_img) : "");
+
+            const cat = it.category || "other";
+            const hidden = initialCat!=="all" && initialCat!==cat;
+
+            const accent = accentForCategory(cat);
+            const styleStr =
+              hidden
+                ? `display:none;--accent:${accent};`
+                : `--accent:${accent};`;
+
+            const pillLabel = labelForCategory(cat);
+
+            return (
+              <a
+                class="post-card"
+                href={`${PATH_BASE}/${it.slug}`}
+                aria-label={it.title}
+                data-cat={cat}
+                style={styleStr}
+              >
+                {cardSrc && (
+                  <div class="pc-media">
+                    <img src={cardSrc} alt={it.title} loading="lazy" decoding="async" />
+                  </div>
+                )}
+
+                <div class="pc-body">
+                  <div class="pc-meta">
+                    <span class="pc-date">Fernie activity</span>
+                    <span class="pc-pill">
+                      {pillLabel === "Year-round" && (
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="12"
+                          height="12"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.8"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          style="margin-right:4px;"
+                          aria-hidden="true"
+                        >
+                          <path d="M3 18l6-10 6 10" />
+                          <circle cx="18" cy="6" r="2.2" />
+                          <line x1="18" y1="1" x2="18" y2="3" />
+                          <line x1="18" y1="9" x2="18" y2="11" />
+                          <line x1="15" y1="6" x2="13" y2="6" />
+                          <line x1="23" y1="6" x2="21" y2="6" />
+                          <line x1="15.6" y1="3.6" x2="14.2" y2="2.2" />
+                          <line x1="20.4" y1="3.6" x2="21.8" y2="2.2" />
+                          <line x1="15.6" y1="8.4" x2="14.2" y2="9.8" />
+                          <line x1="20.4" y1="8.4" x2="21.8" y2="9.8" />
+                          <line x1="6" y1="18" x2="6" y2="14" />
+                          <line x1="4" y1="16" x2="8" y2="16" />
+                        </svg>
+                      )}
+                      {pillLabel}
+                    </span>
+                  </div>
+
+                  <h3 class="pc-title">{it.title}</h3>
+
+                  {it.summary && (
+                    <p class="pc-excerpt">{excerpt(it.summary,240)}</p>
+                  )}
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      </>
     )}
   </div>
 
-  {/* ✅ NEW: shared listings accordion after grid */}
-  <ListingsAccordion
-    label={listingsLabel}
-    subline={listingsSub}
-    cta1={headerCTA1}
-    block={headerBlock}
-  />
-
-  <script is:inline>
-    // Client-side filter for season pills (supports ?season=summer)
-    (function() {
-      var pills = Array.from(document.querySelectorAll('.filters .pill'));
-      var grid = document.getElementById('todo-grid');
-      var cards = Array.from(grid ? grid.querySelectorAll('.card') : []);
-      if (!pills.length || !grid) return;
-
-      var params = new URLSearchParams(location.search);
-      var initial = (params.get('season') || 'all').toLowerCase();
-
-      function applyFilter(token) {
-        pills.forEach(b => {
-          var on = b.getAttribute('data-filter') === token;
-          b.classList.toggle('is-active', on);
-          b.setAttribute('aria-selected', on ? 'true' : 'false');
-        });
-
-        cards.forEach(card => {
-          var seasons = (card.getAttribute('data-seasons') || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-          var show = token === 'all' || seasons.includes('all') || seasons.includes('year-round') || seasons.includes(token);
-          card.style.display = show ? '' : 'none';
-        });
-
-        var url = new URL(location.href);
-        if (token === 'all') { url.searchParams.delete('season'); }
-        else { url.searchParams.set('season', token); }
-        history.replaceState(null, '', url.toString());
-      }
-
-      pills.forEach(b => b.addEventListener('click', function() {
-        applyFilter(b.getAttribute('data-filter'));
-      }));
-
-      var hasInitial = pills.some(b => b.getAttribute('data-filter') === initial);
-      applyFilter(hasInitial ? initial : 'all');
-    })();
-  </script>
-
   <style>
-    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
+    :root{
+      --card-radius: 16px;
+      --card-border: #e6e7ea;
+      --shadow: 0 6px 18px rgba(0,0,0,.08);
+      --shadow-hover: 0 10px 24px rgba(0,0,0,.12);
 
+      --summer-accent:    #10b981;
+      --winter-accent:    #38bdf8;
+      --year-round-accent:#fbbf24;
+      --other-accent:     #8b5cf6;
+    }
+
+    .page-shell{
+      max-width:1280px;
+      margin-inline:auto;
+      margin-top:14px;
+      margin-bottom:40px;
+    }
+    .pad-x{
+      padding-inline:var(--edge-pad) !important;
+    }
+    @media(min-width:900px){
+      .pad-x{
+        padding-inline:var(--edge-pad-lg) !important;
+      }
+    }
+
+    /* INTRO - match Areas slug */
+    .page-intro{
+      max-width: var(--container-max);
+      margin: 0 auto 10px;
+      padding-top: 28px;
+    }
+
+    .area-breadcrumb{
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .area-breadcrumb a{
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .area-breadcrumb a:hover{
+      border-bottom-color: var(--accent);
+    }
+    .area-breadcrumb-current{
+      opacity: 0.7;
+    }
+
+    .area-title-block{
+      max-width: 48rem;
+    }
+
+    .accent-bars{
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 0.75rem;
+    }
+    .accent-bar{
+      height: 4px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+    .accent-bar.primary{
+      width: 80px;
+      opacity: 0.9;
+    }
+    .accent-bar.secondary{
+      width: 40px;
+      opacity: 0.45;
+    }
+
+    .title-row{
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .page-title{
+      margin: 0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #111827;
+      line-height: 1.08;
+    }
+
+    /* slug-style subhead (accent + uppercase) */
+  .todo-subhead{
+  margin: 6px 0 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  max-width: 52rem;
+}
+
+
+    .mountain-strip{
+      margin: 8px auto 24px;
+      height: 48px;
+      max-height: 60px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.02), transparent);
+    }
+    .mountain-strip svg{
+      width: 100%;
+      height: 100%;
+      opacity: 0.9;
+      mix-blend-mode: multiply;
+    }
+
+    /* SUMMARY */
     .summary-wrap{
-      padding-top:10px;
-      padding-bottom:10px;
-      border-bottom:1px solid #e5e7eb;
-      margin-bottom:35px;
+      padding-top: 12px;
+      padding-bottom: 25px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 35px;
     }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-    .lead :is(p,ul,ol,a,strong,em){ color:inherit; line-height:1.6; }
-
-    .err{ color:#b91c1c; background:#fee2e2; padding:.75rem 1rem; border-radius:.5rem; margin-top:12px; }
-
-    /* Pills */
-    .filters{ display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; margin-bottom:10px; }
-    .pill{
-      appearance:none; border:1px solid #e5e7eb; background:#fff; color:#111827;
-      padding:.4rem .7rem; border-radius:999px; font-size:.92rem; line-height:1; cursor:pointer;
-      transition: background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease;
+    .lead{
+      margin: 0;
+      font-size: 1.075rem;
+      line-height: 1.6;
+      color: #111827;
     }
-    .pill:hover{ border-color:#d1d5db; box-shadow:0 1px 6px rgba(0,0,0,.05); }
-    .pill.is-active{ background:#0ea5e9; border-color:#0ea5e9; color:white; }
+    .lead :where(p, ul, ol){
+      margin: 0 0 0.8rem;
+    }
+    .lead :where(a){
+      text-decoration: underline;
+    }
 
-    .grid{
-      display:grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap:16px;
+    .err{
+      color:#b91c1c;
+      background:#fee2e2;
+      padding:.75rem 1rem;
+      border-radius:.5rem;
       margin-top:12px;
-      margin-bottom:52px; /* space before accordion */
     }
-    @media (max-width:1200px){ .grid{ grid-template-columns: repeat(3, minmax(0,1fr)); } }
-    @media (max-width:900px){  .grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
-    @media (max-width:560px){  .grid{ grid-template-columns: 1fr; } }
 
-    .card{
-      display:flex; flex-direction:column; background:#fff; border:1px solid #e5e7eb; border-radius:14px; overflow:hidden;
-      text-decoration:none; color:inherit;
-      transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+    /* filter chips – match blog styling */
+    .filters{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin:-18px 0 18px;
     }
-    .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
 
-    .card img{ width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }
-    .card .body{ padding:12px; }
-    .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; }
+    .chip{
+      border:1px solid #e2e4e8;
+      background:#fff;
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:.85rem;
+      color:#374151;
+      cursor:pointer;
+      transition:
+        background .15s ease,
+        border-color .15s ease,
+        color .15s ease,
+        transform .08s ease;
+      appearance:none;
+    }
+    .chip:hover{
+      background:#f5f7fa;
+      transform:translateY(-1px);
+    }
+    .chip-active{
+      background:#eef2f7;
+      color:#1f2d3d;
+      border-color:#dde2e8;
+    }
 
-    /* 2-line clamp */
-    .card .body p{
-      margin:0; color:#374151; line-height:1.35;
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-      overflow:hidden; text-overflow:ellipsis;
+    /* colourise category chips (not "All") */
+    .chip[data-cat]:not([data-cat="all"]){
+      border-color:var(--accent, #e2e4e8);
+    }
+    .chip-active[data-cat]:not([data-cat="all"]){
+      background:color-mix(in srgb,#ffffff 70%,var(--accent, #e5e7eb) 30%);
+      border-color:var(--accent, #e5e7eb);
+      color:#111827;
+    }
+
+    .posts-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:18px;
+      margin-top:12px;
+      margin-bottom:52px;
+    }
+    @media(max-width:900px){
+      .posts-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    }
+    @media(max-width:560px){
+      .posts-grid{grid-template-columns:1fr;}
+    }
+
+    .post-card{
+      --accent:#4b5563;
+      display:flex;
+      flex-direction:column;
+      background:#fff;
+      border:1px solid var(--card-border);
+      border-radius:var(--card-radius);
+      overflow:hidden;
+      text-decoration:none;
+      color:inherit;
+      box-shadow:var(--shadow);
+      transition:
+        transform .12s ease,
+        box-shadow .15s ease,
+        border-color .15s ease,
+        background-color .15s ease;
+    }
+    .post-card:hover{
+      transform:translateY(-2px);
+      box-shadow:var(--shadow-hover);
+      border-color:var(--accent);
+      background:color-mix(in srgb,#ffffff 94%,var(--accent) 6%);
+    }
+
+    .pc-media{
+      position:relative;
+      width:100%;
+      aspect-ratio:5/2;
+    }
+    .pc-media img{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+
+    .pc-body{
+      padding:12px 14px 14px;
+    }
+
+    .pc-meta{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-bottom:6px;
+      font-size:.82rem;
+      color:#6b7280;
+    }
+
+    .pc-pill{
+      display:inline-flex;
+      align-items:center;
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:.75rem;
+      text-transform:none;
+      background:color-mix(in srgb,#ffffff 86%,var(--accent) 14%);
+      color:var(--accent);
+      border:1px solid color-mix(in srgb,var(--accent) 30%,#ffffff 70%);
+      box-shadow:0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    .pc-title{
+      margin:2px 0 6px;
+      font-size:1.05rem;
+      line-height:1.3;
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      min-height:calc(2 * 1.3em);
+    }
+
+    .pc-excerpt{
+      margin:0;
+      color:#4b5563;
+      line-height:1.45;
+      display:-webkit-box;
+      -webkit-line-clamp:4;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      min-height:calc(4 * 1.45em);
     }
   </style>
+
+  <script type="module">
+  function initToDoPills() {
+    // prevent double-binding across astro:page-load
+    try { window.__todoPillsAbort?.abort?.(); } catch {}
+    const ac = new AbortController();
+    window.__todoPillsAbort = ac;
+    const { signal } = ac;
+
+    const qs  = (sel, root = document) => root.querySelector(sel);
+    const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+    const grid = qs("#todoGrid");
+    if (!grid) return; // not on this page
+
+    const pillsWrap = qs(".filters"); // pills container
+    const cards = qsa(".post-card", grid);
+    if (!pillsWrap || !cards.length) return;
+
+    function getAllPills() {
+      return qsa(".chip", pillsWrap);
+    }
+
+    function setActivePill(key) {
+      const k = (key || "all").toLowerCase();
+      getAllPills().forEach((pill) => {
+        const pillKey = (pill.getAttribute("data-cat") || "all").toLowerCase();
+        const isActive = k === "all" ? pillKey === "all" : pillKey === k;
+        pill.classList.toggle("chip-active", isActive);
+        pill.setAttribute("aria-selected", String(isActive));
+      });
+    }
+
+    function applyFilter(cat) {
+      const key = (cat || "all").toLowerCase();
+
+      cards.forEach((card) => {
+        const c = (card.getAttribute("data-cat") || "other").toLowerCase();
+        const show = key === "all" || c === key;
+        card.style.display = show ? "" : "none";
+      });
+
+      setActivePill(key);
+
+      const url = new URL(window.location.href);
+      if (key === "all") url.searchParams.delete("cat");
+      else url.searchParams.set("cat", key);
+      history.replaceState({}, "", url);
+    }
+
+    // init from URL
+    const initial = (new URL(window.location.href).searchParams.get("cat") || "all").toLowerCase();
+    applyFilter(initial);
+
+    // event delegation so it survives DOM changes inside .filters
+    pillsWrap.addEventListener("click", (e) => {
+      const pill = e.target?.closest?.(".chip");
+      if (!pill) return;
+      e.preventDefault();
+      const cat = pill.getAttribute("data-cat") || "all";
+      applyFilter(cat);
+    }, { signal });
+
+    pillsWrap.addEventListener("keydown", (e) => {
+      const pill = e.target?.closest?.(".chip");
+      if (!pill) return;
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      const cat = pill.getAttribute("data-cat") || "all";
+      applyFilter(cat);
+    }, { signal });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initToDoPills, { once: true });
+  } else {
+    initToDoPills();
+  }
+
+  // IMPORTANT for ViewTransitions
+  document.addEventListener("astro:page-load", initToDoPills);
+</script>
+
 </Site>

@@ -1,0 +1,29 @@
+---
+// File: src/components/ListingsInsertCard.astro
+const {
+  id,
+  title = "Feature",
+  body = "",
+  ctaText = "",
+  ctaHref = "#",
+  tone = "neutral", // "accent" | "neutral"
+} = Astro.props;
+---
+
+<template id={id}>
+  <article class={`rv-insertCard rv-insertCard--gridItem rv-insertCard--${tone}`}>
+    <div class="rv-insertCard__inner">
+      <p class="rv-insertCard__kicker">Feature</p>
+      <h3 class="rv-insertCard__title">{title}</h3>
+      <p class="rv-insertCard__body">{body}</p>
+
+      {ctaText && ctaHref && (
+        <a class="rv-insertCard__cta" href={ctaHref} data-astro-prefetch="hover">
+          {ctaText} <span aria-hidden="true">→</span>
+        </a>
+      )}
+
+      <p class="rv-insertCard__fine">No spam - just context.</p>
+    </div>
+  </article>
+</template>

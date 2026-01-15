@@ -1,0 +1,68 @@
+---
+import { MOUNTAIN_STRIP_PRESETS } from "../lib/mountainStripPresets";
+
+const {
+  preset = "default",
+  opacity,
+  height,
+  color,
+  blend,
+  bgOpacity,
+} = Astro.props;
+
+const p = MOUNTAIN_STRIP_PRESETS[preset] ?? MOUNTAIN_STRIP_PRESETS.default;
+
+const final = {
+  opacity: opacity ?? p.opacity,
+  height: height ?? p.height,
+  color: color ?? p.color,
+  blend: blend ?? p.blend,
+  bgOpacity: bgOpacity ?? p.bgOpacity,
+};
+
+const uid = `mountainFade-${Math.random().toString(36).slice(2)}`;
+---
+
+<div
+  class="mountain-strip"
+  aria-hidden="true"
+  style={`
+    --mountain-stop:${final.opacity};
+    --mountain-h:${final.height}px;
+    --mountain-rgb:${final.color};
+    --mountain-blend:${final.blend};
+    --mountain-bg:${final.bgOpacity};
+  `}
+>
+  <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+    <defs>
+      <linearGradient id={uid} x1="0" x2="0" y1="1" y2="0">
+        <stop offset="0" stop-color={`rgba(${final.color},${final.opacity})`} />
+        <stop offset="1" stop-color={`rgba(${final.color},0)`} />
+      </linearGradient>
+    </defs>
+
+    <path
+      d="
+        M0 18
+        L5 8
+        L11 14
+        L18 5
+        L25 13
+        L32 4
+        L40 12
+        L48 3
+        L56 11
+        L64 4
+        L72 13
+        L80 6
+        L90 15
+        L100 7
+        L100 20
+        L0 20
+        Z
+      "
+      fill={`url(#${uid})`}
+    />
+  </svg>
+</div>

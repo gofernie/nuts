@@ -1,15 +1,26 @@
 ---
 // File: src/pages/to_do/[slug].astro
+// To-Do detail page – blog-style accent header, no hero image
+
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import HeroBleed from "../../components/HeroBleed.astro";
-// ⛔️ Removed RVEmbed
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import sanitizeHtml from "sanitize-html";
 import CTAForm from "../../components/CTAForm.astro";
-import ListingsAccordion from "../../components/ListingsAccordion.astro"; // ✅ NEW
+import ListingsAccordion from "../../components/ListingsAccordion.astro";
+import { DEFAULT_ACCENT } from "../../lib/categoryColours";
+
+/* ---------- helpers shared ---------- */
+function slugifyLocal(v) {
+  return String(v ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 /* ---------- sanitize config ---------- */
 const ALLOWED = {
@@ -22,7 +33,7 @@ const ALLOWED = {
     img: ["src","alt","title","loading","decoding"]
   },
   transformTags: {
-    a: (_tag: any, attr: any) => ({
+    a: (_tag, attr) => ({
       tagName: "a",
       attribs: { ...attr, rel: "noopener nofollow ugc" }
     })
@@ -34,51 +45,68 @@ export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_TODO_JSON;
   if (!url) return [];
 
-  const getField = (r:any, k:string) =>
-    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
-      .toString().trim();
+  // keep RESERVED local to this function to avoid any scope / stale-build weirdness
+  const RESERVED = new Set(["index","page","pages","all","view","list"]);
 
-  const slugifyLocal = (v:string) =>
-    (v ?? "").toLowerCase().trim()
-      .replace(/&/g,"-and-")
-      .replace(/[^a-z0-9]+/g,"-")
-      .replace(/^-+|-+$/g,"");
-
-  let rows:any[] = [];
+  let rows = [];
   try {
-    const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch { return []; }
+    const raw = await getJson(url);
+    rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.rows)
+          ? raw.rows
+          : [];
+  } catch {
+    return [];
+  }
 
   const indexRow =
-    rows.find((r:any) => getField(r,"slug").toLowerCase() === "index") || null;
+    rows.find((r) =>
+      String(r?.slug ?? "").toLowerCase().trim() === "index"
+    ) || null;
 
-  const items = rows.map((r:any) => {
-    const status  = getField(r,"status").toLowerCase();
-    const rawSlug = getField(r,"slug").toLowerCase();
-    const hidden  = status === "hidden" || status === "inactive" || rawSlug === "index";
-    if (hidden) return null;
+  const items = rows
+    .map((r) => {
+      const status  = String(r?.status ?? "").toLowerCase().trim();
+      const rawSlug = String(r?.slug ?? "").toLowerCase().trim();
 
-    const title = getField(r,"title");
-    const slug  = (rawSlug || slugifyLocal(title)).toLowerCase();
-    return slug ? { params: { slug }, props: { row: r, indexRow } } : null;
-  }).filter(Boolean) as any[];
+      const hidden =
+        status === "hidden" ||
+        status === "inactive" ||
+        rawSlug === "index" ||
+        RESERVED.has(rawSlug);
+
+      if (hidden) return null;
+
+      const title = String(r?.title ?? "").trim();
+      const slug  = (rawSlug || slugifyLocal(title)).toLowerCase();
+
+      return slug
+        ? { params: { slug }, props: { row: r, indexRow } }
+        : null;
+    })
+    .filter(Boolean);
 
   return items;
 }
 
-/* ---------- Page helpers ---------- */
-const get = (r:any, ...keys:string[]) => {
+/* ---------- per-page helpers ---------- */
+const get = (r, ...keys) => {
   for (const k of keys) {
-    const v = r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()];
-    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+    const v =
+      r?.[k] ??
+      r?.[k?.toLowerCase?.()] ??
+      r?.[k?.toUpperCase?.()];
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return String(v).trim();
+    }
   }
   return "";
 };
 
-function resolveImgFromCell(v:string): string {
+function resolveImgFromCell(v) {
   const s = (v ?? "").trim();
   if (!s) return "";
   if (/^https?:\/\//i.test(s)) return s;
@@ -88,21 +116,41 @@ function resolveImgFromCell(v:string): string {
 }
 
 /* meta cleaner for SEO text (no truncation) */
-const stripMeta = (s:string="") =>
-  s.replace(/<[^>]+>/g," ")
-   .replace(/&[^;\s]+;/g," ")
-   .replace(/\s+/g," ")
-   .trim();
+const stripMeta = (s = "") =>
+  (s || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-/* tiny url helpers for hero */
-const isAbs = (s:string="") => /^https?:\/\//i.test(s);
-const isCFHero = (s:string="") => /imagedelivery\.net\/[^/]+\/[^/]+\/hero$/i.test(s);
+/* ---------- RV block extraction helpers ---------- */
+const stripScripts = (html = "") =>
+  html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+
+function extractBlockId(input = "") {
+  const s = stripScripts(String(input || ""));
+
+  const m1 = s.match(/\b([A-Z0-9]{6,}-[A-Z0-9-]{6,})\b/i);
+  if (m1?.[1]) return m1[1].toUpperCase();
+
+  const m2 = s.match(
+    /data-(?:rv-)?(?:block|block-id|id)=["']\s*([A-Z0-9-]{6,})\s*["']/i
+  );
+  if (m2?.[1]) return m2[1].toUpperCase();
+
+  const m3 = s.match(/\bblockid=["']\s*([A-Z0-9-]{6,})\s*["']/i);
+  if (m3?.[1]) return m3[1].toUpperCase();
+
+  return "";
+}
+
+const isValidBlockId = (id) =>
+  /^[A-Z0-9]{6,}-[A-Z0-9-]{6,}$/i.test((id || "").trim());
 
 /* ---------- Page data ---------- */
-type Row = Record<string, any>;
-const { row: rowIn, indexRow: indexRowIn } = Astro.props as { row?: Row; indexRow?: Row | null };
-const row = rowIn ?? {};
-const indexRow = indexRowIn ?? null;
+const props    = Astro.props || {};
+const row      = props.row || {};
+const indexRow = props.indexRow || null;
 
 /* basic fields */
 const title    = get(row, "title") || "Things To Do in Fernie";
@@ -111,129 +159,476 @@ const kicker   = subhead || get(row,"Kicker","KICKER");
 const heroImg  = get(row, "hero_img","heroImg","HeroImg");
 const seoTitle = get(row, "seo_title","seoTitle") || title;
 
+/* intro block under header */
+const pageTitle   = title;
+// 🔥 no subhead on page – we ignore subhead for layout now
+const pageSubhead = ""; // intentionally blank
+
 /* content */
 const summaryRaw = get(row, "summary","Summary","excerpt","description");
 const bodyRaw    = get(row, "long_copy","LongCopy","body","content","longtext");
 
-/* Explicit SEO description (preferred) */
-const seoRaw     = get(row, "seo_description","seoDescription","seo_desc","SEO_Description");
+/* SEO description */
+const seoRaw  = get(row, "seo_description","seoDescription","seo_desc","SEO_Description");
+const seoDesc = stripMeta(seoRaw || summaryRaw || "");
 
 /* sanitize for render */
 const safeSummary = sanitizeHtml(summaryRaw, ALLOWED);
 const safeBody    = sanitizeHtml(bodyRaw, ALLOWED);
 
 /* gallery */
-const gallery = [1,2,3].map(n => {
-  const src = resolveImgFromCell(get(row, `spare_${n}`));
-  const cap = get(row, `spare_${n}_caption`);
-  return src ? { src, cap } : null;
-}).filter(Boolean);
+const gallery = [1,2,3]
+  .map((n) => {
+    const src = resolveImgFromCell(get(row, `spare_${n}`));
+    const cap = get(row, `spare_${n}_caption`);
+    return src ? { src, cap } : null;
+  })
+  .filter(Boolean);
 
 /* CTA form bg image */
 const spare1 = resolveImgFromCell(get(row, "spare_1"));
 
-/* ---------- Hero image resolve + preload (responsive) ---------- */
-const heroResolved = heroImg ? (isAbs(heroImg) ? heroImg : heroPath(heroImg)) : "";
-const heroSm = isCFHero(heroResolved) ? heroResolved.replace("/hero", "/public") : "";
+/* Listings accordion inputs – row first, then indexRow */
+const listingsLabel =
+  get(row, "listings_label") ||
+  get(indexRow || {}, "listings_label") ||
+  "Explore Fernie real estate listings";
 
-const heroPreload = heroResolved
-  ? {
-      href: heroResolved,
-      imagesrcset: heroSm ? `${heroSm} 1366w, ${heroResolved} 1600w` : "",
-      imagesizes: "(max-width: 900px) 100vw, 1200px",
-      as: "image",
-    }
-  : null;
+const listingsSub =
+  get(row, "listings_sub") ||
+  get(indexRow || {}, "listings_sub") ||
+  "(for people considering the lifestyle shift)";
 
-/* ✅ SEO description: prefer explicit field, else summary (no truncation) */
-const seoDesc = stripMeta(seoRaw || summaryRaw || "");
+const rowBlock   =
+  extractBlockId(get(row, "cta1","CTA1")) ||
+  get(row,"rv_block_id","rv_block");
 
-/* Formspree */
-const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdHere");
+const indexBlock =
+  extractBlockId(get(indexRow || {}, "cta1","CTA1")) ||
+  get(indexRow || {}, "rv_block_id","rv_block");
 
-/* ✅ Inputs for the shared ListingsAccordion (pulled from INDEX row) */
-const listingsLabel = get(row, "listings_label") || "Explore Fernie real estate listings";
-const listingsSub   = get(row, "listings_sub")   || "(for people considering the lifestyle shift)";
-const headerCTA1    = get(indexRow ?? {}, "cta1","CTA1");
-const headerBlock   = get(indexRow ?? {}, "rv_block_id","rv_block");
+const rvBlockId =
+  isValidBlockId(rowBlock)
+    ? rowBlock.toUpperCase()
+    : isValidBlockId(indexBlock)
+      ? indexBlock.toUpperCase()
+      : "";
+
+const cta1Combined =
+  get(row, "cta1","CTA1") || get(indexRow || {}, "cta1","CTA1");
+
+/* ---------- category / accent (copied from blog style) ---------- */
+const categoryField = get(row, "category", "Category");
+const categoryRaw = categoryField
+  ? categoryField.split(/[,/|]+/)[0].trim()
+  : "";
+
+const categoryKey = categoryRaw
+  ? categoryRaw
+      .toLowerCase()
+      .replace(/[–—]/g, "-")
+      .replace(/&/g, "-and-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+  : "";
+
+const hasCategory = !!categoryKey;
+
+function labelForCategory(cat = "other") {
+  const norm = (cat || "").trim();
+  if (!norm) return "Other";
+
+  const cleaned = norm
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleaned
+    .split(" ")
+    .map((word) =>
+      word.length === 0
+        ? ""
+        : word[0].toUpperCase() + word.slice(1).toLowerCase()
+    )
+    .join(" ");
+}
+
+const accentPalette = [
+  "#0ea5e9", // sky blue
+  "#22c55e", // green
+  "#6366f1", // indigo
+  "#f97316", // orange
+  "#eab308", // amber
+  "#0f766e", // teal
+  "#14b8a6", // aqua
+];
+
+function accentForCategory(key = "other") {
+  const s = (key || "other").toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = (hash + s.charCodeAt(i)) % accentPalette.length;
+  }
+  return accentPalette[hash];
+}
+
+const accent = DEFAULT_ACCENT; // always site accent
+
+
+
+/* ---------- Formspree ---------- */
+const formspreeId = String(
+  import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdHere"
+);
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
-  <HeroBleed
-    src={heroResolved}
-    imagesrcset={heroSm ? `${heroSm} 1366w, ${heroResolved} 1600w` : ""}
-    imagesizes="(max-width: 900px) 100vw, 1200px"
-    title={title}
-    kicker={kicker}
-    containerMax={1200}
-    containerPad={12}
-  />
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  wrapContent={false}
+>
+  <div class="page-shell pad-x">
+    {/* INTRO HEADER: breadcrumb + accent bars (blog-style) */}
+    <section class="page-intro" style={`--accent:${accent};`}>
+      <nav class="todo-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <a href="/to_do/">Things To Do</a>
 
-  {safeSummary && (
-    <div class="container summary-wrap">
-      <div class="lead prose prose-neutral max-w-none" set:html={safeSummary}></div>
-    </div>
-  )}
+        {hasCategory && (
+          <>
+            <span>/</span>
+            <a href={`/to_do/?cat=${encodeURIComponent(categoryKey)}`}>
+              {labelForCategory(categoryRaw)}
+            </a>
+          </>
+        )}
 
-  {gallery.length > 0 && (
-    <div class="container gallery-wrap">
-      <div class="gallery">
-        {gallery.map(({src,cap}) => (
-          <figure class="tile">
-            <img loading="lazy" decoding="async" src={src} alt={cap || title} />
-            {cap && <figcaption>{cap}</figcaption>}
-          </figure>
-        ))}
+        <span>/</span>
+        <span class="todo-breadcrumb-current">{pageTitle}</span>
+      </nav>
+
+      <div class="todo-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
+
+        <div class="title-row">
+          <h1 class="page-title">{pageTitle}</h1>
+        </div>
+
+        {kicker && <p class="page-kicker">{kicker}</p>}
+
+        {/* 🔥 subhead removed on purpose */}
       </div>
-    </div>
-  )}
+    </section>
 
-  {safeBody && (
-    <div class="container body-wrap">
-      <div class="lead prose prose-neutral max-w-none" set:html={safeBody}></div>
+    {/* FADED MOUNTAIN STRIP – same vibe as blog */}
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mountainFadeToDo" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="
+            M0 18
+            L5 8
+            L11 14
+            L18 5
+            L25 13
+            L32 4
+            L40 12
+            L48 3
+            L56 11
+            L64 4
+            L72 13
+            L80 6
+            L90 15
+            L100 7
+            L100 20
+            L0 20
+            Z
+          "
+          fill="url(#mountainFadeToDo)"
+        />
+      </svg>
     </div>
-  )}
 
-  {/* ✅ CTA first */}
-  <div class="container cta-wrap">
-    <CTAForm
-      formId={formspreeId}
-      pageSlug={Astro.params.slug}
-      pageTitle={title}
-      spare_1={spare1}
+    {/* SUMMARY */}
+    {safeSummary && (
+      <section class="summary-wrap">
+        <div
+          class="lead prose prose-neutral max-w-none"
+          set:html={safeSummary}
+        ></div>
+      </section>
+    )}
+
+    {/* GALLERY */}
+    {gallery.length > 0 && (
+      <section class="gallery-wrap">
+        <div class="gallery">
+          {gallery.map(({ src, cap }) => (
+            <figure class="tile">
+              <img
+                loading="lazy"
+                decoding="async"
+                src={src}
+                alt={cap || title}
+              />
+              {cap && <figcaption>{cap}</figcaption>}
+            </figure>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {/* BODY */}
+    {safeBody && (
+      <section class="body-wrap">
+        <div
+          class="lead prose prose-neutral max-w-none"
+          set:html={safeBody}
+        ></div>
+      </section>
+    )}
+
+    {/* CTA FORM */}
+    <section class="cta-wrap">
+      <CTAForm
+        formId={formspreeId}
+        pageSlug={Astro.params.slug}
+        pageTitle={title}
+        spare_1={spare1}
+      />
+    </section>
+
+    {/* LISTINGS ACCORDION */}
+    <ListingsAccordion
+      label={listingsLabel}
+      subline={listingsSub}
+      cta1={cta1Combined}
+      block={rvBlockId}
     />
   </div>
 
-  {/* ✅ Then the shared listings accordion (no RVEmbed here) */}
-  <ListingsAccordion
-    label={listingsLabel}
-    subline={listingsSub}
-    cta1={headerCTA1}
-    block={headerBlock}
-  />
-
   <style>
-    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
-
-    .summary-wrap{
-      padding-top:10px;
-      padding-bottom:10px;
-      border-bottom:1px solid #e5e7eb;
-      margin-bottom:35px;
+    .page-shell {
+      max-width: 1280px;
+      margin-inline: auto;
+      margin-top: 14px;
+      margin-bottom: 40px;
     }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
 
-    .body-wrap{ padding-top:-12px; }
-    .cta-wrap{ padding-top:18px; padding-bottom:22px; }
+    .pad-x {
+      padding-inline: var(--edge-pad) !important;
+    }
 
-    .lead.prose p, .lead.prose li { font-size:1.075rem !important; line-height:1.6 !important; color:#111827; }
-    .lead.prose :where(h2,h3){ margin-top:1.2em; }
+    @media (min-width: 900px) {
+      .pad-x {
+        padding-inline: var(--edge-pad-lg) !important;
+      }
+    }
 
-    .gallery-wrap{ padding-top:14px; padding-bottom:6px; }
-    .gallery{ display:grid; gap:10px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
-    .tile{ position:relative; overflow:hidden; border-radius:14px; background:#f4f4f5; }
-    .tile img{ width:100%; height:220px; object-fit:cover; transform: scale(1.02); transition: transform .4s ease, filter .4s ease; }
-    .tile:hover img{ transform: scale(1.06); filter: saturate(1.1) contrast(1.05); }
-    .tile figcaption{ position:absolute; left:10px; bottom:10px; padding:4px 8px; background:rgba(0,0,0,.55); color:#fff; font-size:.85rem; border-radius:8px; }
+    /* INTRO HEADER (blog-style) */
+    .page-intro {
+      max-width: var(--container-max);
+      margin: 0 auto 10px;
+      padding-top: 28px;
+    }
+
+    .todo-breadcrumb {
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .todo-breadcrumb a {
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+
+    .todo-breadcrumb a:hover {
+      border-bottom-color: var(--accent);
+    }
+
+    .todo-breadcrumb-current {
+      opacity: 0.7;
+    }
+
+    .todo-title-block {
+      max-width: 48rem;
+    }
+
+    .accent-bars {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .accent-bar {
+      height: 4px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .accent-bar.primary {
+      width: 80px;
+      opacity: 0.9;
+    }
+
+    .accent-bar.secondary {
+      width: 40px;
+      opacity: 0.45;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .page-title {
+      margin: 0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height: 1.08;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      color: #111827;
+    }
+
+    .page-kicker {
+      margin: 6px 0 4px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .page-subhead {
+      /* no longer rendered, safe to keep styles in case you reuse later */
+      margin: 0 0 8px;
+      font-size: 1.06rem;
+      line-height: 1.4;
+      font-weight: 500;
+      color: var(--ink-muted, #4b5563);
+      max-width: 52rem;
+    }
+
+    .mountain-strip {
+      margin: 8px auto 24px;
+      height: 48px;
+      max-height: 60px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.02), transparent);
+    }
+
+    .mountain-strip svg {
+      width: 100%;
+      height: 100%;
+      opacity: 0.9;
+      mix-blend-mode: multiply;
+    }
+
+    /* SUMMARY */
+    .summary-wrap {
+      padding-top: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 5px;
+    }
+
+      .lead {
+      margin: 0;
+      font-size: 1.075rem;
+      line-height: 1.6;
+      color: #111827;
+    }
+
+    .lead.prose p,
+    .lead.prose li {
+      font-size: 1.075rem !important;
+      line-height: 1.6 !important;
+      color: #111827;
+    }
+
+   /* Headings inside the rich text body – override Tailwind prose */
+:global(.lead.prose h2) {
+  font-size: 2rem;
+  line-height: 1.35;
+  margin-top: 0.6em !important;
+  margin-bottom: 0.5em !important;
+  font-weight: 500;
+}
+
+:global(.lead.prose h3) {
+  font-size: 1.15rem;
+  line-height: 1.4;
+  margin-top: 0.9em !important;
+  margin-bottom: 0.4em !important;
+  font-weight: 600;
+}
+
+
+    /* GALLERY – clean + rounded image, no zoom */
+    .gallery-wrap {
+      padding-top: 14px;
+      padding-bottom: 6px;
+    }
+
+    .gallery {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .gallery .tile {
+      position: relative;
+      overflow: hidden;
+      border-radius: 6px;
+      background: transparent;
+      margin: 0;
+      padding: 0;
+    }
+
+    .gallery .tile img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: inherit;
+      object-fit: cover;
+      transform: none;
+      transition: none;
+    }
+
+    .gallery .tile figcaption {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,.55);
+      color: #fff;
+      font-size: .85rem;
+      border-radius: 8px;
+    }
+
+    .body-wrap {
+      margin-top: 16px;
+    }
+
+    .cta-wrap {
+      padding-top: 18px;
+      padding-bottom: 22px;
+    }
   </style>
 </Site>

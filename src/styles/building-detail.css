@@ -1,0 +1,672 @@
+/* File: src/styles/building-detail.css */
+
+/* ---------------------------------------------------------
+   Layout + intro
+   --------------------------------------------------------- */
+.page-shell{
+  max-width: 1280px;
+  margin-inline: auto;
+  margin-top: 14px;
+  margin-bottom: 40px;
+}
+
+.pad-x{ padding-inline: var(--edge-pad) !important; }
+@media (min-width: 900px){
+  .pad-x{ padding-inline: var(--edge-pad-lg) !important; }
+}
+
+.page-intro{
+  max-width: var(--container-max);
+  margin: 0 auto 10px;
+  padding-top: 28px;
+}
+
+.types-breadcrumb{
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.types-breadcrumb a{ text-decoration: none; border-bottom: 1px solid transparent; }
+.types-breadcrumb a:hover{ border-bottom-color: var(--accent); }
+.types-breadcrumb-current{ opacity: 0.7; }
+
+.types-title-block{ max-width: 64rem; }
+
+.accent-bars{ display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+.accent-bar{ height: 4px; border-radius: 999px; background: var(--accent); }
+.accent-bar.primary{ width: 80px; opacity: 0.9; }
+.accent-bar.secondary{ width: 40px; opacity: 0.45; }
+
+.title-row{ display: flex; align-items: flex-start; gap: 0.75rem; }
+.title-stack{ display:flex; flex-direction:column; gap: 6px; }
+
+.kicker{
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.page-title{
+  margin: 0;
+  font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+  line-height: 1.08;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  color: #111827;
+}
+
+/* force building detail subhead size (beats Site.astro global .page-subhead) */
+.page-intro .page-subhead{
+  margin: 0;
+  font-size: 0.95rem !important;
+  line-height: 1.4 !important;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  opacity: 1;
+}
+
+.mountain-strip{
+  margin: 10px auto 22px;
+  height: 48px;
+  max-height: 60px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
+}
+.mountain-strip svg{
+  width: 100%;
+  height: 100%;
+  opacity: 0.9;
+  mix-blend-mode: multiply;
+}
+
+.err{
+  color: #b91c1c;
+  background: #fee2e2;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  margin-top: 12px;
+}
+
+/* ---------------------------------------------------------
+   Screenshot / hero media
+   --------------------------------------------------------- */
+.hero-media{
+  border: 1px solid #e2e4e8;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+  margin: 0 0 18px;
+  background: #fff;
+}
+.hero-media img{ display: block; width: 100%; height: auto; }
+
+.screenshot-block{
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.05),
+    0 12px 32px rgba(0,0,0,0.08);
+}
+@media (hover: hover){
+  .screenshot-block{ transition: transform 0.15s ease, box-shadow 0.15s ease; }
+  .screenshot-block:hover{
+    transform: translateY(-2px);
+    box-shadow:
+      0 2px 6px rgba(0,0,0,0.06),
+      0 18px 44px rgba(0,0,0,0.10);
+  }
+}
+
+/* ---------------------------------------------------------
+   Main grid
+   --------------------------------------------------------- */
+.grid{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+/* Desktop: wider aside */
+@media (min-width: 980px){
+  .grid{ grid-template-columns: minmax(0, 1fr) 440px; }
+}
+
+/* Bigger screens: a touch wider */
+@media (min-width: 1200px){
+  .grid{ grid-template-columns: minmax(0, 1fr) 480px; }
+}
+
+.stack{ display:flex; flex-direction:column; gap: 18px; }
+.aside{ display:flex; flex-direction:column; gap: 18px; }
+
+/* Prevent super-tall skinny lines on very wide asides */
+@media (min-width: 980px){
+  .aside .card.section-card{ max-width: 520px; }
+}
+
+/* ---------------------------------------------------------
+   Cards + section bling
+   --------------------------------------------------------- */
+.card{
+  background: #fff;
+  border: 1px solid #e2e4e8;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+  margin: 0;
+}
+
+/* always-on tiny accent strip + hover presence */
+.card.section-card{
+  position: relative;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.card.section-card::before{
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--accent);
+  opacity: 0.22;
+}
+
+.card.section-card:hover::before,
+.card.section-card:focus-within::before{
+  opacity: 0.45;
+}
+
+.card.section-card:hover,
+.card.section-card:focus-within{
+  border-color: rgba(0,0,0,0.12);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.02), 0 10px 22px rgba(0,0,0,0.06);
+}
+
+.card.section-card a:hover{ color: var(--accent); }
+
+/* headings */
+.h2{ margin: 0 0 10px; font-size: 1.15rem; letter-spacing: -0.01em; }
+.card .h2{
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+}
+.h3{ margin: 12px 0 8px; font-size: 1rem; opacity: 0.9; }
+
+/* ---------------------------------------------------------
+   Facts
+   --------------------------------------------------------- */
+.facts{
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  column-gap: 14px;
+  row-gap: 10px;
+  margin: 10px 0 0;
+}
+
+.facts dt{
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #111827;
+  opacity: 0.88;
+}
+
+.facts dd{
+  margin: 0;
+  font-size: 0.95rem;
+  color: #111827;
+  line-height: 1.5;
+}
+
+/* Base stack at <=900 */
+@media (max-width: 900px){
+  .facts{ grid-template-columns: 1fr; }
+}
+
+/* Softer “field” style on small screens */
+@media (max-width: 640px){
+  .facts{
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .facts dt{
+    margin: 0;
+    font-weight: 800;
+    opacity: 0.9;
+  }
+  .facts dd{
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #f8fafc;
+    box-shadow: inset 0 0 0 1px rgba(17,24,39,0.06);
+  }
+  .facts dt + dd{ margin-top: 6px; }
+}
+
+/* Your existing mobile tweak (kept, but only for mid-size where you wanted it) */
+@media (max-width: 768px) and (min-width: 641px){
+  .facts dd{ margin-top: -12px; }
+}
+
+/* ---------------------------------------------------------
+   Pills
+   --------------------------------------------------------- */
+.pill-row{ display:flex; flex-wrap:wrap; gap: 0.5rem; margin-top: 0.25rem; }
+
+.pill{
+  display:inline-flex;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid #e2e4e8;
+  background: #fff;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+@media (hover:hover){
+  .suits-pill{ transition: transform 0.15s ease, box-shadow 0.15s ease; }
+  .suits-pill:hover{
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  }
+}
+
+/* ---------------------------------------------------------
+   Links / explore
+   --------------------------------------------------------- */
+.link-list{ margin: 0 0 8px; padding-left: 1.1rem; }
+.link-list li{ margin: 0 0 0.35rem; }
+.link-list a{ text-decoration: underline; }
+
+.explore{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.explore-link{
+  display:block;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e4e8;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+  text-decoration: none;
+  color: #111827;
+  font-weight: 650;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.explore-link:hover{
+  border-color: rgba(0,0,0,0.18);
+  transform: translateY(-1px);
+}
+
+/* ---------------------------------------------------------
+   Gallery thumbs (the “thumb” version)
+   --------------------------------------------------------- */
+.gallery{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.thumb{
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e4e8;
+  display: block;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+  padding: 0;
+  cursor: pointer;
+  appearance: none;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+  width: 100%;
+  position: relative;
+  line-height: 0;
+}
+.thumb:hover{
+  border-color: rgba(0,0,0,0.18);
+  transform: translateY(-1px);
+}
+.thumb::before{ content:""; display:block; padding-top: 75%; }
+.thumb img{
+  position:absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+@media (min-width: 980px){
+  .gallery{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ---------------------------------------------------------
+   Gallery grid (the “tile” version)
+   --------------------------------------------------------- */
+.gallery-grid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.gallery-item{
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(17,24,39,0.10);
+  background: rgba(17,24,39,0.02);
+  aspect-ratio: 4 / 3; /* consistent tile height */
+}
+
+.gallery-item img{
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  transform: translateZ(0);
+  transition: transform 140ms ease, filter 140ms ease;
+}
+
+.gallery-item:hover img{
+  transform: scale(1.03);
+  filter: contrast(1.02) saturate(1.02);
+}
+
+.gallery-item:focus-visible{
+  outline: 2px solid var(--accent, #6b7280);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px){
+  .gallery-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 520px){
+  .gallery-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---------------------------------------------------------
+   Lightbox
+   --------------------------------------------------------- */
+.lightbox{
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 9999;
+}
+.lightbox.open{ display: block; }
+
+.lightbox-scrim{
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.60);
+}
+
+.lightbox-panel{
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1200px, calc(100vw - 36px));
+  background: #0b0f19;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+
+.lightbox-stage{
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0b0f19;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: pan-y;
+}
+
+.lightbox-stage img{
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  max-width: none;
+  max-height: none;
+}
+
+.lightbox-meta{
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  color: #e5e7eb;
+  background: rgba(255,255,255,0.06);
+  border-top: 1px solid rgba(255,255,255,0.12);
+}
+
+.lb-btn{
+  position: absolute;
+  z-index: 5;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(17,24,39,0.72);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+  line-height: 1;
+  user-select: none;
+}
+.lb-close{ top: 10px; right: 10px; }
+
+.lb-prev, .lb-next{
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.8rem;
+  padding: 0.65rem 0.9rem;
+}
+.lb-prev{ left: 10px; }
+.lb-next{ right: 10px; }
+
+@media (max-width: 700px){
+  .lightbox-panel{ width: calc(100vw - 20px); }
+  .lb-prev, .lb-next{ font-size: 2rem; padding: 0.75rem 1rem; }
+}
+
+/* ---------------------------------------------------------
+   Prose
+   --------------------------------------------------------- */
+.prose p{ margin: 0 0 0.8rem; }
+.prose p:last-child{ margin-bottom: 0; }
+.prose ul, .prose ol{ margin: 0 0 0.8rem; padding-left: 1.1rem; }
+.prose a{ text-decoration: underline; }
+
+/* ---------------------------------------------------------
+   Listings fallback + micro-form
+   --------------------------------------------------------- */
+#listings .listings-fallback{
+  border-top: 1px solid rgba(0,0,0,0.08);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+#listings .fallback-title{
+  font-weight: 650;
+  margin: 0 0 4px 0;
+}
+
+#listings .fallback-text{
+  margin: 0 0 10px 0;
+  color: #4b5563;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+#listings .inline-alert-form{ margin-top: 10px; }
+
+#listings .inline-fields{
+  display: grid;
+  grid-template-columns: 1fr 1.25fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+#listings .inline-fields input{
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.14);
+  padding: 0 12px;
+  background: rgba(255,255,255,0.85);
+  outline: none;
+}
+
+#listings .inline-fields input:focus{
+  border-color: rgba(0,0,0,0.28);
+  box-shadow: 0 0 0 4px rgba(0,0,0,0.06);
+}
+
+#listings .inline-fields .btn,
+#listings .inline-fields button{
+  height: 42px;
+  border-radius: 12px;
+  padding: 0 14px;
+}
+
+#listings .last-checked{
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  opacity: 0.62;
+}
+
+@media (max-width: 720px){
+  #listings .inline-fields{ grid-template-columns: 1fr; }
+  #listings .inline-fields button,
+  #listings .inline-fields .btn{ width: 100%; }
+}
+
+#listings .form-note{
+  margin: 10px 0 0 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  padding: 10px 12px;
+  border-radius: 12px;
+  display: none;
+}
+
+#listings .form-note.ok{
+  display: block;
+  border: 1px solid rgba(34,197,94,0.45);
+  background: rgba(34,197,94,0.10);
+  color: #065f46;
+}
+
+#listings .form-note.err{
+  display: block;
+  border: 1px solid rgba(239,68,68,0.40);
+  background: rgba(239,68,68,0.08);
+  color: #7f1d1d;
+}
+
+#listings .inline-alert-form button[disabled]{
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+#listings .fallback-suggestions{ margin-top: 14px; }
+
+#listings .fallback-suggestions h4{
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+#listings .fallback-grid{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+#listings .fallback-card{
+  display: block;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.06);
+  font-size: 0.85rem;
+  text-decoration: none;
+  color: #111827;
+}
+
+#listings .fallback-card.muted{ opacity: 0.85; }
+
+#listings .quiet-list-cta{
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-decoration: underline;
+}
+/* ==========================================
+   Neighbourhoods > Buildings index
+   Fix: cards stretching tall / extra white space
+   ========================================== */
+
+/* Target the neighbourhood buildings grid/cards only.
+   Adjust selectors if your wrapper class differs. */
+.neighbourhood-buildings .building-card,
+.neighbourhood-buildings .bld-card,
+.neighbourhood-buildings .card {
+  height: auto !important;
+  min-height: 0 !important;
+  align-self: start;          /* prevents grid stretch vibes */
+}
+
+/* If your card uses flex column, DON'T space-between on this page */
+.neighbourhood-buildings .building-card,
+.neighbourhood-buildings .bld-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start !important;
+}
+
+/* Kill any "fill remaining space" children */
+.neighbourhood-buildings .building-card .card-body,
+.neighbourhood-buildings .bld-card .card-body,
+.neighbourhood-buildings .building-card .content,
+.neighbourhood-buildings .bld-card .content {
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+}
+
+/* If the footer/link area is being pushed down by flex:1 somewhere */
+.neighbourhood-buildings .building-card .card-footer,
+.neighbourhood-buildings .bld-card .card-footer,
+.neighbourhood-buildings .building-card a:last-child,
+.neighbourhood-buildings .bld-card a:last-child {
+  margin-top: 12px !important;
+}

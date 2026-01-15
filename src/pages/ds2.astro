@@ -1,0 +1,408 @@
+---
+/**
+ * File: src/pages/dream-search.astro
+ * Conversational Dream Search - slightly playful concierge
+ */
+export const prerender = false;
+
+import Site from "../layouts/Site.astro";
+import CTAForm from "../components/CTAForm.astro";
+---
+
+<Site
+  title="Dream Search - Fernie Listings"
+  description="Describe your dream home - we’ll turn it into smart Fernie matches with live listings."
+>
+  <main class="wrap">
+    <header class="hero">
+      <div class="hero-inner">
+        <p class="kicker">Fernie Home Search</p>
+        <h1>Dream Search</h1>
+        <p class="lead">Tell me what you want - I’ll turn it into neighbourhood + property type matches and a live listing search.</p>
+      </div>
+    </header>
+
+    <section class="flow card" id="flow">
+      <!-- step content injected by JS -->
+    </section>
+
+    <section class="results card" id="results" hidden>
+      <header class="results-head">
+        <h2>Your Fernie matches</h2>
+        <p class="muted" id="resultsSub"></p>
+      </header>
+
+      <div class="grid2">
+        <div class="box">
+          <h3>Neighbourhoods</h3>
+          <div class="chips" id="neighChips"></div>
+        </div>
+        <div class="box">
+          <h3>Property types</h3>
+          <div class="chips" id="typeChips"></div>
+        </div>
+      </div>
+
+      <div class="box" style="margin-top: 14px;">
+        <h3>Live listings</h3>
+        <div id="rvMount" class="rv"></div>
+        <p class="muted" style="margin-top: 10px;">
+          Want these results emailed so you can come back to them?
+        </p>
+        <div class="actions">
+          <button class="btn primary" type="button">Email my matches</button>
+          <button class="btn" type="button" id="noEmail">Not now</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px;">
+        <CTAForm />
+      </div>
+    </section>
+  </main>
+
+  <style>
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 60px; }
+    .hero { margin: 10px 0 18px; }
+    .hero-inner { padding: 22px 18px; border-radius: 18px; border: 1px solid rgba(0,0,0,.08); }
+    .kicker { text-transform: uppercase; letter-spacing: .08em; font-size: 12px; opacity: .7; margin: 0 0 6px; }
+    .lead { margin: 10px 0 0; opacity: .85; }
+
+    .card { border: 1px solid rgba(0,0,0,.08); border-radius: 18px; padding: 18px; }
+    .flow { min-height: 220px; }
+    .muted { opacity: .75; }
+
+    .qTitle { font-size: 18px; margin: 0 0 6px; }
+    .qPrompt { margin: 0 0 12px; }
+    .textarea {
+      width: 100%; min-height: 140px; resize: vertical;
+      border-radius: 14px; padding: 12px 12px;
+      border: 1px solid rgba(0,0,0,.15);
+      font: inherit;
+    }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      border: 1px solid rgba(0,0,0,.14);
+      border-radius: 999px;
+      padding: 8px 10px;
+      background: rgba(0,0,0,.02);
+      cursor: pointer;
+      user-select: none;
+      transition: transform .08s ease, background .08s ease;
+    }
+    .chip:hover { transform: translateY(-1px); }
+    .chip[aria-pressed="true"] { background: rgba(0,0,0,.08); }
+
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .btn {
+      border-radius: 14px; padding: 10px 12px;
+      border: 1px solid rgba(0,0,0,.14);
+      background: white; cursor: pointer;
+      font: inherit;
+    }
+    .btn.primary { background: rgba(0,0,0,.9); color: white; border-color: rgba(0,0,0,.9); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 14px; }
+    .step { font-size: 12px; opacity: .65; }
+    .grid2 { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
+    @media (min-width: 860px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+
+    .box { border: 1px solid rgba(0,0,0,.08); border-radius: 16px; padding: 14px; }
+    .rv { min-height: 120px; }
+  </style>
+
+  <script is:inline>
+    const state = {
+      description: "",
+      budget: "",
+      lifestyle: [],
+      timing: "",
+      dealbreakers: []
+    };
+
+    const FLOW = document.getElementById("flow");
+    const RESULTS = document.getElementById("results");
+    const resultsSub = document.getElementById("resultsSub");
+    const neighChips = document.getElementById("neighChips");
+    const typeChips = document.getElementById("typeChips");
+    const rvMount = document.getElementById("rvMount");
+
+    const placeholders = [
+      "3 bed, family-friendly, near schools - quiet street",
+      "Ski condo I can also rent - walk to lifts",
+      "Townhome with garage - low maintenance - modern",
+      "Older home with character - walkable to downtown"
+    ];
+
+    const steps = [
+      {
+        title: "Describe your dream place",
+        prompt: "Give me the vibe - I’ll handle the filters.",
+        render() {
+          const wrap = document.createElement("div");
+          const ta = document.createElement("textarea");
+          ta.className = "textarea";
+          ta.placeholder = placeholders[0];
+          ta.value = state.description || "";
+          wrap.appendChild(ta);
+
+          // rotate placeholder gently if empty
+          let idx = 0;
+          const timer = setInterval(() => {
+            if (ta.value.trim()) return;
+            idx = (idx + 1) % placeholders.length;
+            ta.placeholder = placeholders[idx];
+          }, 4200);
+
+          wrap._cleanup = () => clearInterval(timer);
+
+          return {
+            el: wrap,
+            canContinue: () => true,
+            onContinue: () => { state.description = ta.value.trim(); }
+          };
+        }
+      },
+      {
+        title: "Budget range",
+        prompt: "Rough is fine. We can refine later.",
+        single: true,
+        key: "budget",
+        options: ["Under $600k", "$600k - $800k", "$800k - $1M", "$1M+", "Not sure yet"]
+      },
+      {
+        title: "What matters most",
+        prompt: "Pick a few - I’ll prioritize these in your matches.",
+        multi: true,
+        key: "lifestyle",
+        options: ["Walkable", "Family-friendly", "Ski access", "Quiet - private", "Rental-friendly", "Remote-work friendly"]
+      },
+      {
+        title: "Timing",
+        prompt: "No pressure - this just changes how I frame next steps.",
+        single: true,
+        key: "timing",
+        options: ["Actively looking", "3 - 6 months", "6 - 12 months", "Just exploring"]
+      },
+      {
+        title: "Deal-breakers",
+        prompt: "Optional - only choose what truly matters.",
+        multi: true,
+        key: "dealbreakers",
+        options: ["Garage", "Yard", "No stairs", "Newer build", "Short-term rental potential"]
+      }
+    ];
+
+    let stepIndex = 0;
+    let currentCleanup = null;
+
+    function chip(text, pressed) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip";
+      b.textContent = text;
+      b.setAttribute("aria-pressed", pressed ? "true" : "false");
+      return b;
+    }
+
+    function renderOptionsStep(step) {
+      const wrap = document.createElement("div");
+      const chips = document.createElement("div");
+      chips.className = "chips";
+
+      const key = step.key;
+      const selected = step.single
+        ? (state[key] || "")
+        : Array.isArray(state[key]) ? state[key] : [];
+
+      step.options.forEach(opt => {
+        const pressed = step.single ? (selected === opt) : selected.includes(opt);
+        const c = chip(opt, pressed);
+
+        c.addEventListener("click", () => {
+          if (step.single) {
+            state[key] = (state[key] === opt) ? "" : opt;
+            render(); // rerender to update pressed state
+          } else {
+            const arr = new Set(state[key] || []);
+            if (arr.has(opt)) arr.delete(opt);
+            else arr.add(opt);
+            state[key] = Array.from(arr);
+            c.setAttribute("aria-pressed", arr.has(opt) ? "true" : "false");
+          }
+        });
+
+        chips.appendChild(c);
+      });
+
+      wrap.appendChild(chips);
+      return {
+        el: wrap,
+        canContinue: () => true,
+        onContinue: () => {}
+      };
+    }
+
+    function render() {
+      // cleanup previous step resources (placeholder timer)
+      if (typeof currentCleanup === "function") currentCleanup();
+      currentCleanup = null;
+
+      const step = steps[stepIndex];
+
+      FLOW.innerHTML = "";
+
+      const h = document.createElement("h2");
+      h.className = "qTitle";
+      h.textContent = step.title;
+
+      const p = document.createElement("p");
+      p.className = "qPrompt muted";
+      p.textContent = step.prompt;
+
+      FLOW.appendChild(h);
+      FLOW.appendChild(p);
+
+      let payload;
+      if (step.render) payload = step.render();
+      else payload = renderOptionsStep(step);
+
+      FLOW.appendChild(payload.el);
+
+      if (payload.el && payload.el._cleanup) currentCleanup = payload.el._cleanup;
+
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const stepLabel = document.createElement("div");
+      stepLabel.className = "step";
+      stepLabel.textContent = `Step ${stepIndex + 1} of ${steps.length}`;
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+
+      const back = document.createElement("button");
+      back.type = "button";
+      back.className = "btn";
+      back.textContent = "Back";
+      back.disabled = stepIndex === 0;
+      back.addEventListener("click", () => {
+        if (stepIndex === 0) return;
+        stepIndex -= 1;
+        render();
+      });
+
+      const skip = document.createElement("button");
+      skip.type = "button";
+      skip.className = "btn";
+      skip.textContent = "Skip";
+      skip.addEventListener("click", () => {
+        // do not change state, just advance
+        next();
+      });
+
+      const nextBtn = document.createElement("button");
+      nextBtn.type = "button";
+      nextBtn.className = "btn primary";
+      nextBtn.textContent = stepIndex === steps.length - 1 ? "Show matches" : "Continue";
+      nextBtn.addEventListener("click", () => {
+        if (payload.onContinue) payload.onContinue();
+        next();
+      });
+
+      actions.appendChild(back);
+      actions.appendChild(skip);
+      actions.appendChild(nextBtn);
+
+      row.appendChild(stepLabel);
+      row.appendChild(actions);
+
+      FLOW.appendChild(row);
+    }
+
+    async function next() {
+      if (stepIndex < steps.length - 1) {
+        stepIndex += 1;
+        render();
+        return;
+      }
+      await runMatch();
+    }
+
+    function niceList(arr) {
+      if (!arr || !arr.length) return "";
+      if (arr.length === 1) return arr[0];
+      return arr.slice(0, -1).join(", ") + " and " + arr[arr.length - 1];
+    }
+
+    async function runMatch() {
+      const btns = FLOW.querySelectorAll("button");
+      btns.forEach(b => b.disabled = true);
+
+      FLOW.insertAdjacentHTML("beforeend", `<p class="muted" style="margin-top:12px;">Matching your vibe - one sec…</p>`);
+
+      const res = await fetch("/api/dream-match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state)
+      });
+
+      if (!res.ok) {
+        RESULTS.hidden = false;
+        resultsSub.textContent = "Something went sideways. Try again - or use the regular search.";
+        return;
+      }
+
+      const data = await res.json();
+
+      // Sub line
+      const bits = [];
+      if (state.budget) bits.push(state.budget);
+      if (state.lifestyle?.length) bits.push(niceList(state.lifestyle));
+      if (state.timing) bits.push(state.timing);
+      resultsSub.textContent = bits.length ? `Based on ${bits.join(" - ")}, I’d start here:` : "Here’s where I’d start:";
+
+      // Chips
+      neighChips.innerHTML = "";
+      (data.neighbourhood_names || []).forEach(n => {
+        const c = document.createElement("span");
+        c.className = "chip";
+        c.textContent = n;
+        c.setAttribute("aria-pressed", "false");
+        neighChips.appendChild(c);
+      });
+
+      typeChips.innerHTML = "";
+      (data.type_names || []).forEach(t => {
+        const c = document.createElement("span");
+        c.className = "chip";
+        c.textContent = t;
+        c.setAttribute("aria-pressed", "false");
+        typeChips.appendChild(c);
+      });
+
+      // RealtyVis embed block (HTML string from API)
+      rvMount.innerHTML = data.rv_html || "<p class='muted'>No listing block returned.</p>";
+
+      // Ensure RV embed script runs if needed
+      if (data.rv_needs_script) {
+        const s = document.createElement("script");
+        s.src = "https://cdn.realtyvis.com/js/embed.js";
+        s.async = true;
+        document.body.appendChild(s);
+      }
+
+      RESULTS.hidden = false;
+      RESULTS.scrollIntoView({ behavior: "smooth", block: "start" });
+
+      document.getElementById("noEmail")?.addEventListener("click", () => {
+        // just tuck the email CTA quietly
+        document.getElementById("noEmail").closest(".actions").style.display = "none";
+      });
+    }
+
+    render();
+  </script>
+</Site>

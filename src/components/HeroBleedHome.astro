@@ -1,0 +1,330 @@
+---
+/**
+ * Home-only full-bleed hero with zero-CLS height reservation.
+ * Props:
+ *  - src (required for image)
+ *  - alt
+ *  - title
+ *  - subhead  ← used as the kicker line under the H1
+ *  - kicker   ← optional; overrides subhead if passed
+ *  - aspect: "21:9" | "16:9"
+ */
+const {
+  src = "",
+  alt = "",
+  srcset: srcsetProp = "",
+  sizes: sizesProp = "100vw",
+  imagesrcset: imageSrcsetProp = "",
+  imagesizes: imageSizesProp = "",
+
+  width = 2100,
+  height = 900,
+
+  title = "",
+  kicker: kickerProp = "",
+  subhead = "",
+
+  // default to centered layout for home hero
+  position = "center",       // "center" | "top-left" | "bottom-left"
+  titleInset = 15,
+  containerMax = 1280,
+  containerPad = 12,
+
+  flush = true,
+  aspect = "21:9",
+} = Astro.props;
+
+const resolvedSrcset = srcsetProp || imageSrcsetProp || "";
+const resolvedSizes  = sizesProp   || imageSizesProp   || "100vw";
+const hasImage = !!src;
+
+// prefer explicit kicker, else fall back to subhead
+const kicker = kickerProp || subhead;
+
+// aspect helpers
+const aspectMap = {
+  "21:9": 21/9,
+  "16:9": 16/9,
+  "3:1": 3,
+  "3:2": 3/2,
+  "4:3": 4/3
+};
+
+const ar = aspectMap[aspect] ?? aspectMap["21:9"];      // numeric (e.g., 2.3333)
+const pct = (1 / ar) * 100;                             // padding-top fallback (e.g., 42.857%)
+---
+
+<section
+  class={`hero-bleed hero-bleed--home${flush ? " hero-bleed--flush" : ""}`}
+  style={`--ar:${ar};--ar-pct:${pct}%;--container-max:${containerMax}px;--container-pad:${containerPad}px;--title-inset:${titleInset}px;`}
+>
+  <!-- Height reservation wrapper -->
+  <div class="hero-bleed__media" aria-hidden={hasImage ? "false" : "true"}>
+    <!-- padding-top fallback (only used if aspect-ratio unsupported) -->
+    <div class="hero-bleed__shim"></div>
+
+    {hasImage && (
+      <img
+        src={src}
+        {...(resolvedSrcset ? { srcset: resolvedSrcset } : {})}
+        sizes={resolvedSizes}
+        alt={alt || ""}
+        width={width}
+        height={height}
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+        class="hero-bleed__img"
+      />
+    )}
+  </div>
+
+  <div class={`hero-bleed__scrim hero-bleed__scrim--${position}`} aria-hidden="true"></div>
+
+  <div class={`hero-bleed__content hero-bleed__content--${position}`}>
+    {title && <h1 class="hero-bleed__title">{title}</h1>}
+    {kicker && <p class="hero-bleed__kicker">{kicker}</p>}
+
+    <div class="hero-bleed__cta">
+      <slot />
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero-bleed {
+    position: relative;
+    display: block;
+    width: 100%;
+    margin: 0;
+    background: #111; /* seen while img loads */
+    border-radius: 0;
+    overflow: hidden;
+    isolation: isolate;
+    min-height: 260px;
+  }
+
+  /* Height reservation using aspect-ratio (primary) */
+  .hero-bleed__media {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: var(--ar);     /* e.g., 21/9 */
+    min-height: 260px;
+    max-height: 70vh;
+    overflow: hidden;
+    background: #111;
+  }
+
+  @supports not (aspect-ratio: 1 / 1) {
+    .hero-bleed__media { height: auto; }
+    .hero-bleed__shim { display: block; padding-top: var(--ar-pct); }
+  }
+  @supports (aspect-ratio: 1 / 1) {
+    .hero-bleed__shim { display: none; }
+  }
+
+  .hero-bleed__img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+
+  .hero-bleed__scrim {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: .9;
+    transition: opacity .6s ease;
+    background: linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.4) 0%,
+      rgba(0,0,0,0.25) 40%,
+      rgba(0,0,0,0.45) 100%
+    );
+  }
+
+  /* content positioning */
+  .hero-bleed__content {
+    position: absolute;
+    inset: 0;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,.35);
+    padding-inline: clamp(12px, 4vw, 32px);
+  }
+
+  .hero-bleed__content--center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;  /* centre by default (desktop / larger) */
+    text-align: center;
+  }
+
+  .hero-bleed__content--top-left {
+    inset-inline-start: var(--title-inset);
+    inset-block-start: var(--title-inset);
+    max-width: min(var(--container-max), 92vw);
+  }
+
+  .hero-bleed__content--bottom-left {
+    inset-inline-start: var(--title-inset);
+    inset-block-end: var(--title-inset);
+    max-width: min(var(--container-max), 92vw);
+  }
+
+  .hero-bleed--flush .hero-bleed__content--center {
+    max-width: 100%;
+  }
+
+.hero-bleed__title {
+  margin: 0 0 12px 0;
+  line-height: 1.03;
+  font-size: clamp(2.4rem, 5vw, 3.5rem); /* smaller */
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+
+  .hero-bleed__kicker {
+    margin: 0;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: clamp(.82rem, 1.4vw, .98rem);
+    opacity: .96;
+  }
+
+  .hero-bleed__cta {
+    margin-top: 22px;
+  }
+
+  /* CTA button – "Browse listings" */
+  :global(.hero-cta-btn) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 22px;
+    border-radius: 9999px;
+    border: 1.6px solid rgba(255,255,255,0.9);
+    background: rgba(0,0,0,0.15);
+    color: #fff;
+    font-weight: 600;
+    font-size: .95rem;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,.25);
+    transition:
+      background-color .18s ease,
+      border-color .18s ease,
+      box-shadow .18s ease,
+      transform .18s ease,
+      color .18s ease;
+  }
+
+  :global(.hero-cta-btn:hover) {
+    background: rgba(0,0,0,0.32);
+    border-color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(0,0,0,.35);
+    text-decoration: none;
+  }
+
+  :global(.hero-cta-btn:active) {
+    transform: translateY(0);
+    box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  }
+
+  :global(.hero-cta-btn:focus-visible) {
+    outline: 3px solid rgba(255,255,255,0.7);
+    outline-offset: 2px;
+  }
+
+  /* -----------------------------
+     TEXT + CTA ANIMATION
+     ----------------------------- */
+  .hero-bleed__title,
+  .hero-bleed__kicker,
+  .hero-bleed__cta {
+    opacity: 1;
+    transform: translateY(0);
+    animation-duration: 720ms;
+    animation-timing-function: cubic-bezier(0.16, 0.9, 0.25, 1);
+    animation-fill-mode: both;
+  }
+
+  .hero-bleed__title {
+    animation-name: heroFadeUpTitle;
+    animation-delay: 80ms;
+  }
+  .hero-bleed__kicker {
+    animation-name: heroFadeUpTitle;
+    animation-delay: 210ms;
+  }
+  .hero-bleed__cta {
+    animation-name: heroFadeUpTitle;
+    animation-delay: 330ms;
+  }
+
+  @keyframes heroFadeUpTitle {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* -----------------------------
+     DESKTOP NUDGE (optional)
+     ----------------------------- */
+@media (min-width: 900px) {
+  .hero-bleed__content--center {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding-inline: clamp(12px, 4vw, 32px);
+    padding-bottom: 0;
+    transform: translateY(18vh); /* ↓ moves hero text down */
+  }
+}
+
+
+  /* -----------------------------
+     MOBILE TWEAKS
+     ----------------------------- */
+@media (max-width: 600px) {
+  .hero-bleed__content--center {
+    /* centre the block on phones, not jammed at the very bottom */
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+
+    padding-inline: 16px;
+    padding-bottom: 24px;  /* room above the white card */
+  }
+
+  .hero-bleed__title {
+    font-size: clamp(1.9rem, 6vw, 2.4rem);  /* a bit smaller than desktop */
+    line-height: 1.15;
+  }
+
+  .hero-bleed__kicker {
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-align: center;
+  }
+
+  .hero-bleed__cta {
+    margin-top: 16px;
+  }
+}
+
+</style>
+
+
+

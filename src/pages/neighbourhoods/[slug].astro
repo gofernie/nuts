@@ -3,370 +3,2496 @@
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import HeroBleed from "../../components/HeroBleed.astro";
-import RVEmbed from "../../components/RVEmbed.astro";
-import CTAForm2 from "../../components/CTAForm2.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
+import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../../lib/categoryColours";
+import RVEmbed from "../../components/RVEmbed.astro";
 
-/* ---------- static paths (NO helpers referenced) ---------- */
-export async function getStaticPaths() {
-  const url = import.meta.env.PUBLIC_SHEET_JSON; // neighbourhoods JSON
-  if (!url) return [];
+const PATH_BASE = "/neighbourhoods";
 
-  let rows: any[] = [];
-  try {
-    const raw = await getJson<any>(url);
-    rows = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows
-      : [];
-  } catch {
-    return [];
-  }
+/* helpers */
+const RESERVED = new Set(["index", "page", "pages", "all", "view", "list"]);
+const get = (r: any, k: string) =>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+    .toString()
+    .trim();
 
-  const items = rows
-    .map((r: any) => {
-      const status  = String(r?.status ?? r?.Status ?? r?.STATUS ?? "").trim().toLowerCase();
-      const rawSlug = String(r?.slug   ?? r?.Slug   ?? r?.SLUG   ?? "").trim().toLowerCase();
-      const hidden  = status === "hidden" || status === "inactive" || rawSlug === "index";
-      if (hidden) return null;
+const slugify = (v: string) =>
+  (v ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
-      const title = String(r?.title ?? r?.Title ?? r?.TITLE ?? "").trim();
-      const computed = String(title ?? "")
-        .toLowerCase()
-        .trim()
-        .replace(/&/g, "-and-")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-      const slug = (rawSlug || computed).toLowerCase();
-
-      return slug ? { params: { slug }, props: { row: r } } : null;
-    })
-    .filter(Boolean) as any[];
-
-  return items;
-}
-
-/* ---------- page data ---------- */
-type Row = {
-  title?: string; Title?: string; TITLE?: string;
-  summary?: string; Summary?: string; SUMMARY?: string;
-  long_copy?: string; longcopy?: string; LongCopy?: string;
-  hero_img?: string; heroImg?: string; HeroImg?: string;
-  seo_title?: string; seoTitle?: string;
-  seo_description?: string; seoDescription?: string;
-  kicker?: string; subhead?: string;
-  cta1?: string; rv_block?: string; slug?: string; status?: string;
-  spare_1?: string; Spare_1?: string; SPARE_1?: string;
-  spare_2?: string; Spare_2?: string; SPARE_2?: string;
+const visible = (r: any) => {
+  const s = get(r, "status").toLowerCase();
+  const rawSlug = get(r, "slug").toLowerCase();
+  return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
 
-const { row: rowIn } = Astro.props as { row?: Row };
-const row = rowIn ?? ({} as Row);
+/* =======================
+   REQUIRED FOR PRERENDER
+   (SELF-CONTAINED - BUILD SAFE)
+======================= */
+export const getStaticPaths = async () => {
+  const RESERVED = new Set(["index", "page", "pages", "all", "view", "list"]);
 
-const title    = String(row?.title ?? row?.Title ?? row?.TITLE ?? "Fernie Neighbourhood").trim();
-const summary  = String(row?.summary ?? row?.Summary ?? row?.SUMMARY ?? "").trim();
-const body     = String(row?.long_copy ?? row?.longcopy ?? row?.LongCopy ?? "").trim();
-const heroImg  = String(row?.hero_img ?? row?.heroImg ?? row?.HeroImg ?? "").trim();
-const seoTitle = String(row?.seo_title ?? row?.seoTitle ?? title).trim();
+  const get = (r: any, k: string) =>
+    (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+      .toString()
+      .trim();
 
-/* ✅ Clean meta (no truncation) */
-const stripMeta = (s:string="") =>
-  s.replace(/<[^>]*>/g, " ")
-   .replace(/&[^;\s]+;/g, " ")
-   .replace(/\s+/g, " ")
-   .trim();
+  const slugify = (v: string) =>
+    (v ?? "")
+      .toLowerCase()
+      .trim()
+      .replace(/&/g, "-and-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
 
-const rawSeoDesc = String(row?.seo_description ?? (row as any)?.seoDescription ?? summary ?? "");
-const seoDesc    = stripMeta(rawSeoDesc);
+  const visible = (r: any) => {
+    const s = get(r, "status").toLowerCase();
+    const rawSlug = get(r, "slug").toLowerCase();
+    return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
+  };
 
-/* ---------- kicker/subhead ---------- */
-const kicker = String(
-  (row as any)?.kicker ?? (row as any)?.Kicker ?? (row as any)?.KICKER ??
-  (row as any)?.subhead ?? (row as any)?.Subhead ?? (row as any)?.SUBHEAD ?? ""
-).trim() || "Fernie, BC";
+  const url = import.meta.env.PUBLIC_SHEET_JSON;
+  if (!url) throw new Error("Missing PUBLIC_SHEET_JSON in .env (restart dev).");
 
-/* ---------- parse BUTTONS ---------- */
-type Btn = { label: string; href: string };
-function parseButtons(s: string): Btn[] {
-  if (!s) return [];
-  return s
-    .split(/\s*,\s*|\n+/)
-    .map(part => {
-      const [label, href] = part.split("|").map(x => (x ?? "").trim());
-      if (!label || !href) return null;
-      return { label, href };
+  const raw = await getJson<any>(url);
+  const rs: any[] = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+        ? raw.rows
+        : [];
+
+  return rs
+    .filter((r) => visible(r))
+    .map((r) => {
+      const slug =
+        (get(r, "slug") ||
+          slugify(get(r, "title") || get(r, "Title") || get(r, "TITLE"))).toLowerCase();
+      return { params: { slug } };
     })
-    .filter(Boolean) as Btn[];
+    .filter((p) => p.params.slug && p.params.slug !== "index" && !RESERVED.has(p.params.slug));
+};
+
+/* HTML sanitizers (minimal) */
+const stripScripts = (html: string = "") =>
+  html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+
+const stripTags = (s: string = "") =>
+  s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const stripMeta = (s: string = "") => stripTags(s);
+
+/* pipe helpers */
+const listFromPipe = (s: string = "", max = 3) =>
+  s
+    .split("|")
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .slice(0, max);
+
+/* url helpers */
+const isAbs = (s: string = "") => /^https?:\/\//i.test(s);
+const pick = (...vals: string[]) => vals.find((v) => v && v.length > 0) || "";
+
+/* Best-for icons */
+function iconForBestFor(text: string) {
+  const t = (text || "").toLowerCase();
+  if (t.includes("afford") || t.includes("value") || t.includes("budget") || t.includes("entry")) return "💲";
+  if (t.includes("ski") || t.includes("hill") || t.includes("lifts") || t.includes("snow")) return "⛷️";
+  if (t.includes("short-term") || t.includes("short term") || t.includes("str") || t.includes("airbnb") || t.includes("rental")) return "🗝️";
+  if (t.includes("lock-and-leave") || t.includes("lock and leave") || t.includes("low-maintenance") || t.includes("low maintenance")) return "🧳";
+  if (t.includes("trail") || t.includes("hike") || t.includes("hiking") || t.includes("bike") || t.includes("biking")) return "🥾";
+  if (t.includes("walk") || t.includes("walkable") || t.includes("cafes") || t.includes("downtown")) return "🚶";
+  if (t.includes("family") || t.includes("kids") || t.includes("school") || t.includes("parks")) return "👪";
+  if (t.includes("quiet") || t.includes("privacy")) return "🤫";
+  if (t.includes("new") || t.includes("newer") || t.includes("modern")) return "🏡";
+  if (t.includes("river") || t.includes("water")) return "🌊";
+  if (t.includes("view") || t.includes("views") || t.includes("scenic") || t.includes("mountain")) return "🏔️";
+  if (t.includes("access") || t.includes("commute") || t.includes("highway")) return "🚗";
+  return "⭐";
 }
 
-const rawButtons =
-  String(row?.spare_2 ?? row?.Spare_2 ?? row?.SPARE_2 ?? "").trim() ||
-  String(row?.spare_1 ?? row?.Spare_1 ?? row?.SPARE_1 ?? "").trim();
+/* --- access / times parsing --- */
+type AccessEntry = { label: string; walk?: string; drive?: string };
 
-const buttons: Btn[] = parseButtons(rawButtons);
+const norm = (s: string) =>
+  (s || "")
+    .toLowerCase()
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
 
-/* ---------- robust active state (force All -> current page) ---------- */
-const currentSlug = (Astro.params?.slug ?? "").toString().trim().replace(/\/+$/,"");
-const forcedAllHref = `/neighbourhoods/${currentSlug}`;
+function parseAccessTimes(raw: string): Record<string, AccessEntry> {
+  const out: Record<string, AccessEntry> = {};
+  const parts = (raw || "")
+    .split("|")
+    .map((p) => p.trim())
+    .filter(Boolean);
 
-/* Normalize any URL to clean pathname (no domain, no trailing slash) */
-function pathOnly(u:string){
-  try { return new URL(u, "http://x").pathname.replace(/\/+$/,""); }
-  catch {
-    return String(u || "")
-      .replace(/^[a-z]+:\/\/[^/]+/i,"")
-      .replace(/\/+$/,"");
+  const re = /^(.+?)\s*\((.+?)\)\s*$/;
+
+  for (const p of parts) {
+    const m = p.match(re);
+    if (!m) continue;
+
+    const label = m[1].trim();
+    const inside = m[2].trim();
+    const insideN = norm(inside);
+
+    const mode = insideN.includes("walk") ? "walk" : insideN.includes("drive") ? "drive" : null;
+    if (!mode) continue;
+
+    const time = inside.replace(/\bwalk\b/i, "").replace(/\bdrive\b/i, "").trim();
+
+    const key = norm(label);
+    out[key] = out[key] || { label };
+    (out[key] as any)[mode] = time;
+  }
+
+  return out;
+}
+
+function pickAccess(map: Record<string, AccessEntry>, keys: string[]): AccessEntry | null {
+  for (const k of keys) {
+    const hit = map[norm(k)];
+    if (hit && (hit.walk || hit.drive)) return hit;
+  }
+  return null;
+}
+
+/** Row shape (loose) */
+type Row = {
+  slug?: string;
+  title?: string;
+  Title?: string;
+  TITLE?: string;
+
+  subhead?: string;
+  Subhead?: string;
+  SUBHEAD?: string;
+
+  summary?: string;
+  Summary?: string;
+  SUMMARY?: string;
+
+  long_copy?: string;
+  longcopy?: string;
+  LongCopy?: string;
+
+  best_for?: string;
+  BestFor?: string;
+  BEST_FOR?: string;
+
+  hero_img?: string;
+  heroImg?: string;
+  HeroImg?: string;
+
+  seo_title?: string;
+  seoTitle?: string;
+
+  seo_description?: string;
+  seoDescription?: string;
+
+  map?: string;
+  map_embed?: string;
+  mapEmbed?: string;
+
+  // listing search url (RealtyVis)
+  url?: string;
+
+  // access times
+  access?: string;
+  access_times?: string;
+  drive_walk?: string;
+  drive_walk_times?: string;
+  proximity?: string;
+  times?: string;
+
+  status?: string;
+
+  // optional extras
+  day_in_life?: string;
+  tradeoffs?: string;
+
+  // optional RV columns
+  cta1?: string;
+  rv_block?: string;
+
+  // ✅ buildings key lives on neighbourhood rows
+  parent_area_slug?: string;
+  parentAreaSlug?: string;
+};
+
+/* =========================
+   Buildings lookup
+   Key = parent_area_slug (from Buildings JSON)
+========================= */
+const BUILDINGS_URL = import.meta.env.PUBLIC_BUILDINGS_JSON || "";
+const buildingsByParent = new Set<string>();
+
+if (BUILDINGS_URL) {
+  try {
+    const rawB = await getJson<any>(BUILDINGS_URL);
+    const rowsB: any[] = Array.isArray(rawB)
+      ? rawB
+      : Array.isArray(rawB?.data)
+        ? rawB.data
+        : Array.isArray(rawB?.rows)
+          ? rawB.rows
+          : [];
+
+    rowsB.forEach((r) => {
+      const parent = slugify(get(r, "parent_area_slug"));
+      const status = get(r, "status").toLowerCase();
+
+      if (parent && status !== "hidden" && status !== "inactive") {
+        buildingsByParent.add(parent);
+      }
+    });
+  } catch (e) {
+    console.warn("Buildings JSON failed", e);
   }
 }
 
-/* Use pills with canonical All href */
-const pills: Btn[] = (buttons?.length ? buttons : []).map(b => {
-  if (!b) return b;
-  if (/^all$/i.test(b.label)) return { ...b, href: forcedAllHref };
-  return b;
-});
+/* =========================
+   Market + Fernie context types/helpers
+========================= */
+type MarketRow = Record<string, any>;
+type FernieRow = Record<string, any>;
 
-/* Active matcher (All can also be active for child paths) */
-const here = pathOnly(Astro.url.pathname);
-function isActiveHref(href: string, label: string) {
-  const target = pathOnly(href);
-  if (/^all$/i.test(label)) return here === target || here.startsWith(target + "/");
-  return here === target;
+const MARKET_URL = import.meta.env.PUBLIC_NEIGHBOURHOOD_MARKET_JSON;
+
+/**
+ * IMPORTANT:
+ * Your .env currently has PUBLIC_FERNIE_MARKET_CONTEXT_JSON.
+ * Older code used PUBLIC_FERNIE_MARKET_JSON.
+ * We accept either so it never silently fails again.
+ */
+const FERNIE_URL =
+  import.meta.env.PUBLIC_FERNIE_MARKET_CONTEXT_JSON ||
+  import.meta.env.PUBLIC_FERNIE_MARKET_JSON ||
+  "";
+
+const mget = (r: any, k: string) =>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+    .toString()
+    .trim();
+
+const num = (v: any) => {
+  if (v == null) return null;
+  const n = Number(String(v).replace(/[$,%\s,]/g, ""));
+  return Number.isFinite(n) ? n : null;
+};
+
+const fmtMoney0 = (n: number | null) =>
+  n == null
+    ? "n/a"
+    : n.toLocaleString("en-CA", {
+        style: "currency",
+        currency: "CAD",
+        maximumFractionDigits: 0,
+      });
+
+const fmtInt = (n: number | null) => (n == null ? "n/a" : `${Math.round(n)}`);
+const fmtPct1 = (n: number | null) => (n == null ? "n/a" : `${n.toFixed(1)}%`);
+
+const fmtDate = (s: string) => {
+  if (!s) return "";
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleString("en-CA", { year: "numeric", month: "short", day: "2-digit" });
+};
+
+const splitPipe = (s: string) =>
+  (s || "")
+    .split("|")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+const numsFromPipe = (s: string) =>
+  splitPipe(s)
+    .map((x) => Number(String(x).replace(/[$,%\s,]/g, "")))
+    .filter((n) => Number.isFinite(n));
+
+function sparkPath(values: number[], w = 260, h = 42, pad = 6) {
+  if (!values || values.length < 2) return "";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+
+  const innerW = w - pad * 2;
+  const innerH = h - pad * 2;
+  const step = innerW / (values.length - 1);
+
+  const pts = values.map((v, i) => {
+    const x = pad + i * step;
+    const t = (v - min) / span;
+    const y = pad + (1 - t) * innerH;
+    return [x, y] as const;
+  });
+
+  const d = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  return d;
 }
 
-/* ---------- content HTML guards ---------- */
-function stripScripts(html:string) { return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ""); }
-const SUMMARY_IS_HTML = true;
-const BODY_IS_HTML    = true;
-const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summary) : "";
-const bodyHtml    = BODY_IS_HTML    ? stripScripts(body)    : "";
+/* =========================
+   Trend logic (ONE rule everywhere)
+========================= */
+type Dir = "up" | "down" | "flat" | "na";
 
-/* ---------- listings (RealtyVis) ---------- */
+function dirWithThreshold(values: number[], epsPct = 0.01): Dir {
+  if (!values || values.length < 2) return "na";
+  const a = values[0];
+  const b = values[values.length - 1];
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return "na";
+
+  if (a === 0) {
+    if (b === 0) return "flat";
+    return b > 0 ? "up" : "down";
+  }
+
+  const pct = (b - a) / Math.abs(a);
+  if (Math.abs(pct) <= epsPct) return "flat";
+  return pct > 0 ? "up" : "down";
+}
+
+function recentDirWithThreshold(values: number[], epsPct = 0.01): Dir {
+  if (!values || values.length < 2) return "na";
+  const a = values[values.length - 2];
+  const b = values[values.length - 1];
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return "na";
+
+  if (a === 0) {
+    if (b === 0) return "flat";
+    return b > 0 ? "up" : "down";
+  }
+
+  const pct = (b - a) / Math.abs(a);
+  if (Math.abs(pct) <= epsPct) return "flat";
+  return pct > 0 ? "up" : "down";
+}
+
+function safeJoin(sentences: string[]) {
+  return sentences
+    .map((s) => (s || "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+/* long-horizon narrative (window view) */
+function buildFernieNarrative(args: {
+  dom: number[];
+  stl: number[];
+  med: number[];
+}) {
+  // thresholds - keep these consistent everywhere
+  const DOM_EPS = 0.03; // 3%
+  const MED_EPS = 0.03; // 3%
+  const STL_EPS = 0.01; // 1%
+
+  const domDir = dirWithThreshold(args.dom, DOM_EPS);
+  const stlDir = dirWithThreshold(args.stl, STL_EPS);
+  const medDir = dirWithThreshold(args.med, MED_EPS);
+
+  const domCore =
+    domDir === "down"
+      ? "Over the past few years, homes have generally been selling faster (lower median days on market)."
+      : domDir === "up"
+        ? "Over the past few years, homes have generally been taking longer to sell (higher median days on market)."
+        : domDir === "flat"
+          ? "Over the past few years, days on market has been fairly steady."
+          : "";
+
+  const stlCore =
+    stlDir === "down"
+      ? "Sale-to-list has softened, which can create more negotiating room."
+      : stlDir === "up"
+        ? "Sale-to-list has strengthened, which usually means less negotiating room."
+        : stlDir === "flat"
+          ? "Sale-to-list has been relatively steady."
+          : "";
+
+  const priceCore =
+    medDir === "up"
+      ? "Median sold prices have trended upward over the same period."
+      : medDir === "down"
+        ? "Median sold prices have eased over the same period."
+        : medDir === "flat"
+          ? "Median sold prices have been relatively flat over the same period."
+          : "";
+
+  let practical = "";
+  if (domDir === "down" && stlDir === "down") {
+    practical =
+      "In practice, good listings can still move quickly, but buyers often have room to negotiate terms or price when the data supports it.";
+  } else if (domDir === "down" && (stlDir === "up" || stlDir === "flat")) {
+    practical =
+      "In practice, speed matters and pricing is holding, so buyers typically need clean offers on the right homes.";
+  } else if (domDir === "up" && stlDir === "down") {
+    practical =
+      "In practice, buyers usually have more time and more leverage - especially on homes that are overpriced or need work.";
+  } else if (domDir === "up" && (stlDir === "up" || stlDir === "flat")) {
+    practical =
+      "In practice, the market is taking longer to clear even though pricing is holding, so strategy matters: pick the right property and negotiate based on comps and condition.";
+  } else {
+    practical =
+      "In practice, conditions are mixed, so the best approach is to benchmark each home against recent comparable sales and current competition.";
+  }
+
+  return safeJoin([domCore, stlCore, priceCore, practical]);
+}
+
+/* short-horizon generator (last step only) */
+function buildRecentShift(args: {
+  dom: number[];
+  stl: number[];
+  med: number[];
+  labels?: string[];
+}) {
+  const DOM_EPS = 0.03; // 3%
+  const MED_EPS = 0.03; // 3%
+  const STL_EPS = 0.01; // 1%
+
+  const domDir = dirWithThreshold(args.dom, DOM_EPS);
+  const stlDir = dirWithThreshold(args.stl, STL_EPS);
+  const medDir = dirWithThreshold(args.med, MED_EPS);
+
+  const domRecent = recentDirWithThreshold(args.dom, DOM_EPS);
+  const stlRecent = recentDirWithThreshold(args.stl, STL_EPS);
+  const medRecent = recentDirWithThreshold(args.med, MED_EPS);
+
+  const bits: string[] = [];
+
+  const shouldMention = (recent: Dir, overall: Dir) =>
+    (recent !== "na" && overall !== "na" && recent !== overall) ||
+    (recent === "flat" && overall !== "flat" && overall !== "na");
+
+  if (shouldMention(stlRecent, stlDir)) {
+    if (stlRecent === "down") bits.push("Sale-to-list has been drifting lower.");
+    else if (stlRecent === "up") bits.push("Sale-to-list has been firming up.");
+    else if (stlRecent === "flat") bits.push("Sale-to-list has been relatively steady lately.");
+  }
+
+  if (shouldMention(domRecent, domDir)) {
+    if (domRecent === "up") bits.push("Days on market has ticked up lately.");
+    else if (domRecent === "down") bits.push("Days on market has tightened lately.");
+    else if (domRecent === "flat") bits.push("Days on market has been fairly steady lately.");
+  }
+
+  if (shouldMention(medRecent, medDir)) {
+    if (medRecent === "down") bits.push("Recent median sold pricing has softened.");
+    else if (medRecent === "up") bits.push("Recent median sold pricing has firmed up.");
+    else if (medRecent === "flat") bits.push("Median sold pricing has been relatively flat lately.");
+  }
+
+  if (!bits.length) return "";
+
+  const labels = args.labels || [];
+  const recentLabel =
+    labels.length >= 2 ? `${labels.at(-2)} - ${labels.at(-1)}` : "";
+
+  const label = recentLabel ? ` (${recentLabel})` : "";
+  return safeJoin([bits[0] + label]);
+}
+
+/* text normalizer for dedupe */
+function normText(s: string) {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const paramsSlug = (Astro.params.slug || "").toString().replace(/^\/+|\/+$/g, "").toLowerCase();
+
+let rows: Row[] = [];
+let header: Row | null = null;
+let row: Row | null = null;
+let error: string | null = null;
+
+try {
+  const url = import.meta.env.PUBLIC_SHEET_JSON;
+  if (!url) throw new Error("Missing PUBLIC_SHEET_JSON in .env (restart dev).");
+
+  const raw = await getJson<any>(url);
+  const rs: any[] = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+        ? raw.rows
+        : [];
+
+  rows = rs;
+
+  header =
+    rs.find((r) => get(r, "slug").toLowerCase() === "index") ||
+    rs.find((r) => get(r, "status").toLowerCase() === "header") ||
+    null;
+
+  row =
+    rs
+      .filter((r) => visible(r))
+      .map((r) => ({
+        ...r,
+        slug: get(r, "slug") || slugify(get(r, "title") || get(r, "Title") || get(r, "TITLE")),
+      }))
+      .find((r) => (get(r, "slug") || "").toLowerCase() === paramsSlug) || null;
+
+  if (!row) throw new Error(`Neighbourhood not found: ${paramsSlug}`);
+} catch (e: any) {
+  error = e?.message || "Failed to load neighbourhood.";
+}
+
+/* =========================
+   Buildings flag for THIS neighbourhood
+   (prefer this page slug, fallback to row parent_area_slug)
+========================= */
+const parentArea = row
+  ? slugify(get(row, "parent_area_slug") || get(row, "parentAreaSlug"))
+  : "";
+
+const hasBuildings =
+  buildingsByParent.has(paramsSlug) || (parentArea ? buildingsByParent.has(parentArea) : false);
+
+
+/* =========================
+   page title (needed early)
+========================= */
+const pageTitle = row ? get(row, "title") || get(row, "Title") || get(row, "TITLE") : "Neighbourhood";
+
+/* ---------- RealtyVis listings (BLOCKS ONLY) ---------- */
 const rawCta =
-  String((row as any)?.cta1 ?? (row as any)?.rv_block ?? "").trim() ||
+  (row ? (get(row, "rv_block") || get(row, "cta1") || "") : "") ||
   String(import.meta.env.PUBLIC_DEFAULT_RV_BLOCK ?? "").trim();
 
-const ID_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
-function extractRvId(html:string) {
+const BLOCK_RE = /^[A-Z0-9]{8}-[A-Z0-9]{8}$/i;
+
+function extractAttr(html: string, attr: "data-rv-block") {
   const clean = stripScripts(html);
-  const m = clean.match(/data-rv-block=["']?([A-Z0-9]{8}-[A-Z0-9]{8})["']?/i);
-  return m?.[1] || "";
+  const re = new RegExp(`${attr}=["']?([A-Z0-9-]{6,30})["']?`, "i");
+  const m = clean.match(re);
+  return (m?.[1] || "").trim();
 }
-const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
-const hasValidBlock = ID_RE.test(rvBlockId);
 
-/* ---------- hero preload hint ---------- */
-const heroPreload = heroImg ? { href: heroPath(heroImg) } : null;
+let rvBlockId = "";
 
-/* ---------- Formspree ---------- */
-const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "f/yourFormIdHere");
+if (BLOCK_RE.test(rawCta)) rvBlockId = rawCta;
+else rvBlockId = extractAttr(rawCta, "data-rv-block");
 
-/* ---------- CTA copy ---------- */
-const ctaHeadline = `Want the right homes in ${title} sent to you early?`;
-const ctaSubline  = "Tell me what fits your criteria — I’ll only send the ones that actually matter.";
+const hasValidBlock = BLOCK_RE.test(rvBlockId);
+
+const listingsUrl = row ? pick(get(row, "url")) : "";
+const listingsUrlIsHttp = /^https?:\/\//i.test(listingsUrl);
+
+/* =========================
+   Neighbourhood market fetch + join
+========================= */
+let market: MarketRow | null = null;
+
+try {
+  if (MARKET_URL) {
+    const rawM = await getJson<any>(MARKET_URL);
+    const rsM: any[] = Array.isArray(rawM)
+      ? rawM
+      : Array.isArray(rawM?.data)
+        ? rawM.data
+        : Array.isArray(rawM?.rows)
+          ? rawM.rows
+          : [];
+
+    market = rsM.find((r) => mget(r, "slug").toLowerCase() === paramsSlug) || null;
+  }
+} catch (e) {
+  market = null;
+}
+
+const hasMarket = !!market;
+
+const dataThrough = market ? mget(market, "data_through") : "";
+const windowYears = market ? (num(mget(market, "window_years")) ?? 5) : 5;
+
+// Homes (window)
+const homesCount5y = market ? num(mget(market, "homes_sales_count_5y")) : null;
+const homesMedian5y = market ? num(mget(market, "homes_median_sold_5y")) : null;
+const homesDom5y = market ? num(mget(market, "homes_median_dom_5y")) : null;
+const homesRatio5y = market ? num(mget(market, "homes_sale_to_list_5y")) : null;
+
+// Homes PSF (window)
+const homesPsf5y =
+  market
+    ? (num(mget(market, "homes_median_psf_5y")) ??
+       num(mget(market, "homes_psf_median_5y")) ??
+       num(mget(market, "homes_median_price_psf_5y")) ??
+       num(mget(market, "homes_psf_5y")) ??
+       num(mget(market, "homes_median_psf")) ??
+       num(mget(market, "homes_psf_median")))
+    : null;
+
+const fmtPsf0 = (n: number | null) => (n == null ? "n/a" : `$${Math.round(n).toLocaleString("en-CA")}`);
+
+// Homes YoY
+const homesMedianYoY = market ? num(mget(market, "homes_median_sold_yoy")) : null;
+const homesCountYoY = market ? num(mget(market, "homes_sales_count_yoy")) : null;
+const homesYoYOk = market ? mget(market, "homes_yoy_ok").toLowerCase() === "true" : false;
+
+// Land (window)
+const landCount5y = market ? num(mget(market, "land_sales_count_5y")) : null;
+const landMedian5y = market ? num(mget(market, "land_median_sold_5y")) : null;
+
+// Land YoY
+const landMedianYoY = market ? num(mget(market, "land_median_sold_yoy")) : null;
+const landCountYoY = market ? num(mget(market, "land_sales_count_yoy")) : null;
+const landYoYOk = market ? mget(market, "land_yoy_ok").toLowerCase() === "true" : false;
+
+const marketNotes = market ? mget(market, "notes") : "";
+
+/* --- land presence + "rare sales" guard --- */
+const landFieldsPresent = !!(
+  market &&
+  (
+    mget(market, "land_sales_count_5y") ||
+    mget(market, "land_median_sold_5y") ||
+    mget(market, "land_median_sold_yoy") ||
+    mget(market, "land_sales_count_yoy") ||
+    mget(market, "land_yoy_ok")
+  )
+);
+
+const hasLandData =
+  (landCount5y ?? 0) > 0 &&
+  (landMedian5y ?? 0) > 0;
+
+/* =========================
+   Fernie context fetch (town-wide)
+========================= */
+let fernie: FernieRow | null = null;
+
+try {
+  if (FERNIE_URL) {
+    const rawF = await getJson<any>(FERNIE_URL);
+    const rsF: any[] = Array.isArray(rawF)
+      ? rawF
+      : Array.isArray(rawF?.data)
+        ? rawF.data
+        : Array.isArray(rawF?.rows)
+          ? rawF.rows
+          : [];
+
+    fernie =
+      rsF.find((r) => (mget(r, "name") || mget(r, "title") || mget(r, "data_through"))) ||
+      rsF[0] ||
+      null;
+  }
+} catch (e) {
+  fernie = null;
+}
+
+const hasFernie = !!fernie;
+
+const fernieDataThrough = fernie ? mget(fernie, "data_through") : "";
+const fernieWindowYears = fernie ? (num(mget(fernie, "window_years")) ?? 5) : 5;
+
+const fernieNote = fernie ? (mget(fernie, "note") || mget(fernie, "notes")) : "";
+
+// Scalar summary
+const fernieMedianSold = fernie ? num(mget(fernie, "median_sold")) : null;
+const fernieSaleToList = fernie ? num(mget(fernie, "sale_to_list")) : null;
+const fernieMedianDom = fernie ? num(mget(fernie, "median_dom")) : null;
+const fernieSalesCount = fernie ? num(mget(fernie, "sales_count")) : null;
+
+/* =========================
+   Neighbourhood vs Fernie comparison (auto insight)
+========================= */
+function pctDiff(a: number | null, b: number | null) {
+  if (a == null || b == null || b === 0) return null;
+  return (a - b) / b;
+}
+
+const saleToListDelta = pctDiff(homesRatio5y, fernieSaleToList);
+const priceDelta      = pctDiff(homesMedian5y, fernieMedianSold);
+const domAdv          = pctDiff(fernieMedianDom, homesDom5y);
+
+function fmtPct2(n: number | null) {
+  return n == null ? "n/a" : `${n.toFixed(1)}%`;
+}
+
+function fmtNum(n: number | null) {
+  return n == null ? "n/a" : `${Math.round(n)}`;
+}
+
+const microBits: string[] = [];
+
+if (homesRatio5y != null && fernieSaleToList != null) {
+  microBits.push(
+    `sale-to-list is ${fmtPct2(homesRatio5y)} vs ${fmtPct2(fernieSaleToList)} Fernie-wide`
+  );
+}
+
+if (homesDom5y != null && fernieMedianDom != null) {
+  microBits.push(
+    `median DOM is ${fmtNum(homesDom5y)} vs ${fmtNum(fernieMedianDom)}`
+  );
+}
+
+if (homesMedian5y != null && fernieMedianSold != null && Math.abs(priceDelta ?? 0) > 0.05) {
+  microBits.push(
+    `median price is ${fmtMoney0(homesMedian5y)} vs ${fmtMoney0(fernieMedianSold)}`
+  );
+}
+
+let microConclusion = "";
+
+if (saleToListDelta != null && domAdv != null) {
+  if (saleToListDelta > 0 && domAdv > 0) {
+    microConclusion =
+      "Homes here are trading closer to ask and moving faster than the Fernie average - a more competitive micro-market.";
+  } else if (saleToListDelta < 0 && domAdv < 0) {
+    microConclusion =
+      "Homes here are taking longer and selling further below ask than Fernie overall - a more negotiable pocket.";
+  } else if (domAdv > 0) {
+    microConclusion =
+      "Homes move faster here, but pricing is still negotiable compared to Fernie overall.";
+  } else if (saleToListDelta > 0) {
+    microConclusion =
+      "Sellers are holding firmer here, even though homes take longer to sell.";
+  }
+}
+
+const microSummary =
+  hasMarket && hasFernie && microBits.length && microConclusion
+    ? `${microBits.join(", ")}. ${microConclusion}`
+    : "";
+
+// Series (pipe lists)
+const fernieMedianSeries = fernie ? numsFromPipe(mget(fernie, "median_sold_series")) : [];
+const fernieRatioSeries = fernie ? numsFromPipe(mget(fernie, "sale_to_list_series")) : [];
+const fernieDomSeries = fernie ? numsFromPipe(mget(fernie, "dom_series")) : [];
+const fernieLabels = fernie ? splitPipe(mget(fernie, "series_labels")) : [];
+
+// Spark paths
+const spMedian = sparkPath(fernieMedianSeries);
+const spRatio = sparkPath(fernieRatioSeries);
+const spDom = sparkPath(fernieDomSeries);
+
+const hasTrendSeries = !!(spMedian || spRatio || spDom);
+
+// Direction (thresholded)
+const domDir = dirWithThreshold(fernieDomSeries, 0.03);
+const ratioDir = dirWithThreshold(fernieRatioSeries, 0.01);
+const medianDir = dirWithThreshold(fernieMedianSeries, 0.03);
+
+const fernieAutoNarrative = buildFernieNarrative({
+  dom: fernieDomSeries,
+  stl: fernieRatioSeries,
+  med: fernieMedianSeries,
+});
+
+const fernieRecentShift = buildRecentShift({
+  dom: fernieDomSeries,
+  stl: fernieRatioSeries,
+  med: fernieMedianSeries,
+  labels: fernieLabels,
+});
+
+/* page fields */
+const title = pageTitle;
+
+const subhead =
+  (row && (get(row, "subhead") || get(row, "Subhead") || get(row, "SUBHEAD"))) ||
+  "Fernie neighbourhood details, lifestyle, and access.";
+
+const summaryRaw = row ? get(row, "summary") || get(row, "Summary") || get(row, "SUMMARY") || "" : "";
+const longCopyRaw = row ? get(row, "long_copy") || get(row, "longcopy") || get(row, "LongCopy") || "" : "";
+
+const bestForRaw = row ? get(row, "best_for") || get(row, "BestFor") || get(row, "BEST_FOR") || "" : "";
+const bestFor = listFromPipe(bestForRaw, 3);
+
+const heroRaw = row ? pick(get(row, "hero_img"), get(row, "heroImg"), get(row, "HeroImg")) : "";
+const heroImg = heroRaw ? (isAbs(heroRaw) ? heroRaw : heroPath(heroRaw)) : "";
+
+// SEO
+const seoTitle =
+  (row ? get(row, "seo_title") || get(row, "seoTitle") : "") || `${title} - Fernie Neighbourhood`;
+
+const seoDescRaw =
+  (row ? get(row, "seo_description") || get(row, "seoDescription") : "") ||
+  summaryRaw ||
+  (header ? get(header, "seo_description") || get(header, "seoDescription") : "") ||
+  "";
+
+const seoDesc = stripMeta(seoDescRaw);
+
+// accent
+const headerAccent = CATEGORY_COLOURS.neighbourhoods ?? DEFAULT_ACCENT;
+
+// Summary / long copy HTML
+const SUMMARY_IS_HTML = true;
+const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summaryRaw) : "";
+const longCopyHtml = stripScripts(longCopyRaw);
+
+// Map embed
+const mapHtml =
+  row ? stripScripts(get(row, "map_embed") || get(row, "mapEmbed") || get(row, "map") || "") : "";
+
+// Drive/Walk access times
+const accessRaw =
+  row
+    ? get(row, "access") ||
+      get(row, "access_times") ||
+      get(row, "drive_walk") ||
+      get(row, "drive_walk_times") ||
+      get(row, "proximity") ||
+      get(row, "times") ||
+      ""
+    : "";
+
+const accessMap = parseAccessTimes(accessRaw);
+
+const accessSchools = pickAccess(accessMap, ["Schools", "School", "Isabella Dicken", "Fernie Secondary"]);
+const accessShops = pickAccess(accessMap, ["Shops", "Groceries", "Downtown", "Cafes", "Coffee", "Restaurants"]);
+const accessSki = pickAccess(accessMap, ["Ski hill", "Ski Hill", "Fernie Alpine Resort", "FAR"]);
+
+// Optional extras
+const dayInLife = row ? stripScripts(get(row, "day_in_life") || "") : "";
+const tradeoffs = row ? stripScripts(get(row, "tradeoffs") || "") : "";
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
-  {/* 🔥 Warm RealtyVis early for faster first interaction */}
-  <Fragment slot="head">
-    <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin>
-    <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
-    <link rel="preconnect" href="https://app.realtyvis.com" crossorigin>
-    <link rel="dns-prefetch" href="https://app.realtyvis.com">
-    <link rel="prefetch" href="https://cdn.realtyvis.com/js/embed.js" as="script">
-  </Fragment>
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} wrapContent={false}>
+  <div class="page-shell pad-x" style={`--accent:${headerAccent};`}>
+    <section class="page-intro">
+      <nav class="types-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <a href={PATH_BASE}>Neighbourhoods</a>
+        <span>/</span>
+        <span class="types-breadcrumb-current">{title}</span>
+      </nav>
 
-  <HeroBleed
-    src={heroImg ? heroPath(heroImg) : ""}
-    title={title}
-    kicker={kicker}
-    containerMax={1280}
-    containerPad={0}
-    flush={false}
-    preload={true}          /* ✅ favor hero for LCP */
-    position="top-left"
-    titleInset={15}
-  />
-
-  {summary && (
-    <section>
-      <div class="container summary-wrap">
-        {SUMMARY_IS_HTML
-          ? <div class="lead" set:html={summaryHtml}></div>
-          : <p class="lead">{summary}</p>}
-      </div>
-
-      {pills.length > 0 && (
-        <div class="container pills-wrap">
-          <nav class="btnset-wrap" aria-label="Neighbourhood quick links">
-            <ul class="btnset">
-              {pills.map(b => {
-                const active = isActiveHref(b.href, b.label);
-                return (
-                  <li>
-                    <a
-                      class={`btnpill${active ? " is-active" : ""}`}
-                      href={b.href}
-                      aria-current={active ? "page" : undefined}
-                      data-astro-prefetch="hover"
-                    >
-                      {b.label}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+      <div class="types-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
         </div>
-      )}
+
+        <div class="title-row">
+          <h1 class="page-title">{title}</h1>
+        </div>
+
+        {subhead && <p class="page-subhead">{subhead}</p>}
+      </div>
     </section>
-  )}
 
-  {/* ✅ Listings */}
-  <div class="container listings-wrap">
-    <h2 class="h2">Current {title} Listings</h2>
-
-    {hasValidBlock ? (
-      <div class="rv-host">
-        <RVEmbed block={rvBlockId} minHeight="1000px" showSkeleton={false} />
-      </div>
-    ) : (
-      <div class="rv-fallback">
-        <p><strong>Heads-up:</strong> Listings are unavailable for this page right now.</p>
-        <p><a href="/search">Browse all listings</a></p>
-      </div>
-    )}
-
-    {/* Hover-to-warm connections for RV */}
-    {hasValidBlock && (
-      <script is:inline>
-{`(function(){
-  let warmed=false;
-  function warm(){
-    if(warmed) return; warmed=true;
-    new Image().src="https://app.realtyvis.com/favicon.ico";
-    new Image().src="https://cdn.realtyvis.com/favicon.ico";
-    try{
-      fetch("https://app.realtyvis.com/css/site.min.css",{mode:"no-cors"}).catch(()=>{});
-      fetch("https://app.realtyvis.com/js/site.min.js",{mode:"no-cors"}).catch(()=>{});
-    }catch(e){}
-  }
-  const host=document.querySelector(".rv-host")||document.querySelector(".listings-wrap");
-  if(!host) return;
-  ["pointerover","touchstart","focusin"].forEach(ev=>{
-    host.addEventListener(ev,warm,{once:true,passive:true});
-  });
-})();`}
-      </script>
-    )}
-  </div>
-
-  {/* ✅ CTA ABOVE LONG COPY */}
-  <div class="container cta-inline" id="cta">
-    <CTAForm2
-      formId={formspreeId}
-      pageSlug={Astro.params.slug}
-      pageTitle={title}
-      headline={ctaHeadline}
-      subline={ctaSubline}
-    />
-  </div>
-
-  {body && (
-    <div class="container body-wrap">
-      {BODY_IS_HTML
-        ? <div class="lead" set:html={bodyHtml}></div>
-        : <p class="lead">{body}</p>}
+    {/* FADED MOUNTAIN STRIP */}
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mountainFadeHood" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="
+            M0 18
+            L5 8
+            L11 14
+            L18 5
+            L25 13
+            L32 4
+            L40 12
+            L48 3
+            L56 11
+            L64 4
+            L72 13
+            L80 6
+            L90 15
+            L100 7
+            L100 20
+            L0 20
+            Z
+          "
+          fill="url(#mountainFadeHood)"
+        />
+      </svg>
     </div>
-  )}
 
-  <style>
-    .container { max-width: 1200px; margin-inline: auto; padding-inline: 12px; }
+    {heroImg && (
+      <section class="hero" style={`--accent:${headerAccent};`}>
+        <div class="hero-media">
+          <img src={heroImg} alt={title} loading="eager" decoding="async" crossorigin="anonymous" />
+          <div class="hero-fade" aria-hidden="true"></div>
+        </div>
+      </section>
+    )}
 
-    .summary-wrap{
-      padding-top:10px;
-      padding-bottom:10px;
-      border-bottom:1px solid #e5e7eb; /* line ends just above the pills */
-      margin-bottom:0;                  /* pills control spacing */
+    {/* QUICK LINKS - moved under hero so they don't crowd the title area */}
+    {!error && row && (
+      <div class="quick-cards-wrap" aria-label="Quick links">
+        <div class="quick-cards">
+          <a class="qc" href="#listings">
+            <div class="qc-ico" aria-hidden="true">🏷️</div>
+            <div class="qc-body">
+              <div class="qc-title">Listings</div>
+              <div class="qc-sub">See what’s available right now</div>
+            </div>
+          </a>
+
+          {hasBuildings && (
+            <a class="qc" href={`${PATH_BASE}/${paramsSlug}/buildings/`}>
+              <div class="qc-ico" aria-hidden="true">🏢</div>
+              <div class="qc-body">
+                <div class="qc-title">Buildings</div>
+                <div class="qc-sub">Condos - strata - complexes</div>
+              </div>
+            </a>
+          )}
+
+          <a class="qc" href="#market-snapshot">
+            <div class="qc-ico" aria-hidden="true">📊</div>
+            <div class="qc-body">
+              <div class="qc-title">Market</div>
+              <div class="qc-sub">5-year snapshot + context</div>
+            </div>
+          </a>
+        </div>
+      </div>
+    )}
+
+    {error && <p class="err">{error}</p>}
+
+    {!error && row && (
+      <section class="content">
+        {summaryRaw && (
+          <div class="lead">
+            {SUMMARY_IS_HTML ? <div set:html={summaryHtml}></div> : <p>{summaryRaw}</p>}
+          </div>
+        )}
+
+        {bestFor.length > 0 && (
+          <section class="sec">
+            <h2 class="sec-h">Best for</h2>
+            <div class="best-grid">
+              {bestFor.map((b) => (
+                <div class="best-card">
+                  <span class="best-ico" aria-hidden="true">{iconForBestFor(b)}</span>
+                  <span class="best-txt">{b}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {(accessSchools || accessShops || accessSki) && (
+          <section class="sec access">
+            <h2 class="sec-h">Access times</h2>
+
+            <div class="access-grid">
+              {accessSchools && (
+                <div class="access-card">
+                  <div class="ac-head">
+                    <span class="ac-ico" aria-hidden="true">🏫</span>
+                    <span class="ac-title">Schools</span>
+                  </div>
+                  <div class="ac-rows">
+                    {accessSchools.walk && (
+                      <div class="ac-row">
+                        <span class="ac-k">Walk</span>
+                        <span class="ac-v">{accessSchools.walk}</span>
+                      </div>
+                    )}
+                    {accessSchools.drive && (
+                      <div class="ac-row">
+                        <span class="ac-k">Drive</span>
+                        <span class="ac-v">{accessSchools.drive}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {accessShops && (
+                <div class="access-card">
+                  <div class="ac-head">
+                    <span class="ac-ico" aria-hidden="true">🛒</span>
+                    <span class="ac-title">Shops</span>
+                  </div>
+                  <div class="ac-rows">
+                    {accessShops.walk && (
+                      <div class="ac-row">
+                        <span class="ac-k">Walk</span>
+                        <span class="ac-v">{accessShops.walk}</span>
+                      </div>
+                    )}
+                    {accessShops.drive && (
+                      <div class="ac-row">
+                        <span class="ac-k">Drive</span>
+                        <span class="ac-v">{accessShops.drive}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {accessSki && (
+                <div class="access-card">
+                  <div class="ac-head">
+                    <span class="ac-ico" aria-hidden="true">⛷️</span>
+                    <span class="ac-title">Ski hill</span>
+                  </div>
+                  <div class="ac-rows">
+                    {accessSki.walk && (
+                      <div class="ac-row">
+                        <span class="ac-k">Walk</span>
+                        <span class="ac-v">{accessSki.walk}</span>
+                      </div>
+                    )}
+                    {accessSki.drive && (
+                      <div class="ac-row">
+                        <span class="ac-k">Drive</span>
+                        <span class="ac-v">{accessSki.drive}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {longCopyRaw && (
+          <section class="sec">
+            <h2 class="sec-h">Living here</h2>
+            <div class="copy" set:html={longCopyHtml}></div>
+          </section>
+        )}
+
+        {/* Market snapshot */}
+        {hasMarket && (
+          <section class="sec" id="market-snapshot">
+            <h2 class="sec-h">Market snapshot</h2>
+
+            <div class="market-card">
+              <div class="market-top">
+                <div class="market-title">
+                  {title}
+                  <span class="market-pill">{windowYears}-year snapshot</span>
+                </div>
+
+                {dataThrough && <div class="market-meta">Data through {fmtDate(dataThrough)}</div>}
+              </div>
+
+              <div class="market-grid">
+                <div class="market-panel">
+                  <div class="mp-h">Homes</div>
+
+                  <div class="mp-row"><span>Sold</span><strong>{fmtInt(homesCount5y)}</strong></div>
+                  <div class="mp-row"><span>Median sold</span><strong>{fmtMoney0(homesMedian5y)}</strong></div>
+
+                  {homesPsf5y != null && (
+                    <div class="mp-row"><span>Median $/sq ft</span><strong>{fmtPsf0(homesPsf5y)}</strong></div>
+                  )}
+
+                  <div class="mp-row"><span>Median DOM</span><strong>{fmtInt(homesDom5y)}</strong></div>
+                  <div class="mp-row"><span>Sale to list</span><strong>{fmtPct1(homesRatio5y)}</strong></div>
+
+                  {homesYoYOk && (
+                    <div class="mp-yoy">
+                      <div class="mp-yh">YoY</div>
+                      <div class="mp-row"><span>Median price</span><strong>{fmtPct1(homesMedianYoY)}</strong></div>
+                      <div class="mp-row">
+                        <span>Sales volume</span>
+                        <strong>
+                          {homesCountYoY == null ? "n/a" : homesCountYoY > 0 ? `+${homesCountYoY}` : `${homesCountYoY}`}
+                        </strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Land panel shows if land fields exist; "rare sales" message when empty */}
+                {landFieldsPresent && (
+                  <div class="market-panel">
+                    <div class="mp-h">Land</div>
+
+                    {hasLandData ? (
+                      <>
+                        <div class="mp-row"><span>Sold</span><strong>{fmtInt(landCount5y)}</strong></div>
+                        <div class="mp-row"><span>Median sold</span><strong>{fmtMoney0(landMedian5y)}</strong></div>
+
+                        {landYoYOk && (
+                          <div class="mp-yoy">
+                            <div class="mp-yh">YoY</div>
+                            <div class="mp-row"><span>Median price</span><strong>{fmtPct1(landMedianYoY)}</strong></div>
+                            <div class="mp-row">
+                              <span>Sales volume</span>
+                              <strong>
+                                {landCountYoY == null ? "n/a" : landCountYoY > 0 ? `+${landCountYoY}` : `${landCountYoY}`}
+                              </strong>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div class="mp-row">
+                          <span>Land</span>
+                          <strong>Rare or no recent sales</strong>
+                        </div>
+                        <div class="mp-row" style="opacity:.85;">
+                          <span>Why</span>
+                          <strong>Not enough sales to compute trends</strong>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {microSummary && (
+                <div class="market-verdict">
+                  <div class="mv-head">
+                    <span class="mv-icon">📊</span>
+                    <span class="mv-title">Market verdict</span>
+                    <span class="mv-sub">vs Fernie overall</span>
+                  </div>
+
+                  <div class="mv-body">
+                    {microSummary}
+                  </div>
+                </div>
+              )}
+
+              {marketNotes && <div class="market-notes">{marketNotes}</div>}
+            </div>
+          </section>
+        )}
+
+        {/* Fernie market context (town-wide) */}
+        {hasFernie && (
+          <section class="sec" id="fernie-context">
+            <h2 class="sec-h">Fernie market context</h2>
+
+            <div class="context-card">
+              <div class="context-top">
+                <div class="context-title">
+                  Fernie - town-wide
+                  <span class="context-pill">Not neighbourhood-specific</span>
+                  <span class="context-pill">{fernieWindowYears}-year view</span>
+                </div>
+
+                {fernieDataThrough && <div class="context-meta">Data through {fmtDate(fernieDataThrough)}</div>}
+              </div>
+
+              {/* Always show the town-wide snapshot tiles */}
+              <div class="context-snapshot">
+                <div class="cs-card">
+                  <div class="cs-k">Median sold</div>
+                  <div class="cs-v">{fmtMoney0(fernieMedianSold)}</div>
+                </div>
+                <div class="cs-card">
+                  <div class="cs-k">Sale to list</div>
+                  <div class="cs-v">{fmtPct1(fernieSaleToList)}</div>
+                </div>
+                <div class="cs-card">
+                  <div class="cs-k">Median DOM</div>
+                  <div class="cs-v">{fmtInt(fernieMedianDom)}</div>
+                </div>
+                <div class="cs-card">
+                  <div class="cs-k">Sales (window)</div>
+                  <div class="cs-v">{fmtInt(fernieSalesCount)}</div>
+                </div>
+              </div>
+
+              {/* Trend strip */}
+              {hasTrendSeries ? (
+                <div class="trend-grid">
+                  {spMedian && (
+                    <div class="trend-card">
+                      <div class="trend-h">
+                        <span class="trend-ico" aria-hidden="true">📈</span>
+                        <span>Median price trend</span>
+                      </div>
+                      <svg class="spark" viewBox="0 0 260 42" role="img" aria-label="Median price sparkline">
+                        <path d={spMedian} fill="none" stroke="currentColor" stroke-width="2" />
+                      </svg>
+                      <div class="trend-foot">
+                        {(() => {
+                          if (medianDir === "na") return "Trend";
+                          if (medianDir === "up") return "Median sold is rising over the window";
+                          if (medianDir === "down") return "Median sold is easing over the window";
+                          return "Median sold has been fairly steady";
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {spRatio && (
+                    <div class="trend-card">
+                      <div class="trend-h">
+                        <span class="trend-ico" aria-hidden="true">🤝</span>
+                        <span>Sale to list trend</span>
+                      </div>
+                      <svg class="spark" viewBox="0 0 260 42" role="img" aria-label="Sale-to-list sparkline">
+                        <path d={spRatio} fill="none" stroke="currentColor" stroke-width="2" />
+                      </svg>
+                      <div class="trend-foot">
+                        {(() => {
+                          if (ratioDir === "na") return "Negotiating leverage often shifts faster than price";
+                          if (ratioDir === "down") return "Sale-to-list is easing - buyers may see more negotiating room";
+                          if (ratioDir === "up") return "Sale-to-list is firming - stronger seller leverage";
+                          return "Sale-to-list has been relatively steady";
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {spDom && (
+                    <div class="trend-card">
+                      <div class="trend-h">
+                        <span class="trend-ico" aria-hidden="true">⏳</span>
+                        <span>Days on market trend</span>
+                      </div>
+                      <svg class="spark" viewBox="0 0 260 42" role="img" aria-label="DOM sparkline">
+                        <path d={spDom} fill="none" stroke="currentColor" stroke-width="2" />
+                      </svg>
+                      <div class="trend-foot">
+                        {(() => {
+                          if (domDir === "na") return "Days on market trend";
+                          if (domDir === "up") return "Homes are taking longer to sell - more time to negotiate";
+                          if (domDir === "down") return "Homes are selling faster - less time to negotiate";
+                          return "Days on market has been fairly steady";
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div class="context-missing">
+                  Trend strip is not showing yet because your Fernie context feed does not include the series fields:
+                  <code>median_sold_series</code>, <code>sale_to_list_series</code>, <code>dom_series</code>, <code>series_labels</code>.
+                </div>
+              )}
+
+              <div class="context-note">
+                This context is town-wide. It helps you read the broader cycle behind what you’re seeing in {title}.
+                Neighbourhood samples can be thin - Fernie-wide trend data adds a steadier signal.
+              </div>
+
+              {fernieAutoNarrative && <div class="context-notes">{fernieAutoNarrative}</div>}
+
+              {fernieRecentShift && (
+                <div class="context-notes" style="margin-top:10px;opacity:.96;">
+                  <strong>Recent shift:</strong> {fernieRecentShift}
+                </div>
+              )}
+
+              {(() => {
+                const extra = (fernieNote || "").trim();
+                if (!extra) return null;
+
+                if (fernieRecentShift && normText(extra) === normText(fernieRecentShift)) return null;
+
+                return (
+                  <div class="context-insight">
+                    <strong>Local insight:</strong> {extra}
+                  </div>
+                );
+              })()}
+            </div>
+          </section>
+        )}
+
+        {/* Listings (BLOCKS ONLY) */}
+        <section class="sec" id="listings">
+          <h2 class="sec-h">Listings</h2>
+
+          {hasValidBlock ? (
+            <div class="rv-host">
+              <RVEmbed block={rvBlockId} minHeight="580px" showSkeleton={false} />
+            </div>
+          ) : (
+            <div class="rv-fallback">
+              <p><strong>Listings:</strong> This page isn’t wired to a RealtyVis block yet.</p>
+              {listingsUrlIsHttp ? (
+                <p><a href={listingsUrl} target="_blank" rel="noopener">View all results →</a></p>
+              ) : (
+                <p><a href="/search">Browse all Fernie listings</a></p>
+              )}
+              <p style="opacity:.85;margin-top:.25rem;">
+                (Tip: create a RealtyVis <strong>block</strong> and paste its 8-8 ID into <code>rv_block</code>.)
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* Neighbourhood CTA */}
+        <section class="sec" id="hood-cta">
+          <h2 class="sec-h">Get the right listings</h2>
+
+          <div class="cta-card">
+            <div class="cta-copy">
+              <div class="cta-eyebrow">Private shortlist</div>
+
+              <div class="cta-headline">
+                Your unfair advantage in the Fernie market
+              </div>
+
+              <p class="cta-dek">
+                I track every listing, price change, and quiet opportunity in Fernie. Share what you want and I’ll send a short, hand-picked list that actually fits.
+              </p>
+
+              <ul class="cta-bullets">
+                <li><strong>Curated</strong> - a short list, not a feed</li>
+                <li><strong>Context</strong> - neighbourhood + Fernie-wide market signal</li>
+                <li><strong>Private</strong> - no mass emails or drip campaigns</li>
+              </ul>
+            </div>
+
+            <form
+              id="hoodForm"
+              class="cta-form"
+              method="POST"
+              action="https://formspree.io/f/mgooeejl"
+            >
+              <input type="hidden" name="neighbourhood" value={title} />
+              <input type="hidden" name="page" value={Astro.url.pathname} />
+
+              <label class="cta-lbl">
+                <span>Name</span>
+                <input
+                  class="cta-in"
+                  type="text"
+                  name="name"
+                  autocomplete="name"
+                  placeholder="Your name"
+                  required
+                />
+              </label>
+
+              <label class="cta-lbl">
+                <span>Email</span>
+                <input
+                  class="cta-in"
+                  type="email"
+                  name="email"
+                  autocomplete="email"
+                  placeholder="Your email"
+                  required
+                />
+              </label>
+
+              <label class="cta-lbl">
+                <span>Optional - anything specific?</span>
+                <textarea
+                  class="cta-ta"
+                  name="message"
+                  rows={4}
+                  placeholder="Budget, beds, property type, must-haves, dealbreakers..."
+                ></textarea>
+              </label>
+
+              <button class="cta-btn" type="submit">Send me my best matches</button>
+
+              <div class="cta-trust">
+                No spam. No pressure. Just honest Fernie advice.
+              </div>
+            </form>
+
+            <script is:inline>
+              const form = document.getElementById("hoodForm");
+              const thanks = document.getElementById("hoodThanks");
+              if (form && thanks) {
+                form.addEventListener("submit", async (e) => {
+                  e.preventDefault();
+                  const fd = new FormData(form);
+                  const res = await fetch(form.action, {
+                    method: "POST",
+                    body: fd,
+                    headers: { Accept: "application/json" },
+                  });
+                  if (res.ok) {
+                    form.style.display = "none";
+                    thanks.hidden = false;
+                  } else {
+                    alert("Something went wrong - please try again.");
+                  }
+                });
+              }
+            </script>
+
+            <div id="hoodThanks" class="cta-thanks" hidden>
+              <div class="cta-title">Got it.</div>
+              <p class="cta-sub">I’ll email you back shortly with a short list and next steps.</p>
+            </div>
+          </div>
+        </section>
+
+        {(dayInLife || tradeoffs) && (
+          <section class="sec split">
+            {dayInLife && (
+              <div class="split-card">
+                <div class="split-h">Day-to-day</div>
+                <div class="split-copy" set:html={dayInLife}></div>
+              </div>
+            )}
+            {tradeoffs && (
+              <div class="split-card">
+                <div class="split-h">Trade-offs</div>
+                <div class="split-copy" set:html={tradeoffs}></div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {mapHtml && (
+          <section class="sec">
+            <h2 class="sec-h">Map</h2>
+            <div class="map" set:html={mapHtml}></div>
+          </section>
+        )}
+      </section>
+    )}
+  </div>
+
+  <style is:global>
+    .page-shell { max-width: 1280px; margin-inline: auto; margin-top: 14px; margin-bottom: 46px; }
+    .pad-x { padding-inline: var(--edge-pad) !important; }
+    @media (min-width: 900px){ .pad-x { padding-inline: var(--edge-pad-lg) !important; } }
+
+    .page-intro { max-width: var(--container-max); margin: 0 auto 10px; padding-top: 28px; }
+
+    .types-breadcrumb{
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
     }
+    .types-breadcrumb a{ text-decoration: none; border-bottom: 1px solid transparent; }
+    .types-breadcrumb a:hover{ border-bottom-color: var(--accent); }
+    .types-breadcrumb-current{ opacity: 0.7; }
 
-    .pills-wrap{
-      padding-top:12px;                 /* space below the line */
-      margin-bottom:35px;               /* previous spacing retained */
-    }
+    .types-title-block{ max-width: 56rem; }
 
-    .btnset-wrap { margin-top: 0; }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
+    .accent-bars{ display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+    .accent-bar{ height: 4px; border-radius: 999px; background: var(--accent); }
+    .accent-bar.primary{ width: 80px; opacity: 0.9; }
+    .accent-bar.secondary{ width: 40px; opacity: 0.45; }
 
-    .btnset {
-      list-style: none; margin: 0; padding: 0;
-      display: flex; flex-wrap: wrap; gap: 10px;
-      justify-content: center;          /* centered, clean */
-    }
-    .btnpill {
-      display: inline-block;
-      border: 1px solid #e5e7eb;
-      background: #fff;
+    .title-row{ display: flex; align-items: flex-start; gap: 0.75rem; }
+
+    .page-title{
+      margin: 0 0 6px;
+      font-size: clamp(2.1rem, 3.4vw, 2.85rem);
+      line-height: 1.08;
+      font-weight: 750;
+      letter-spacing: -0.015em;
       color: #111827;
-      font-weight: 700;
-      text-decoration: none;
-      padding: 10px 16px;
-      border-radius: 9999px;
-      line-height: 1;
-      box-shadow: 0 1px 0 rgba(0,0,0,.02);
-      transition: background .15s ease, color .15s ease, border-color .15s ease, transform .05s ease-in-out;
-    }
-    .btnpill:hover { background: #f3f4f6; transform: translateY(-1px); }
-    .btnpill.is-active {
-      background: #0f172a; color: #fff; border-color: transparent; box-shadow: 0 1px 0 rgba(0,0,0,.05);
     }
 
-    .listings-wrap { padding-top: 16px; padding-bottom: 8px; }
-    .h2 { font-size: clamp(20px, 2.6vw, 28px); margin: 0 0 10px; }
-
-    .rv-fallback {
-      margin-top: 12px; padding: 12px 16px;
-      background: #fff3cd; border: 1px solid #ffe69c; border-radius: 10px; color: #5c3c00;
+    .page-subhead{
+      margin: 6px 0 8px;
+      font-size: 0.9rem;
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
     }
 
-    /* ✅ Performance: only render when near viewport */
-    .rv-host,
-    .cta-inline,
-    .body-wrap {
-      content-visibility: auto;
-      contain-intrinsic-size: 800px; /* reserve space; helps CLS */
+    .mountain-strip{
+      margin: 8px auto 18px;
+      height: 48px;
+      max-height: 60px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
+    }
+    .mountain-strip svg{ width: 100%; height: 100%; opacity: 0.9; mix-blend-mode: multiply; }
+
+    .hero{ margin-top: 12px; }
+    .hero-media{
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #e2e4e8;
+      box-shadow: 0 18px 44px rgba(0,0,0,.10);
+    }
+    .hero-media img{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .hero-fade{
+      position:absolute;
+      inset:0;
+      background: linear-gradient(to top, rgba(0,0,0,.18), rgba(0,0,0,0) 55%);
+      pointer-events:none;
     }
 
-    /* ✅ Responsive min-height for RV region */
-    .rv-host { min-height: 70vh; }
-    @media (min-width: 640px) { .rv-host { min-height: 85vh; } }
-    @media (min-width: 1024px) {
-      .rv-host { min-height: 1000px; contain-intrinsic-size: 1000px; }
+    .err{
+      color: #b91c1c;
+      background: #fee2e2;
+      padding: .75rem 1rem;
+      border-radius: .5rem;
+      margin-top: 12px;
     }
 
-    .summary-section::after, .body-wrap::after { content: ""; display: block; clear: both; }
+    .content{ margin-top: 18px; }
 
-    .cta-inline { padding: 18px 0 10px; clear: both; }
-    .body-wrap { padding-top: 8px; }
-
-    /* ✅ Match the gold page skeleton handling + centering */
-    .rv-host [data-skeleton],
-    .rv-host .rv-skeleton {
-      animation: none !important;
-      background: none !important;
-      background-image: none !important;
-      box-shadow: none !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
+    .lead{
+      margin: 0;
+      padding: 16px 18px;
+      border: 1px solid #e8eaee;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 12px 28px rgba(0,0,0,.06);
     }
-    .rv-host .rv-root,
-    .rv-host .rv-container,
-    .rv-host .rv-shell {
-      max-width: 1200px;
+    .lead :where(p, ul, ol){ margin: 0 0 .8rem; line-height: 1.6; color: #111827; }
+    .lead :where(a){ text-decoration: underline; }
+
+    .sec{ margin-top: 18px; }
+
+    /* quick cards wrapper - aligns to hero width and keeps spacing tidy */
+    .quick-cards-wrap{
+      margin-top: 12px;
+      margin-bottom: 6px;
+      max-width: var(--container-max);
       margin-inline: auto;
+    }
+
+    .quick-cards{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  max-width: 56rem;
+}
+
+
+    @media (max-width: 900px){
+      .quick-cards{ grid-template-columns: 1fr; }
+    }
+
+    .qc{
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 12px 12px;
+      border-radius: 16px;
+      border: 1px solid #e8eaee;
+      background: #fff;
+      box-shadow: 0 12px 28px rgba(0,0,0,.06);
+      text-decoration: none;
+      color: inherit;
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+
+    .qc:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 18px 44px rgba(0,0,0,.09);
+      border-color: color-mix(in srgb, var(--accent) 28%, #e8eaee);
+    }
+
+    .qc-ico{
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: #f1f5f9;
+      font-size: 18px;
+      flex: 0 0 auto;
+    }
+
+    .qc-title{
+      font-weight: 950;
+      letter-spacing: -0.01em;
+      color: #0f172a;
+      line-height: 1.1;
+    }
+
+    .qc-sub{
+      margin-top: 4px;
+      color: #475569;
+      font-weight: 650;
+      font-size: .92rem;
+      line-height: 1.35;
+    }
+
+    .best-grid{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 900px){ .best-grid{ grid-template-columns: 1fr; } }
+
+   /* =========================================
+   Best For - informational chips (NOT buttons)
+========================================= */
+
+.best-card{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #eef0f3;
+  border-radius: 14px;
+  box-shadow: none;
+  text-align: left;
+}
+
+/* kill all button behaviour */
+.best-card:hover{
+  transform: none;
+  box-shadow: none;
+  background: #f8fafc;
+  border-color: #eef0f3;
+}
+
+.best-card,
+.best-card *{
+  cursor: default;
+}
+
+/* icon pill */
+.best-ico{
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #eef2f7;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* label text */
+.best-txt{
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.25;
+}
+
+    .access-grid{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 900px){
+      .access-grid{ grid-template-columns: 1fr; }
+    }
+
+    .access-card{
+      border: 1px solid #e8eaee;
+      border-radius: 14px;
+      padding: 12px;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(0,0,0,.06);
+    }
+
+    .ac-head{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .ac-ico{
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: #f1f5f9;
+      font-size: 18px;
+    }
+    .ac-title{
+      font-weight: 900;
+      color: #111827;
+      letter-spacing: -0.01em;
+    }
+
+    .ac-rows{ display: grid; gap: 8px; }
+    .ac-row{
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: #f8fafc;
+      border: 1px solid #eef0f3;
+    }
+    .ac-k{
+      font-size: 0.75rem;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #6b7280;
+    }
+    .ac-v{ font-weight: 800; color: #111827; }
+
+    .copy{
+      padding: 16px 18px;
+      border: 1px solid #e8eaee;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 12px 28px rgba(0,0,0,.06);
+    }
+    .copy :where(p, ul, ol){ margin: 0 0 .9rem; line-height: 1.7; color:#111827; }
+    .copy :where(h2, h3, h4){ margin: 1.1rem 0 .6rem; }
+    .copy :where(a){ text-decoration: underline; }
+
+    .split{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 900px){ .split{ grid-template-columns: 1fr; } }
+
+    .split-card{
+      border: 1px solid #e8eaee;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #fff;
+      box-shadow: 0 12px 28px rgba(0,0,0,.06);
+    }
+    .split-h{
+      font-size: 0.75rem;
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin-bottom: 10px;
+    }
+    .split-copy :where(p, ul, ol){ margin: 0 0 .85rem; line-height: 1.65; }
+
+    .map{
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #e8eaee;
+      background: #fff;
+      box-shadow: 0 12px 28px rgba(0,0,0,.06);
+    }
+    .map iframe{
+      width: 100% !important;
+      height: 620px !important;
+      border: 0 !important;
+      display: block;
+    }
+
+    /* RV host for blocks */
+    .rv-host { min-height: 0; }
+
+    .rv-fallback{
+      margin-top: 12px;
+      padding: 12px 16px;
+      background: #fff3cd;
+      border: 1px solid #ffe69c;
+      border-radius: 10px;
+      color: #5c3c00;
+    }
+    .rv-fallback a{ font-weight: 800; text-decoration: underline; }
+    .rv-fallback code{ font-weight: 800; }
+
+    /* Market verdict */
+    .market-verdict{
+      margin-top:16px;
+      border-radius:18px;
+      padding:18px 20px;
+      border:1px solid #e8eaee;
+
+      background:
+        radial-gradient(900px 300px at 15% 20%, rgba(0,0,0,.07), rgba(0,0,0,0) 60%),
+        linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+
+      box-shadow:
+        0 28px 70px rgba(0,0,0,.12),
+        0 1px 0 rgba(255,255,255,.9) inset;
+
+      position: relative;
+      overflow:hidden;
+    }
+
+    .market-verdict:before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:0;
+      bottom:0;
+      width:6px;
+      background:linear-gradient(180deg, var(--accent), rgba(0,0,0,0));
+    }
+
+    .mv-head{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+
+    .mv-icon{
+      font-size:1.3rem;
+      line-height:1;
+    }
+
+    .mv-title{
+      font-weight:950;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:.72rem;
+      color:#0f172a;
+    }
+
+    .mv-sub{
+      font-size:.7rem;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#64748b;
+    }
+
+    .mv-body{
+      font-size:1.02rem;
+      line-height:1.55;
+      font-weight:600;
+      color:#0f172a;
+      max-width:75ch;
+    }
+
+    .market-card{
+      border: 1px solid #e8eaee;
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfbfc 100%);
+      box-shadow: 0 16px 40px rgba(0,0,0,.07);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .market-top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .market-title{
+      font-weight: 950;
+      color:#0f172a;
+      letter-spacing:-0.02em;
+      font-size: 1.05rem;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .market-title:before{
+      content:"";
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(0,0,0,.04);
+    }
+
+    .market-meta{
+      color:#111827;
+      font-size: 0.85rem;
+      font-weight: 800;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      border: 1px solid #e8eaee;
+      white-space: nowrap;
+    }
+
+    .market-grid{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 900px){
+      .market-grid{ grid-template-columns: 1fr; }
+    }
+
+    .market-panel{
+      border: 1px solid #eef0f3;
+      border-radius: 16px;
+      padding: 12px;
+      background: #f8fafc;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .market-panel:after{
+      content:"";
+      position:absolute;
+      inset: -40% -40% auto auto;
+      width: 220px;
+      height: 220px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, rgba(0,0,0,.06), rgba(0,0,0,0) 62%);
+      pointer-events:none;
+    }
+
+    .market-panel:nth-child(1){
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    }
+    .market-panel:nth-child(2){
+      background: linear-gradient(180deg, #f7f7ff 0%, #ffffff 100%);
+    }
+
+    .mp-h{
+      font-size: 0.72rem;
+      font-weight: 950;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+    }
+
+    .mp-h:after{
+      content:"";
+      height: 1px;
+      flex: 1;
+      margin-left: 10px;
+      background: linear-gradient(to right, rgba(100,116,139,.35), rgba(100,116,139,0));
+    }
+
+    .market-panel:nth-child(1) .mp-h:before{ content:"🏠"; margin-right: 8px; }
+    .market-panel:nth-child(2) .mp-h:before{ content:"🌲"; margin-right: 8px; }
+
+    .market-panel:nth-child(1) .mp-h:before,
+    .market-panel:nth-child(2) .mp-h:before{
+      font-size: 1.4rem;
+      line-height: 1;
+      transform: translateY(-1px);
+    }
+
+    .mp-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:baseline;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.72);
+      border: 1px solid rgba(226,232,240,.9);
+      margin-bottom: 8px;
+      backdrop-filter: blur(4px);
+    }
+
+    .mp-row span{
+      color:#64748b;
+      font-weight: 700;
+    }
+
+    .mp-row strong{
+      color:#0f172a;
+      font-weight: 950;
+      letter-spacing: -0.01em;
+    }
+
+    .mp-yoy{
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed #e2e8f0;
+    }
+
+    .mp-yh{
+      font-size: 0.72rem;
+      font-weight: 950;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .market-notes{
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid #eef0f3;
+      background: #f8fafc;
+      color:#475569;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .market-pill{
+      font-size: .75rem;
+      font-weight: 900;
+      letter-spacing: .10em;
+      text-transform: uppercase;
+      color: #475569;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid #e8eaee;
+    }
+
+    /* Fernie context */
+    .context-card{
+      border: 1px solid #e8eaee;
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfbfc 100%);
+      box-shadow: 0 16px 40px rgba(0,0,0,.07);
+    }
+
+    .context-top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .context-title{
+      font-weight: 950;
+      color:#0f172a;
+      letter-spacing:-0.02em;
+      font-size: 1.0rem;
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .context-meta{
+      color:#111827;
+      font-size: 0.85rem;
+      font-weight: 800;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      border: 1px solid #e8eaee;
+      white-space: nowrap;
+    }
+
+    .context-pill{
+      font-size: .72rem;
+      font-weight: 900;
+      letter-spacing: .10em;
+      text-transform: uppercase;
+      color: #475569;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid #e8eaee;
+    }
+
+    .context-snapshot{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    @media (max-width: 900px){
+      .context-snapshot{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    .context-insight{
+      margin-top: 10px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      border-left: 4px solid var(--accent);
+      border-top: 1px solid #eef0f3;
+      border-right: 1px solid #eef0f3;
+      border-bottom: 1px solid #eef0f3;
+      box-shadow: 0 8px 20px rgba(0,0,0,.04);
+      font-size: 0.92rem;
+      line-height: 1.45;
+      color:#0f172a;
+    }
+    .context-insight strong{ color:#0f172a; font-weight: 900; }
+
+    .cs-card{
+      border: 1px solid #eef0f3;
+      border-radius: 16px;
+      padding: 12px;
+      background: #f8fafc;
+    }
+    .cs-k{
+      font-size: 0.7rem;
+      font-weight: 900;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    .cs-v{
+      font-weight: 950;
+      color:#0f172a;
+      letter-spacing: -0.01em;
+      font-size: 1.02rem;
+    }
+
+    .trend-grid{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 900px){
+      .trend-grid{ grid-template-columns: 1fr; }
+    }
+
+    .trend-card{
+      border: 1px solid #eef0f3;
+      border-radius: 16px;
+      padding: 12px;
+      background: #f8fafc;
+    }
+
+    .trend-h{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      font-weight: 950;
+      color:#0f172a;
+      margin-bottom: 8px;
+    }
+
+    .trend-ico{
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+
+    .spark{
+      width: 100%;
+      height: 42px;
+      color: #0f172a;
+      opacity: .9;
+    }
+
+    .trend-foot{
+      margin-top: 8px;
+      font-size: 0.84rem;
+      color: #475569;
+      line-height: 1.35;
+    }
+
+    .context-missing{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px dashed #e2e8f0;
+      background: #f8fafc;
+      color:#475569;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .context-missing code{ font-weight: 900; }
+
+    .context-note{
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid #eef0f3;
+      background: #f8fafc;
+      color:#475569;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .context-notes{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid #eef0f3;
+      background: #fff;
+      color:#0f172a;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    /* CTA card */
+    #hood-cta{ scroll-margin-top: 90px; }
+
+    #hood-cta .cta-card{
+      position: relative;
+      overflow: hidden;
+      border-radius: 22px;
+      border: 1px solid #e8eaee;
+
+      background:
+        linear-gradient(90deg, rgba(250,246,240,.62) 0%, rgba(255,255,255,0) 58%),
+        radial-gradient(900px 360px at 18% 20%, rgba(0,0,0,.06), rgba(0,0,0,0) 55%),
+        radial-gradient(520px 220px at 78% 80%, rgba(0,0,0,.04), rgba(0,0,0,0) 60%),
+        linear-gradient(180deg, #ffffff 0%, #fbfbfc 100%);
+
+      box-shadow:
+        0 28px 70px rgba(0,0,0,.10),
+        0 1px 0 rgba(255,255,255,.9) inset;
+
+      padding: 18px;
+      gap: 18px;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      align-items: start;
+    }
+
+    @media (max-width: 900px){
+      #hood-cta .cta-card{
+        grid-template-columns: 1fr;
+        padding: 16px;
+        gap: 14px;
+      }
+    }
+
+    #hood-cta .cta-card:after{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background-image:
+        radial-gradient(circle at 10% 20%, rgba(0,0,0,.05) 0.5px, transparent 0.6px),
+        radial-gradient(circle at 60% 70%, rgba(0,0,0,.04) 0.5px, transparent 0.6px);
+      background-size: 18px 18px, 22px 22px;
+      opacity: .14;
+      mix-blend-mode: multiply;
+    }
+
+    /* accent line - hard anchor to the LEFT edge (side line) */
+    #hood-cta .cta-card:before{
+      content:"";
+      position:absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      background: linear-gradient(180deg, var(--accent), rgba(0,0,0,0));
+      opacity: .95;
+      pointer-events:none;
+    }
+
+    #hood-cta .cta-copy{
+      padding-left: 12px;
+      display:flex;
+      flex-direction:column;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    #hood-cta .cta-eyebrow{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      font-size: .72rem;
+      font-weight: 950;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+    #hood-cta .cta-eyebrow:before{
+      content:"";
+      width: 18px;
+      height: 1px;
+      background: rgba(100,116,139,.55);
+    }
+
+    #hood-cta .cta-headline{
+      font-size: clamp(1.6rem, 2.6vw, 2.1rem);
+      line-height: 1.04;
+      font-weight: 980;
+      letter-spacing: -0.02em;
+      color: #0f172a;
+      margin: 2px 0 12px;
+      max-width: 22ch;
+    }
+
+    #hood-cta .cta-dek{
+      margin: 0 0 12px;
+      color: #334155;
+      line-height: 1.55;
+      font-size: 1.0rem;
+      max-width: 52ch;
+    }
+
+    #hood-cta .cta-bullets{
+      margin: 10px 0 0;
+      padding-left: 16px;
+      color:#0f172a;
+    }
+    #hood-cta .cta-bullets li{
+      margin: 0 0 8px;
+      line-height: 1.45;
+      color:#334155;
+    }
+    #hood-cta .cta-bullets li::marker{ color: var(--accent); }
+
+    #hood-cta .cta-form{
+      border-radius: 18px;
+      border: 1px solid #e8eaee;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      box-shadow:
+        0 18px 44px rgba(0,0,0,.08),
+        0 1px 0 rgba(255,255,255,.9) inset;
+      padding: 14px;
+      position: relative;
+      z-index: 1;
+    }
+
+    #hood-cta .cta-lbl{
+      display: grid;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    #hood-cta .cta-lbl span{
+      font-size: .66rem;
+      font-weight: 950;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+
+    #hood-cta .cta-in,
+    #hood-cta .cta-ta{
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid #dfe5ee;
+      background: rgba(255,255,255,.92);
+      padding: 12px 13px;
+      font-weight: 650;
+      color:#0f172a;
+      outline: none;
+    }
+
+    #hood-cta .cta-ta{ resize: vertical; min-height: 92px; }
+
+    #hood-cta .cta-in:focus,
+    #hood-cta .cta-ta:focus{
+      border-color: rgba(15,23,42,.28);
+      box-shadow:
+        0 0 0 4px rgba(15,23,42,.07),
+        0 0 0 1px rgba(15,23,42,.10) inset;
+    }
+
+    #hood-cta .cta-btn{
+      width: 100%;
+      border-radius: 14px;
+      padding: 13px 14px;
+      font-weight: 950;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: 1px solid rgba(0,0,0,0.12);
+      color:#fff;
+      background:
+        radial-gradient(140px 60px at 30% 20%, rgba(255,255,255,.18), rgba(255,255,255,0) 60%),
+        linear-gradient(180deg, #0f172a 0%, #020617 100%);
+      box-shadow:
+        0 18px 44px rgba(0,0,0,.28),
+        0 1px 0 rgba(255,255,255,.12) inset;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    #hood-cta .cta-btn:hover{
+      transform: translateY(-1px);
+      box-shadow:
+        0 22px 54px rgba(0,0,0,.32),
+        0 1px 0 rgba(255,255,255,.12) inset;
+    }
+
+    #hood-cta .cta-trust{
+      margin-top: 10px;
+      font-size: .9rem;
+      color: #334155;
+      opacity: .92;
+    }
+
+    .cta-thanks{
+      border: 1px solid #eef0f3;
+      border-radius: 16px;
+      padding: 12px;
+      background: #f8fafc;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+    .cta-thanks .cta-title{
+      font-size: 1.1rem;
+      font-weight: 950;
+      color:#0f172a;
+    }
+    .cta-thanks .cta-sub{
+      margin: 0 0 10px;
+      color:#475569;
+      line-height: 1.45;
+      font-size: 0.95rem;
+    }
+
+    /* spacing helper */
+    .section, .sec, .block, .panel { margin-bottom: 2.0rem; }
+
+    /* Section header: ACCENT-DRIVEN */
+    .sec-h{
+      position: relative;
+      font-size: clamp(1.1rem, 2vw, 1.35rem);
+      font-weight: 650;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding-left: 56px;
+      margin: 2.5rem 0 1.25rem;
+      color: color-mix(in srgb, var(--accent) 85%, #111827);
+    }
+
+    .sec-h::before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:50%;
+      width:36px;
+      height:6px;
+      border-radius:6px;
+      background: linear-gradient(
+        90deg,
+        var(--accent),
+        color-mix(in srgb, var(--accent) 35%, #ffffff)
+      );
+      transform: translateY(-50%);
+    }
+
+    .sec-h::after{
+      content:"";
+      position:absolute;
+      left:42px;
+      top:50%;
+      width:10px;
+      height:6px;
+      border-radius:6px;
+      background: color-mix(in srgb, var(--accent) 35%, transparent);
+      transform: translateY(-50%);
     }
   </style>
 </Site>

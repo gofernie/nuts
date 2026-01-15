@@ -1,284 +1,702 @@
 ---
-// src/pages/index.astro
+// File: src/pages/index.astro
+export const prerender = true;
+
 import Site from "../layouts/Site.astro";
 import { getJson } from "../lib/fetchJson";
 import { heroPath } from "../lib/paths";
-export const prerender = true;
+import { Fragment } from "astro/jsx-runtime";
+import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../lib/categoryColours";
 
-const homeUrl = import.meta.env.PUBLIC_HOME_JSON;
-const listUrl = import.meta.env.PUBLIC_SHEET_JSON;
+const PATH_BASE_NEIGH = "/neighbourhoods";
 
-type Row = {
-  slug?: string;
-  title?: string;
-  summary?: string;
-  hero_img?: string;
-  status?: string;
-  seo_title?: string;
-  seo_description?: string;
-  cta1?: string; // RealtyVis block ID or full snippet
-  cta2?: string; // HERO SUBHEAD (we're using this)
-  cta3?: string; // Optional extra
-};
-
-let header: Row | null = null;
-let allItems: Row[] = [];
-let items: Row[] = [];
-let error: string | null = null;
-
-const val = (r:any,k:string)=>
+/* ---------- helpers ---------- */
+const RESERVED = new Set(["index","page","pages","all","view","list"]);
+const get = (r:any, k:string) =>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
 
-const normalize = (r:any): Row => {
-  const title = val(r,"title");
-  const computedSlug = (title||"").toLowerCase()
-    .replace(/&/g,"-and-").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
-  return {
-    slug: val(r,"slug") || computedSlug,
-    title,
-    summary: val(r,"summary"),
-    hero_img: val(r,"hero_img"),
-    status: val(r,"status"),
-    seo_title: val(r,"seo_title"),
-    seo_description: val(r,"seo_description"),
-    cta1: val(r,"cta1"),
-    cta2: val(r,"cta2"),
-    cta3: val(r,"cta3"),
-  };
-};
+const slugify = (v:string) =>
+  (v ?? "").toLowerCase().trim()
+    .replace(/&/g,"-and-")
+    .replace(/[^a-z0-9]+/g,"-")
+    .replace(/^-+|-+$/g,"");
 
 const visible = (r:any) => {
-  const s = (r?.status || "").toLowerCase();
-  const slug = (r?.slug || "").toLowerCase();
-  return s !== "hidden" && s !== "inactive" && s !== "draft" && slug !== "index";
+  const s = get(r,"status").toLowerCase();
+  const rawSlug = get(r,"slug").toLowerCase();
+  return s !== "hidden" && s !== "inactive" && !RESERVED.has(rawSlug);
 };
 
-try {
-  // HOME header
-  if (!homeUrl) throw new Error("Missing PUBLIC_HOME_JSON in .env for homepage content.");
-  const rawHome = await getJson<any>(homeUrl);
-  const homeRows:any[] =
-    Array.isArray(rawHome) ? rawHome :
-    Array.isArray(rawHome?.data) ? rawHome.data :
-    Array.isArray(rawHome?.rows) ? rawHome.rows : [];
-  header = homeRows.length ? normalize(homeRows[0]) : null;
-
-  // Neighbourhoods source
-  if (listUrl) {
-    const rawList = await getJson<any>(listUrl);
-    const rows:any[] =
-      Array.isArray(rawList) ? rawList :
-      Array.isArray(rawList?.data) ? rawList.data :
-      Array.isArray(rawList?.rows) ? rawList.rows : [];
-    allItems = rows.map(normalize).filter(visible);
-  }
-} catch (e:any) {
-  error = e?.message || String(e);
-}
-
-/* ---- Neighbourhoods (4 only; Ski Hill first) ---- */
-const MAX_NEIGH_CARDS = 4;
-const MUST_SLUGS = new Set(["skihill","ski-hill","fernie-ski-hill","ski-hill-condos","fernie-ski-hill-condos"]);
-
-function chooseNeighbourCards(list: Row[], max = MAX_NEIGH_CARDS): Row[] {
-  if (!list.length) return [];
-  const lower = (s:string)=> (s||"").toLowerCase();
-  const isSki = (slug?:string)=> {
-    const s = lower(slug||"");
-    return MUST_SLUGS.has(s) || /(^|-)ski(-|\b).*hill(\b|-$)/.test(s) || /ski.*hill/.test(s);
-  };
-
-  const must = list.find(r => isSki(r.slug));
-  const rest = list.filter(r => r !== must);
-
-  // Shuffle the rest
-  const a = [...rest];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-
-  const picked: Row[] = [];
-  if (must) picked.push(must);
-  picked.push(...a.slice(0, Math.max(0, max - picked.length)));
-  return picked.slice(0, max);
-}
-
-items = chooseNeighbourCards(allItems);
-
-/* ---- SEO / hero ---- */
 const stripMeta = (s:string="") =>
-  s.replace(/<[^>]+>/g," ")
+  s.replace(/<[^>]*>/g, " ")
+   .replace(/&[^;\s]+;/g, " ")
+   .replace(/\s+/g, " ")
+   .trim();
+
+const stripScripts = (html:string="") =>
+  html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,"");
+
+const stripTags = (s:string="") =>
+  s.replace(/<[^>]*>/g, " ")
    .replace(/&[^;\s]+;/g," ")
    .replace(/\s+/g," ")
    .trim();
 
-const heroSrc      = header?.hero_img ? heroPath(header.hero_img) : "";
-const heroH1       = header?.title || "Fernie Real Estate";
-const subhead      = header?.cta2 || header?.seo_description || header?.summary || "Homes, neighbourhoods, and listings across the Elk Valley";
-const pageSeoTitle = header?.seo_title || heroH1;
-/* ✅ Prefer explicit seo_description; fall back to summary; clean; NO truncation */
-const pageSeoDesc  = stripMeta(header?.seo_description || header?.summary || "");
+const excerpt = (s:string, n=240) => {
+  const t = stripTags(s || "");
+  if (!t) return "";
+  return t.length > n ? t.slice(0, n - 1).trimEnd() + "..." : t;
+};
 
-/* ---- Weather coords (default: FAR) ---- */
-const WX_LAT = Number(import.meta.env.PUBLIC_WEATHER_LAT ?? "") || 49.463;
-const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
+/* url helpers */
+const isAbs = (s:string="") => /^https?:\/\//i.test(s);
+const pick  = (...vals:string[]) => vals.find(v => v && v.length > 0) || "";
+
+/* ---------- types ---------- */
+type HomeRow = {
+  title?: string;
+  subhead?: string;
+  summary?: string;
+  hero_img?: string;
+  seo_title?: string;
+  seo_description?: string;
+
+  cta1?: string;
+  cta2?: string;
+  cta3?: string;
+  cta4?: string;
+  cta5?: string;
+
+  tab1_label?: string;
+  tab2_label?: string;
+  tab3_label?: string;
+  tab4_label?: string;
+  tab5_label?: string;
+
+  tab1_block?: string;
+  tab2_block?: string;
+  tab3_block?: string;
+  tab4_block?: string;
+  tab5_block?: string;
+};
+
+type NeighRow = {
+  slug?: string;
+  title?: string;
+  summary?: string;
+  hero_img?: string;
+  card_img?: string;
+  sort?: number | string;
+};
+
+type ListingTab = {
+  id: string;
+  label: string;
+  payload: string;
+};
+
+/* ---------- fetch ---------- */
+let homeHeader: HomeRow | null = null;
+let homeRows: any[] = [];
+let neighItems: NeighRow[] = [];
+let error: string | null = null;
+
+try {
+  const homeUrl  = import.meta.env.PUBLIC_HOME_JSON;
+  const listUrl  = import.meta.env.PUBLIC_SHEET_JSON;
+
+  if (!homeUrl) throw new Error("Missing PUBLIC_HOME_JSON in .env (restart dev).");
+  if (!listUrl) throw new Error("Missing PUBLIC_SHEET_JSON in .env (restart dev).");
+
+  // HOME HEADER
+  const rawHome = await getJson<any>(homeUrl);
+  homeRows =
+    Array.isArray(rawHome) ? rawHome :
+    Array.isArray(rawHome?.data) ? rawHome.data :
+    Array.isArray(rawHome?.rows) ? rawHome.rows : [];
+  homeHeader = homeRows.length ? {
+    title:           get(homeRows[0],"title"),
+    subhead:         get(homeRows[0],"subhead"),
+    summary:         get(homeRows[0],"summary"),
+    hero_img:        get(homeRows[0],"hero_img"),
+    seo_title:       get(homeRows[0],"seo_title"),
+    seo_description: get(homeRows[0],"seo_description"),
+
+    cta1:            get(homeRows[0],"cta1"),
+    cta2:            get(homeRows[0],"cta2"),
+    cta3:            get(homeRows[0],"cta3"),
+    cta4:            get(homeRows[0],"cta4"),
+    cta5:            get(homeRows[0],"cta5"),
+
+    tab1_label:      get(homeRows[0],"tab1_label"),
+    tab2_label:      get(homeRows[0],"tab2_label"),
+    tab3_label:      get(homeRows[0],"tab3_label"),
+    tab4_label:      get(homeRows[0],"tab4_label"),
+    tab5_label:      get(homeRows[0],"tab5_label"),
+
+    tab1_block:      get(homeRows[0],"tab1_block"),
+    tab2_block:      get(homeRows[0],"tab2_block"),
+    tab3_block:      get(homeRows[0],"tab3_block"),
+    tab4_block:      get(homeRows[0],"tab4_block"),
+    tab5_block:      get(homeRows[0],"tab5_block"),
+  } : null;
+
+  // NEIGHBOURHOOD CARDS
+  const rawList = await getJson<any>(listUrl);
+  const rows:any[] =
+    Array.isArray(rawList) ? rawList :
+    Array.isArray(rawList?.data) ? rawList.data :
+    Array.isArray(rawList?.rows) ? rawList.rows : [];
+
+  neighItems = rows
+    .filter((r:any) => {
+      if (!visible(r)) return false;
+      const slug = get(r,"slug").toLowerCase();
+      if (slug === "index") return false;
+      return true;
+    })
+    .map((r:any) => ({
+      slug:     get(r,"slug") || slugify(get(r,"title") || get(r,"Title") || get(r,"TITLE")),
+      title:    get(r,"title") || get(r,"Title") || get(r,"TITLE"),
+      summary:  get(r,"summary") || get(r,"Summary") || get(r,"SUMMARY"),
+      hero_img: get(r,"hero_img") || get(r,"heroImg") || get(r,"HeroImg"),
+      card_img: get(r,"card_img"),
+      sort:     +get(r,"sort") || Number.MAX_SAFE_INTEGER,
+    }))
+    .filter((r:NeighRow) => r.slug && r.title)
+    .sort((a:NeighRow,b:NeighRow) =>
+      (Number(a.sort) - Number(b.sort)) || a.title!.localeCompare(b.title!)
+    );
+
+} catch (e:any) {
+  error = e?.message || "Failed to load data.";
+}
+
+/* ---------- header/meta ---------- */
+const headerTitle = homeHeader?.title || "Fernie Real Estate";
+const headerSummary = homeHeader?.summary || "";
+const pageTitle = headerTitle;
+
+/* SEO */
+const seoTitle   = homeHeader?.seo_title || pageTitle;
+const rawSeoDesc = homeHeader?.seo_description || headerSummary || "";
+const seoDesc    = stripMeta(rawSeoDesc);
+
+/* summary html */
+const SUMMARY_IS_HTML = true;
+const summaryHtml     = SUMMARY_IS_HTML ? stripScripts(headerSummary) : "";
+
+/* HERO IMAGE (now placed UNDER summary) */
+const heroImgRaw  = homeHeader?.hero_img || "";
+const heroSrc     = heroImgRaw
+  ? (isAbs(heroImgRaw) ? heroImgRaw : heroPath(heroImgRaw))
+  : heroPath("fallback-hero.jpg");
+
+const heroPreload = { href: heroSrc, imagesizes: "100vw" };
+
+/* header accent (like Browse) */
+const headerAccent = CATEGORY_COLOURS.home ?? DEFAULT_ACCENT;
+
+/* ---------- Listings tabs from HOME header (up to 5 CTAs) ---------- */
+const tabs: ListingTab[] = [];
+
+if (homeHeader) {
+  const candidates = [
+    { label: homeHeader.tab1_label || "Tab 1", payload: homeHeader.tab1_block || homeHeader.cta1 || "" },
+    { label: homeHeader.tab2_label || "Tab 2", payload: homeHeader.tab2_block || homeHeader.cta2 || "" },
+    { label: homeHeader.tab3_label || "Tab 3", payload: homeHeader.tab3_block || homeHeader.cta3 || "" },
+    { label: homeHeader.tab4_label || "Tab 4", payload: homeHeader.tab4_block || homeHeader.cta4 || "" },
+    { label: homeHeader.tab5_label || "Tab 5", payload: homeHeader.tab5_block || homeHeader.cta5 || "" },
+  ];
+
+  candidates.forEach((c, idx) => {
+    if (!c.payload) return;
+    tabs.push({ id: `tab-${idx + 1}`, label: c.label, payload: c.payload });
+  });
+}
+
+/* limit neighbourhoods on home; full grid still lives at /neighbourhoods */
+const MAX_NEIGH_HOME = 3;
+const homeNeighItems = neighItems.slice(0, MAX_NEIGH_HOME);
 ---
 
-<Site showHeader={true} seo_title={pageSeoTitle} seo_description={pageSeoDesc}>
-
-  {heroSrc && (
-    <Fragment slot="head">
-      <link rel="preload" as="image" href={heroSrc} fetchpriority="high" />
-      <!-- RealtyVis warm-up DNS/conn -->
-      <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin>
-      <link rel="dns-prefetch" href="https://cdn.realtyvis.com">
-      <link rel="preconnect" href="https://app.realtyvis.com" crossorigin>
-      <link rel="dns-prefetch" href="https://app.realtyvis.com">
-      <link rel="prefetch" href="https://cdn.realtyvis.com/js/embed.js" as="script">
-    </Fragment>
-  )}
-
-  <!-- HERO -->
-  <section class="hero-bleed">
-    {heroSrc && (
-      <img
-        src={heroSrc}
-        alt=""
-        fetchpriority="high"
-        loading="eager"
-        decoding="async"
-        width="2000"
-        height="1000"
-      />
-    )}
-    <!-- NOTE: added 'hero--bt' -->
-    <div class="hero-overlay hero--bt">
-      <div class="hero-inner">
-        <h1 class="fade-slide">{heroH1}</h1>
-        <p class="fade-slide subhead">{subhead}</p>
-        <div class="hero-cta fade-slide">
-          <a
-            href="/search"
-            class="btn btn-outline ripple"
-            data-jump="#new-listings"
-            aria-label="Browse Fernie listings"
-          >
-            Browse listings →
-          </a>
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  wrapContent={false}
+  heroPreload={heroPreload}
+  class="home"
+>
+  {/* HERO = Browse-style accent header (NO IMAGE HERE) */}
+  <div class="page-shell pad-x home-page">
+    <section class="page-intro" style={`--accent:${headerAccent};`}>
+      <div class="neigh-title-block">
+        <div class="accent-bars" aria-hidden="true">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
         </div>
+
+        <div class="title-row">
+          <h1 class="page-title">{pageTitle}</h1>
+        </div>
+
+        {homeHeader?.subhead && <p class="page-subhead">{homeHeader.subhead}</p>}
       </div>
-    </div>
-  </section>
-
-  <!-- SUMMARY: white card container under hero -->
-  {header?.summary && (
-    <div class="container">
-      <section class="section">
-        <div class="summary-card">
-          <div class="prose" set:html={header.summary}></div>
-        </div>
-      </section>
-    </div>
-  )}
-
-  <div class="container">
-
-    <!-- QUICK TILES -->
-    <section class="section tiles tiles--upgraded">
-      <a class="tile" href="/search" data-astro-prefetch="hover" data-jump="#new-listings" data-accent="indigo" aria-label="Buy in Fernie">
-        <div class="tile-ico-wrap">
-          <div class="tile-ico">🏠</div>
-        </div>
-        <div class="tile-title">Buy in Fernie</div>
-        <p>See active listings and set alerts.</p>
-      </a>
-
-      <a class="tile" href="/contact" data-astro-prefetch data-accent="rose" aria-label="Sell with a Plan">
-        <div class="tile-ico-wrap">
-          <div class="tile-ico">📈</div>
-        </div>
-        <div class="tile-title">Sell with a Plan</div>
-        <p>Pricing, prep, and marketing that works.</p>
-      </a>
-
-      <a class="tile" href="/neighbourhoods/" data-jump="#neigh" data-accent="emerald" aria-label="Explore Areas">
-        <div class="tile-ico-wrap">
-          <div class="tile-ico">🗺️</div>
-        </div>
-        <div class="tile-title">Explore Areas</div>
-        <p>Compare neighbourhoods and vibes.</p>
-      </a>
     </section>
 
-    <!-- NEW LISTINGS -->
-    <section class="section" id="new-listings">
-      <div class="section-head">
-        <h2>New Listings</h2>
-        <a class="link btn btn-ghost" href="/search" data-astro-prefetch="hover">See all →</a>
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mountainFadeHome" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="
+            M0 18
+            L5 8
+            L11 14
+            L18 5
+            L25 13
+            L32 4
+            L40 12
+            L48 3
+            L56 11
+            L64 4
+            L72 13
+            L80 6
+            L90 15
+            L100 7
+            L100 20
+            L0 20
+            Z
+          "
+          fill="url(#mountainFadeHome)"
+        />
+      </svg>
+    </div>
+
+    {/* SUMMARY (first) */}
+    {headerSummary && (
+      <section class="summary-wrap">
+        {SUMMARY_IS_HTML
+          ? <div class="lead" set:html={summaryHtml}></div>
+          : <p class="lead">{headerSummary}</p>}
+      </section>
+    )}
+
+  {/* RANDOM-ON-LOAD HERO CARD (smart de-dupe) */}
+<section class="home-hero-card" aria-label="Start here">
+  <div class="hero-card" data-hero-root>
+
+    <div class="hero-card-bars" aria-hidden="true">
+      <span class="bar primary"></span>
+      <span class="bar secondary"></span>
+    </div>
+
+    <div class="hero-variants">
+
+      {/* Neighbourhoods */}
+      <article class="hero-variant" data-variant data-spotlight="neigh" style={`--v-accent:${CATEGORY_COLOURS.neighbourhoods ?? DEFAULT_ACCENT};`}>
+        <p class="hero-kicker">Start with neighbourhoods</p>
+        <h2 class="hero-title">Find your place in Fernie</h2>
+        <p class="hero-copy">
+          Compare ski hill, valley, and in-town neighbourhoods to understand access,
+          day-to-day living, and long-term fit.
+        </p>
+
+        <div class="hero-actions">
+          <a href="/neighbourhoods" class="hero-btn primary" data-astro-prefetch="hover">Compare neighbourhoods</a>
+          <a href="/browse" class="hero-btn ghost" data-astro-prefetch="hover">Search listings</a>
+        </div>
+
+        <div class="hero-feature">
+          <span class="feature-label">Featured</span>
+          <a href="/neighbourhoods/skihill" class="feature-link">Ski Hill Area - layout & access</a>
+        </div>
+      </article>
+
+      {/* Types */}
+      <article class="hero-variant" data-variant data-spotlight="types" style={`--v-accent:${CATEGORY_COLOURS.types ?? DEFAULT_ACCENT};`}>
+        <p class="hero-kicker">Start with property type</p>
+        <h2 class="hero-title">Homes, condos, townhomes, and lots</h2>
+        <p class="hero-copy">
+          Narrow the market fast by property type, then refine by neighbourhood once
+          you know what you’re optimizing for.
+        </p>
+
+        <div class="hero-actions">
+          <a href="/types" class="hero-btn primary" data-astro-prefetch="hover">Browse property types</a>
+          <a href="/neighbourhoods" class="hero-btn ghost" data-astro-prefetch="hover">Compare areas</a>
+        </div>
+
+        <div class="hero-feature">
+          <span class="feature-label">Featured</span>
+          <a href="/blog" class="feature-link">Which Fernie homes perform best</a>
+        </div>
+      </article>
+
+      {/* New Listings */}
+      <article class="hero-variant" data-variant data-spotlight="new" style={`--v-accent:${CATEGORY_COLOURS.home ?? DEFAULT_ACCENT};`}>
+        <p class="hero-kicker">What’s new</p>
+        <h2 class="hero-title">Latest Fernie listings</h2>
+        <p class="hero-copy">
+          See the newest homes and condos as they hit the market,
+          updated automatically across all neighbourhoods.
+        </p>
+
+        <div class="hero-actions">
+          <a href="/types/new-listings-fernie/" class="hero-btn primary">View new listings</a>
+          <a href="/browse" class="hero-btn ghost">Open full search</a>
+        </div>
+
+        <div class="hero-feature">
+          <span class="feature-label">Featured</span>
+          <a href="/living" class="feature-link">Seasonality & buying timing</a>
+        </div>
+      </article>
+
+      {/* Home Match */}
+      <article class="hero-variant" data-variant data-spotlight="match" style={`--v-accent:${CATEGORY_COLOURS.blog ?? DEFAULT_ACCENT};`}>
+        <p class="hero-kicker">Not sure where to start?</p>
+        <h2 class="hero-title">Get matched to the right homes</h2>
+        <p class="hero-copy">
+          Share your budget, timing, and must-haves and get a curated shortlist —
+          including smart alternatives you may not have found.
+        </p>
+
+        <div class="hero-actions">
+          <a href="/home-match/" class="hero-btn primary">Get matched</a>
+          <a href="/browse" class="hero-btn ghost">Browse listings</a>
+        </div>
+
+        <div class="hero-feature">
+          <span class="feature-label">Featured</span>
+          <a href="/living" class="feature-link">Living in Fernie - daily essentials</a>
+        </div>
+      </article>
+
+    </div>
+  </div>
+
+  <script is:inline>
+(() => {
+  function initHero() {
+    const root = document.querySelector("[data-hero-root]");
+    if (!root) return;
+
+    const variants = Array.from(root.querySelectorAll("[data-variant]"));
+    if (!variants.length) return;
+
+    const pick = Math.floor(Math.random() * variants.length);
+    const active = variants[pick];
+
+    variants.forEach(v => v.classList.remove("is-active"));
+    active.classList.add("is-active");
+
+    const accent = getComputedStyle(active).getPropertyValue("--v-accent").trim();
+    if (accent) root.style.setProperty("--active-accent", accent);
+
+    const spotlight = active.getAttribute("data-spotlight");
+    if (spotlight) {
+      document.documentElement.setAttribute("data-hero-spotlight", spotlight);
+    }
+  }
+
+  // Initial load
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initHero, { once: true });
+  } else {
+    initHero();
+  }
+
+  // Astro soft navigation
+  document.addEventListener("astro:page-load", initHero);
+
+  // ✅ Back / forward cache restore
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted) initHero();
+  });
+})();
+</script>
+
+</section>
+
+
+
+    {/* intro block: 4 feature cards */}
+    <section class="home-intro">
+      <section class="hub home-hub">
+        <div class="hub-grid">
+          <a href="/neighbourhoods" class="hub-card" data-hub="neigh" data-astro-prefetch="hover">
+            <div class="hub-card-inner">
+              <div class="hub-icon">🗺️</div>
+              <h2 class="hub-title">Neighbourhoods in Fernie</h2>
+            
+              <span class="hub-cta">Browse neighbourhoods</span>
+            </div>
+          </a>
+
+          <a href="/types" class="hub-card" data-hub="types" data-astro-prefetch="hover">
+            <div class="hub-card-inner">
+              <div class="hub-icon">🏘️</div>
+              <h2 class="hub-title">Homes &amp; Property Types</h2>
+            
+              <span class="hub-cta">Browse homes &amp; types</span>
+            </div>
+          </a>
+
+          <a href="/types/new-listings-fernie/" class="hub-card" data-hub="new">
+            <div class="hub-card-inner">
+              <div class="hub-icon">🆕</div>
+              <h2 class="hub-title">Latest Fernie Listings</h2>
+             
+              <span class="hub-cta">View latest listings</span>
+            </div>
+          </a>
+
+          <a href="/home-match/" class="hub-card" data-hub="match" data-astro-prefetch="hover">
+            <div class="hub-card-inner">
+              <div class="hub-icon">🎯</div>
+              <h2 class="hub-title">Home Match</h2>
+             
+              <span class="hub-cta">Get matched</span>
+            </div>
+          </a>
+
+          <a href="/browse" class="hub-card hub-card--fallback" data-hub="fallback" data-astro-prefetch="hover">
+  <div class="hub-card-inner">
+    <div class="hub-icon">🔎</div>
+    <h2 class="hub-title">Search Fernie Listings</h2>
+   
+    <span class="hub-cta">Open full search</span>
+  </div>
+</a>
+
+        </div>
+      </section>
+    </section>
+
+    {/* LISTINGS with tabs */}
+    <section class="listings-section" id="home-listings">
+      <div class="listings-head">
+        <h2>Fernie Listings</h2>
+        <a class="listings-link" href="/browse" data-astro-prefetch="hover">
+          Open full search →
+        </a>
       </div>
 
       {error ? (
-        <p class="error">Error: {error}</p>
-      ) : header?.cta1 ? (
+        <p class="err">{error}</p>
+      ) : tabs.length > 0 ? (
+        <div class="listing-wrap listing-wrap--tabs">
+          <div class="listing-tabs" role="tablist" aria-label="Listing sets">
+            {tabs.map((tab, idx) => (
+              <button
+                type="button"
+                class={`listing-tab ${idx === 0 ? "is-active" : ""}`}
+                role="tab"
+                aria-selected={idx === 0 ? "true" : "false"}
+                data-tab={tab.id}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div class="listing-panels">
+            {tabs.map((tab, idx) => (
+              <div
+                class={`listing-panel ${idx === 0 ? "is-active" : ""}`}
+                role="tabpanel"
+                data-panel={tab.id}
+                aria-hidden={idx === 0 ? "false" : "true"}
+              >
+                <div class="rv-host">
+                  {
+                    /[<>]/.test(tab.payload)
+                      ? <Fragment set:html={tab.payload}></Fragment>
+                      : <div data-rv-block={tab.payload}></div>
+                  }
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* RealtyVis re-init on Astro soft nav + tab changes */}
+          <script is:inline>
+            (() => {
+              const SRC = "https://cdn.realtyvis.com/js/embed.js";
+
+              function ensureEmbedScript() {
+                return new Promise((resolve) => {
+                  let s = document.querySelector(`script[src="${SRC}"]`);
+                  if (s && s.dataset.loaded === "1") return resolve(true);
+
+                  if (!s) {
+                    s = document.createElement("script");
+                    s.src = SRC;
+                    s.defer = true;
+                    s.async = true;
+                    document.head.appendChild(s);
+                  }
+
+                  s.addEventListener("load", () => { s.dataset.loaded = "1"; resolve(true); }, { once: true });
+                  s.addEventListener("error", () => resolve(false), { once: true });
+                });
+              }
+
+              async function kickRealtyVis() {
+                const blocks = document.querySelectorAll("[data-rv-block]");
+                if (!blocks.length) return;
+
+                await ensureEmbedScript();
+
+                blocks.forEach((el) => {
+                  if (el.querySelector("iframe")) return;
+                  const clone = el.cloneNode(false);
+                  el.parentNode && el.parentNode.replaceChild(clone, el);
+                });
+              }
+
+              // initial
+              if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", kickRealtyVis, { once: true });
+              } else {
+                kickRealtyVis();
+              }
+
+              // Astro transitions
+              document.addEventListener("astro:page-load", kickRealtyVis);
+
+              // Your tabs - after switching panels, re-kick
+              document.addEventListener("click", (e) => {
+                const btn = e.target && e.target.closest && e.target.closest(".listing-tab");
+                if (!btn) return;
+                setTimeout(kickRealtyVis, 80);
+              });
+
+              // bfcache restore
+              window.addEventListener("pageshow", () => setTimeout(kickRealtyVis, 80));
+            })();
+          </script>
+
+          {/* optional warm-up (kept) */}
+          <script is:inline>
+            (function () {
+              var warmed = false;
+              function warm() {
+                if (warmed) return; warmed = true;
+                new Image().src = "https://app.realtyvis.com/favicon.ico";
+                new Image().src = "https://cdn.realtyvis.com/favicon.ico";
+                try {
+                  fetch("https://app.realtyvis.com/css/site.min.css", { mode: "no-cors" }).catch(function(){});
+                  fetch("https://app.realtyvis.com/js/site.min.js", { mode: "no-cors" }).catch(function(){});
+                } catch (e) {}
+              }
+              var hosts = document.querySelectorAll(".listing-wrap--tabs, .rv-host");
+              ["pointerover","touchstart","focusin"].forEach(function (ev) {
+                hosts.forEach(function (host) {
+                  host.addEventListener(ev, warm, { once: true, passive: true });
+                });
+              });
+            })();
+          </script>
+        </div>
+      ) : homeHeader?.cta1 ? (
         <div class="listing-wrap">
           <div class="rv-host">
             {
-              /[<>]/.test(header.cta1)
-                ? <Fragment set:html={header.cta1}></Fragment>
-                : <div data-rv-block={header.cta1}></div>
+              /[<>]/.test(homeHeader.cta1)
+                ? <Fragment set:html={homeHeader.cta1}></Fragment>
+                : <div data-rv-block={homeHeader.cta1}></div>
             }
           </div>
 
-          <!-- Hover-to-warm connections for RealtyVis -->
+          {/* also kick for the single-block case */}
           <script is:inline>
-(function () {
-  var warmed = false;
-  function warm() {
-    if (warmed) return; warmed = true;
-    new Image().src = "https://app.realtyvis.com/favicon.ico";
-    new Image().src = "https://cdn.realtyvis.com/favicon.ico";
-    try {
-      fetch("https://app.realtyvis.com/css/site.min.css", { mode: "no-cors" }).catch(function(){});
-      fetch("https://app.realtyvis.com/js/site.min.js", { mode: "no-cors" }).catch(function(){});
-    } catch (e) {}
-  }
-  var host = document.querySelector(".rv-host") || document.querySelector(".listing-wrap");
-  if (!host) return;
-  ["pointerover", "touchstart", "focusin"].forEach(function (ev) {
-    host.addEventListener(ev, warm, { once: true, passive: true });
-  });
-})();
+            (() => {
+              const SRC = "https://cdn.realtyvis.com/js/embed.js";
+
+              function ensureEmbedScript() {
+                return new Promise((resolve) => {
+                  let s = document.querySelector(`script[src="${SRC}"]`);
+                  if (s && s.dataset.loaded === "1") return resolve(true);
+
+                  if (!s) {
+                    s = document.createElement("script");
+                    s.src = SRC;
+                    s.defer = true;
+                    s.async = true;
+                    document.head.appendChild(s);
+                  }
+
+                  s.addEventListener("load", () => { s.dataset.loaded = "1"; resolve(true); }, { once: true });
+                  s.addEventListener("error", () => resolve(false), { once: true });
+                });
+              }
+
+              async function kickRealtyVis() {
+                const blocks = document.querySelectorAll("[data-rv-block]");
+                if (!blocks.length) return;
+
+                await ensureEmbedScript();
+
+                blocks.forEach((el) => {
+                  if (el.querySelector("iframe")) return;
+                  const clone = el.cloneNode(false);
+                  el.parentNode && el.parentNode.replaceChild(clone, el);
+                });
+              }
+
+              if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", kickRealtyVis, { once: true });
+              } else {
+                kickRealtyVis();
+              }
+
+              document.addEventListener("astro:page-load", kickRealtyVis);
+              window.addEventListener("pageshow", () => setTimeout(kickRealtyVis, 80));
+            })();
           </script>
         </div>
       ) : (
         <p class="muted">
-          Add your RealtyVis block ID (e.g. <code>MQP2VMLT-XXXXX</code>) or full embed snippet to <code>HOME!cta1</code>.
+          Add RealtyVis block IDs (in the <code>category</code> column) to extra HOME rows to power the listings tabs.
         </p>
       )}
     </section>
 
-    <!-- NEIGHBOURHOODS TEASER (4 only; Ski Hill first) -->
-    {items.length > 0 && (
-      <section class="section" id="neigh">
-        <div class="section-head">
-          <h2>Neighbourhoods</h2>
-          <a class="link" href="/neighbourhoods" data-astro-prefetch="hover">Browse all →</a>
+    {/* NEIGHBOURHOOD CARDS */}
+    {homeNeighItems.length > 0 && (
+      <section class="neigh-section" id="neighbourhoodsGrid">
+        <div class="neigh-head">
+          <h2>Fernie Neighbourhoods</h2>
+          <a href="/neighbourhoods" data-astro-prefetch="hover" class="neigh-link">
+            View all neighbourhoods →
+          </a>
         </div>
-        <div class="grid">
-          {items.slice(0,4).map((n) => {
-            const primary = n.hero_img ? heroPath(n.hero_img) : "";
+
+        <div class="posts-grid">
+          {homeNeighItems.map((it) => {
+            const raw = pick(it.card_img || "", it.hero_img || "");
+            const img = raw ? (isAbs(raw) ? raw : heroPath(raw)) : "";
+
             return (
-              <a class="card" href={`/neighbourhoods/${n.slug}`} aria-label={n.title}>
-                <div class="thumb">
-                  {primary
-                    ? <img src={primary} alt={n.title} loading="lazy" decoding="async" />
-                    : <div class="ph">No image</div>}
-                  <div class="thumb-grad" aria-hidden="true"></div>
-                  <div class="thumb-chip">{n.title}</div>
-                </div>
-                <div class="body">
-                  {n.summary && <p>{n.summary}</p>}
+              <a class="post-card" href={`${PATH_BASE_NEIGH}/${it.slug}`} data-astro-prefetch="hover" aria-label={it.title}>
+                {img && (
+                  <div class="pc-media">
+                    <img src={img} alt={it.title} loading="lazy" decoding="async" />
+                  </div>
+                )}
+                <div class="pc-body">
+                  <div class="pc-meta">
+                    <span class="pc-pill">neighbourhood</span>
+                  </div>
+                  <h3 class="pc-title">{it.title}</h3>
+                  {it.summary && <p class="pc-excerpt">{excerpt(it.summary,240)}</p>}
                 </div>
               </a>
             );
@@ -286,380 +704,664 @@ const WX_LON = Number(import.meta.env.PUBLIC_WEATHER_LON ?? "") || -115.090;
         </div>
       </section>
     )}
-
-    <!-- SNOW & WEATHER -->
-    <section class="section two-col">
-      <div class="wx-card">
-        <div class="wx-header">Snow Report (Fernie Alpine Resort)</div>
-        <div class="wx-row">
-          <div class="wx-metric"><div class="wx-label">24-hr Snow</div><div class="wx-value" id="snow24">–</div></div>
-          <div class="wx-metric"><div class="wx-label">72-hr Snow</div><div class="wx-value" id="snow72">–</div></div>
-          <div class="wx-metric"><div class="wx-label">Base Depth</div><div class="wx-value" id="snowDepth">–</div></div>
-        </div>
-        <small class="wx-note">Approx. forecast • {WX_LAT.toFixed(3)}, {WX_LON.toFixed(3)}</small>
-      </div>
-
-      <div class="wx-card">
-        <div class="wx-header">Weather</div>
-        <div class="wx-now">
-          <div class="wx-now-temp"><span id="temp">–</span><span class="unit">°C</span></div>
-          <div class="wx-now-meta"><span id="winds">Wind –</span> • <span id="precip">Precip –</span></div>
-        </div>
-        <div id="wx-daily" class="wx-daily"></div>
-        <small class="wx-note">Open-Meteo • {WX_LAT.toFixed(3)}, {WX_LON.toFixed(3)}</small>
-      </div>
-    </section>
-
   </div>
 
   <script>
-    // Smooth jump + ripple click effect
-    function enhanceButtons(){
-      const ease = (t)=>1- Math.pow(1-t,3);
+    function enhanceScrollAndTabs() {
+      const tabs   = Array.from(document.querySelectorAll(".listing-tab"));
+      const panels = Array.from(document.querySelectorAll(".listing-panel"));
 
-      document.querySelectorAll('[data-jump]').forEach(el=>{
-        el.addEventListener('click', (e)=>{
-          const targetSel = el.getAttribute('data-jump');
-          if (!targetSel) return;
-          const target = document.querySelector(targetSel);
-          if (!target) return;
-          e.preventDefault();
+      function setActiveTabById(id) {
+        if (!id || !tabs.length || !panels.length) return;
 
-          const start = window.scrollY;
-          const end = target.getBoundingClientRect().top + window.scrollY - 12;
-          const dur = 500;
-          const t0 = performance.now();
-          function step(t){
-            const p = Math.min(1, (t - t0)/dur);
-            const y = start + (end - start) * ease(p);
-            window.scrollTo(0, y);
-            if (p < 1) requestAnimationFrame(step);
-          }
-          requestAnimationFrame(step);
-        }, {passive:false});
+        tabs.forEach((t) => {
+          const active = t.getAttribute("data-tab") === id;
+          t.classList.toggle("is-active", active);
+          t.setAttribute("aria-selected", active ? "true" : "false");
+        });
+
+        panels.forEach((p) => {
+          const match = p.getAttribute("data-panel") === id;
+          p.classList.toggle("is-active", match);
+          p.setAttribute("aria-hidden", match ? "false" : "true");
+          if (match) p.removeAttribute("hidden");
+          else p.setAttribute("hidden", "true");
+        });
+      }
+
+      if (!tabs.length || !panels.length) return;
+
+      tabs.forEach((tab) => {
+        tab.addEventListener(
+          "click",
+          () => {
+            const id = tab.getAttribute("data-tab");
+            setActiveTabById(id);
+          },
+          { passive: true }
+        );
       });
-
-      document.addEventListener('click', (e)=>{
-        const btn = (e.target as HTMLElement)?.closest('.ripple, .btn, .tile');
-        if (!btn) return;
-        const rect = (btn as HTMLElement).getBoundingClientRect();
-        const circle = document.createElement('span');
-        circle.className = 'ripple-ink';
-        const size = Math.max(rect.width, rect.height);
-        circle.style.width = circle.style.height = size + 'px';
-        circle.style.left = (('clientX' in e ? (e as MouseEvent).clientX : rect.left) - rect.left - size/2) + 'px';
-        circle.style.top  = (('clientY' in e ? (e as MouseEvent).clientY : rect.top)  - rect.top  - size/2) + 'px';
-        (btn as HTMLElement).appendChild(circle);
-        setTimeout(()=>circle.remove(), 450);
-      }, {passive:true});
     }
 
-    // Weather + Snow (Open-Meteo)
-    function renderWeather() {
-      const lat = {WX_LAT};
-      const lon = {WX_LON};
-      const url = new URL("https://api.open-meteo.com/v1/forecast");
-      url.searchParams.set("latitude", String(lat));
-      url.searchParams.set("longitude", String(lon));
-      url.searchParams.set("current", "temperature_2m,precipitation,wind_speed_10m");
-      url.searchParams.set("daily", "snowfall_sum,snow_depth_max,precipitation_sum,temperature_2m_max,temperature_2m_min");
-      url.searchParams.set("timezone", "auto");
-
-      fetch(url.toString(), { cache: "no-store" })
-        .then(r => r.json())
-        .then(data => {
-          const el = (id) => document.getElementById(id);
-          const temp = Math.round(data?.current?.temperature_2m ?? 0);
-          const wind = Math.round(data?.current?.wind_speed_10m ?? 0);
-          const precip = data?.current?.precipitation ?? 0;
-
-          if (el("temp"))    el("temp").textContent = String(temp);
-          if (el("winds"))   el("winds").textContent = `Wind ${wind} km/h`;
-          if (el("precip"))  el("precip").textContent = `Precip ${Number(precip||0).toFixed(1)} mm`;
-
-          const daily = document.getElementById("wx-daily");
-          if (daily && data?.daily?.time) {
-            daily.innerHTML = data.daily.time.slice(0,5).map((d,i)=>{
-              const dt = new Date(d+"T00:00:00");
-              const label = dt.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
-              const tmax = Math.round(data.daily.temperature_2m_max[i] ?? 0);
-              const tmin = Math.round(data.daily.temperature_2m_min[i] ?? 0);
-              const snow = Number(data.daily.snowfall_sum[i] ?? 0).toFixed(1);
-              const p = Number(data.daily.precipitation_sum[i] ?? 0).toFixed(1);
-              return `
-                <div class="wx-day">
-                  <div class="wx-day-label">${label}</div>
-                  <div class="wx-day-temps">${tmax}° / ${tmin}°</div>
-                  <div class="wx-day-snow">${snow} cm snow</div>
-                  <div class="wx-day-precip">${p} mm precip</div>
-                </div>`;
-            }).join("");
-          }
-
-          const snow24 = Number(data?.daily?.snowfall_sum?.[0] ?? 0).toFixed(1);
-          const snow72 = Number(
-            (data?.daily?.snowfall_sum?.[0] ?? 0) +
-            (data?.daily?.snowfall_sum?.[1] ?? 0) +
-            (data?.daily?.snowfall_sum?.[2] ?? 0)
-          ).toFixed(1);
-          const depth  = Number(data?.daily?.snow_depth_max?.[0] ?? 0).toFixed(0);
-
-          if (el("snow24"))   el("snow24").textContent  = `${snow24} cm`;
-          if (el("snow72"))   el("snow72").textContent  = `${snow72} cm`;
-          if (el("snowDepth"))el("snowDepth").textContent = `${depth} cm`;
-        })
-        .catch(()=>{ /* ignore for now */ });
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", enhanceScrollAndTabs, { once: true });
+    } else {
+      enhanceScrollAndTabs();
     }
 
-    addEventListener("astro:page-load", () => { enhanceButtons(); renderWeather(); }, { once: true });
-    addEventListener("pageshow", (e)=>{ if (e.persisted) { enhanceButtons(); renderWeather(); } });
+    window.addEventListener("pageshow", (e) => {
+      if (e.persisted) enhanceScrollAndTabs();
+    });
   </script>
 
   <style>
-    .container { max-width: 1200px; margin: 24px auto 0; padding: 0 1rem; }
 
-    /* HERO */
-.hero-bleed {
- --hero-radius: 10px;
-
-  position: relative;
-  width: 100%;
-  height: 80vh;
-  min-height: 420px;
-  background: #e5e7eb;
-  border-radius: var(--hero-radius);
-  overflow: hidden;
-  clip-path: inset(0 round var(--hero-radius));
-  isolation: isolate;
-  box-shadow: 0 8px 30px rgba(0,0,0,.12);
+    /* HERO VARIANTS — default hidden */
+.hero-variant {
+  display: none;
 }
- .hero-bleed img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
 
-    .hero-overlay {
-      position: absolute; inset: 0; z-index: 1;
-      color: white; padding: 0 1rem;
-      /* keep gradient for legibility */
-      background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 60%, transparent 100%);
+/* JS will explicitly show one */
+.hero-variant.is-active {
+  display: block;
+}
+
+
+    /* Hide matching hub card when spotlight is active */
+/* Swap the duplicate hub card to a fallback, so grid always stays 4 */
+html[data-hero-spotlight="neigh"] .hub-card[data-hub="neigh"],
+html[data-hero-spotlight="types"] .hub-card[data-hub="types"],
+html[data-hero-spotlight="new"] .hub-card[data-hub="new"],
+html[data-hero-spotlight="match"] .hub-card[data-hub="match"]{
+  display:none;
+}
+
+html[data-hero-spotlight] .hub-card--fallback{
+  display:block;
+}
+
+/* default: hide fallback unless spotlight active */
+.hub-card--fallback{
+  display:none;
+}
+
+/* RANDOM HERO CARD */
+.home-hero-card{
+  margin: 10px 0 30px;
+}
+
+.hero-card{
+  --active-accent: var(--accent);
+  position: relative;
+  z-index: 0; /* stacking context */
+  border-radius: 18px;
+  border: 1px solid #e2e4e8;
+
+  /* Base surface */
+  background:
+    linear-gradient(0deg, #ffffff, #ffffff),
+    radial-gradient(
+      circle at 85% 30%,                  /* 👈 lives on the right */
+      color-mix(in srgb, var(--active-accent) 6%, #ffffff 94%),
+      transparent 65%
+    );
+
+  box-shadow: 0 10px 26px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+
+
+.hero-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index: 0;          /* 👈 gradient layer */
+  background: radial-gradient(
+    circle at 0 0,
+    color-mix(in srgb, var(--active-accent) 14%, #ffffff 86%),
+    transparent 70%
+  );
+  pointer-events:none;
+}
+
+/* 👇 ensure actual content is above the gradient */
+.hero-card-bars,
+.hero-variants{
+  position: relative;
+  z-index: 1;
+}
+
+
+.hero-card-bars{
+  display:flex;
+  gap:0.25rem;
+  padding:16px 18px 0;
+}
+
+.hero-card-bars .bar{
+  height:4px;
+  border-radius:999px;
+  background:var(--active-accent);
+}
+.hero-card-bars .primary{ width:88px; opacity:.9; }
+.hero-card-bars .secondary{ width:42px; opacity:.45; }
+
+.hero-variants{
+  padding:16px 18px 18px;
+}
+
+.hero-kicker{
+  margin:0 0 6px;
+  font-size:.8rem;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.09em;
+  color:var(--active-accent);
+}
+
+.hero-title{
+  margin:0 0 10px;
+  font-size:clamp(1.4rem,2.3vw,1.8rem);
+  line-height:1.12;
+  letter-spacing:-0.01em;
+  color:#111827;
+}
+
+.hero-copy{
+  margin:0 0 14px;
+  color:#4b5563;
+  line-height:1.55;
+  max-width:70ch;
+}
+
+.hero-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:12px;
+}
+
+.hero-btn{
+  display:inline-flex;
+  align-items:center;
+  padding:8px 14px;
+  border-radius:999px;
+  font-size:.9rem;
+  font-weight:600;
+  text-decoration:none;
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+
+.hero-btn.primary{
+  background:#111827;
+  color:#fff;
+}
+.hero-btn.primary:hover{
+  transform:translateY(-1px);
+  box-shadow:0 10px 18px rgba(0,0,0,.14);
+}
+
+.hero-btn.ghost{
+  background:rgba(255,255,255,.85);
+  border:1px solid #e5e7eb;
+  color:#111827;
+}
+.hero-btn.ghost:hover{
+  transform:translateY(-1px);
+  box-shadow:0 10px 18px rgba(0,0,0,.1);
+}
+
+.hero-feature{
+  display: flex;
+  align-items: baseline;   /* 👈 key fix */
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.feature-label{
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  line-height: 1;          /* 👈 remove extra vertical slack */
+  color: #6b7280;
+}
+
+.feature-link{
+  font-size: .9rem;
+  font-weight: 600;
+  line-height: 1.2;        /* 👈 align visually with label */
+  color: #111827;
+  text-decoration: none;
+}
+
+.feature-link:hover{
+  text-decoration:underline;
+}
+
+
+    .home-page.page-shell{ max-width:1280px; margin-inline:auto; margin-top:14px; margin-bottom:40px; }
+    .home-page.pad-x{ padding-inline:var(--edge-pad) !important; }
+    @media (min-width:900px){ .home-page.pad-x{ padding-inline:var(--edge-pad-lg) !important; } }
+
+    /* HERO (Browse-like) */
+    .home-page .page-intro{
+      max-width: var(--container-max);
+      margin: 0 auto 10px;
+      padding-top: 32px;
     }
 
-    /* NEW: bottom-third placement */
-    .hero--bt { /* overlay is the positioning context */ }
-    .hero--bt .hero-inner {
-      position: absolute;
-      left: 50%;
-      top: 66%;                    /* ~bottom third */
-      transform: translate(-50%, -50%);
-      width: min(92vw, 800px);
-      text-align: center;
+    .home-page .neigh-title-block{ max-width: 48rem; }
+
+    .home-page .accent-bars{
+      display:flex;
+      gap:0.25rem;
+      margin-bottom:0.75rem;
+    }
+    .home-page .accent-bar{
+      height:4px;
+      border-radius:999px;
+      background: var(--accent);
+    }
+    .home-page .accent-bar.primary{ width:80px; opacity:0.9; }
+    .home-page .accent-bar.secondary{ width:40px; opacity:0.45; }
+
+    .home-page .title-row{
+      display:flex;
+      align-items:flex-start;
+      gap:0.75rem;
     }
 
-    /* mobile tweak: a bit lower for tall safe area + thumbs */
-    @media (max-width: 640px) {
-      .hero--bt .hero-inner { top: 72%; width: min(96vw, 760px); }
+    .home-page .page-title{
+      margin:0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height:1.08;
+      font-weight:700;
+      letter-spacing:-0.015em;
+      color:#111827;
     }
 
-    .hero-overlay h1 { font-size: clamp(2.5rem, 6vw, 4.75rem); line-height: 1.1; margin: 0; text-shadow: 0 2px 6px rgba(0,0,0,0.5); letter-spacing: -0.01em; }
-
-    /* subtle motion */
-    .fade-slide { opacity: 0; transform: translateY(20px); animation: fadeSlideUp 0.8s ease-out forwards; }
-    .fade-slide.subhead { animation-delay: 0.25s; }
-    .hero-cta.fade-slide { animation-delay: 0.45s; }
-    @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
-    /* subhead (uppercase) */
-    .hero-overlay .subhead {
+    .home-page .page-subhead{
+      margin: 6px 0 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 1px;
-      font-size: clamp(1rem, 1.6vw, 1.125rem);
-      color: #fff;
-      opacity: 0.92;
-      text-shadow: 0 2px 6px rgba(0,0,0,0.4);
-      max-width: 680px;
-      margin: .6rem auto 0;
-      line-height: 1.45;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      max-width: 52rem;
     }
 
-    /* outline button for hero */
-    .hero-cta { margin-top: 14px; }
-    .btn {
-      --bdr: rgba(255,255,255,0.9);
-      --txt: #ffffff;
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: .5ch;
-      padding: 10px 16px;
-      font-weight: 700;
-      letter-spacing: .2px;
-      text-decoration: none;
-      border-radius: 9999px;
-      border: 1.5px solid var(--bdr);
-      transition: transform .18s ease, background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease;
-      will-change: transform;
-      box-shadow: 0 2px 10px rgba(0,0,0,.15);
-      color: var(--txt);
-      background: transparent;
-      backdrop-filter: saturate(120%) blur(0px);
-    }
-    .btn:hover { transform: translateY(-1px); }
-    .btn:active { transform: translateY(0); }
-
-    .btn-outline {
-      background: transparent;
-      color: #fff;
-      border-color: rgba(255,255,255,0.8);
-    }
-    .btn-outline:hover {
-      background: rgba(255,255,255,0.10);
-      border-color: #fff;
-      color: #fff;
-      box-shadow: 0 6px 22px rgba(0,0,0,.25);
-      text-decoration: none;
-    }
-    .btn-outline:focus-visible {
-      outline: 3px solid rgba(255,255,255,0.65);
-      outline-offset: 2px;
-    }
-
-    /* ripple ink */
-    .ripple { overflow: hidden; }
-    .ripple-ink {
-      position: absolute; border-radius: 9999px; transform: scale(0);
-      animation: ripple .45s ease-out forwards; pointer-events: none; background: rgba(255,255,255,.35);
-      left: 0; top: 0; width: 0; height: 0;
-    }
-    @keyframes ripple { to { transform: scale(2.4); opacity: 0; } }
-
-    /* SUMMARY CARD (unchanged; you can remove this whole block if you don't want the card) */
-    .summary-card {
-      background:#fff; border:1px solid #eee; border-radius:14px; padding:18px 18px 16px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    .summary-card .prose { font-size: clamp(1rem, 2.2vw, 1.1rem); line-height: 1.65; color:#1f2937; }
-
-    .section { margin: 28px 0 40px; }
-    .section-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:12px; }
-    .section-head h2 { margin: 0; font-size: 1.35rem; letter-spacing: .01em; }
-    .link { text-decoration:none; color:#111827; opacity:.8; }
-    .link:hover { opacity:1; }
-
-    /* ========= QUICK TILES ========= */
-    .tiles { display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
-    .tiles--upgraded { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
-    .tiles--upgraded .tile {
-      --glow: rgba(79,70,229,.26);
-      position: relative;
-      display: grid;
-      grid-template-rows: auto auto 1fr;
-      align-items: start;
-      gap: 10px;
-      padding: 18px 16px;
-      border-radius: 16px;
-      border: 1px solid #eaecef;
-      background-color: #ffffff;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-      text-decoration: none; color: inherit;
+    .home-page .mountain-strip{
+      margin: 8px auto 24px;
+      height: 48px;
+      max-height: 60px;
+      border-radius: 6px;
       overflow: hidden;
-      transform: translateZ(0);
-      transition: transform .24s ease, box-shadow .24s ease, border-color .24s ease, background-color .24s ease;
+      background: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
     }
-    .tiles--upgraded .tile:hover {
-      transform: translateY(-6px);
-      border-color: #e1e5ea;
-      box-shadow: 0 6px 16px rgba(0,0,0,.10), 0 14px 36px var(--glow);
-      background-color: #ffffff;
-    }
-    .tiles--upgraded .tile[data-accent="indigo"] { --glow: rgba(79,70,229,.28); }
-    .tiles--upgraded .tile[data-accent="rose"]   { --glow: rgba(244,63,94,.28); }
-    .tiles--upgraded .tile[data-accent="emerald"]{ --glow: rgba(16,185,129,.28); }
-
-    .tile-ico-wrap {
-      position: relative;
-      width: clamp(56px, 8vw, 72px);
-      height: clamp(56px, 8vw, 72px);
-      border-radius: 9999px;
-      display: grid; place-items: center;
-      background: #fff;
-      border: 1px solid rgba(0,0,0,0.06);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 6px 18px rgba(0,0,0,.06);
-      transition: transform .22s ease, box-shadow .22s ease;
-    }
-    .tiles--upgraded .tile:hover .tile-ico-wrap {
-      transform: translateY(-2px);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 10px 24px rgba(0,0,0,.10);
+    .home-page .mountain-strip svg{
+      display:block;
+      width:100%;
+      height:100% !important;
+      opacity:0.9;
+      mix-blend-mode:multiply;
     }
 
-    .tile-ico { font-size: clamp(2.2rem, 6vw, 3rem); line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,.12)); }
-    .tile-title { font-weight: 800; letter-spacing: .2px; margin-top: 4px; font-size: clamp(1.05rem, 2.2vw, 1.2rem); }
-    .tiles--upgraded p { margin: 2px 0 0; color: #515c67; font-size: .98rem; line-height: 1.45; }
-
-    /* NEIGHBOURHOODS GRID */
-    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-    .card { display:flex; flex-direction:column; background:#fff; border:1px solid #eee; border-radius:12px; overflow:hidden; text-decoration:none; color:inherit; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transform: translateY(0); transition: transform .25s ease, box-shadow .25s ease; }
-    .card:hover { transform: translateY(-6px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
-    .thumb { position:relative; aspect-ratio: 16/9; background:#f6f6f6; display:grid; place-items:center; overflow:hidden; }
-    .thumb img { width:100%; height:100%; object-fit:cover; display:block; }
-    .thumb-grad { position:absolute; inset:auto 0 0 0; height:56%; background: linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0)); }
-    .thumb-chip { position:absolute; left:10px; bottom:10px; color:#fff; font-weight:800; letter-spacing:.2px; text-shadow: 0 2px 8px rgba(0,0,0,.45); font-size: clamp(1rem, 2vw, 1.15rem); }
-    .ph { font-size:12px; color:#999; }
-    .body { padding: 12px; }
-    .body p { margin:.4rem 0 0; color:#555; font-size:.95rem; line-height:1.35; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-
-    /* WEATHER */
-    .two-col { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
-    .wx-card { border: 1px solid #eee; border-radius: 12px; padding: 16px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .wx-header { font-weight: 700; margin-bottom: 8px; }
-    .wx-row { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-bottom:10px; }
-    .wx-metric { background:#f9fafb; border:1px solid #f1f1f1; border-radius:10px; padding:12px; text-align:center; }
-    .wx-label { font-size:.8rem; color:#666; }
-    .wx-value { font-size:1.25rem; font-weight:700; margin-top:4px; }
-    .wx-now { display:flex; align-items:baseline; gap:16px; margin-bottom:12px; }
-    .wx-now-temp { font-size:2rem; font-weight:800; }
-    .wx-now-temp .unit { font-size:1rem; opacity:.8; margin-left:2px; }
-    .wx-now-meta { color:#555; }
-    .wx-daily { display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:10px; margin-top:8px; }
-    .wx-day { border:1px solid #f1f1f1; border-radius:10px; padding:10px; background:#fafafa; }
-    .wx-day-label { font-weight:700; margin-bottom:4px; }
-    .wx-note { display:block; margin-top:8px; color:#777; font-size:.75rem; }
-
-    .muted { color:#6b7280; }
-    .error { color:#b91c1c; }
-
-    /* Inline link pill style */
-    :global(.summary-card .prose a:not(.btn)),
-    :global(.feature-copy .prose a:not(.btn)) {
-      display: inline-block;
-      padding: 0px 10px;
-      font-size: 1.0rem;
-      font-weight: 500;
-      color: #1e1b4b;
-      background-color: #ececec;
-      border-radius: 5px;
-      text-decoration: none;
-      box-shadow: 0 0 0 rgba(79,70,229,0.18);
-      transition: background-color .25s ease, color .25s ease, box-shadow .25s ease, transform .15s ease;
+    /* SUMMARY */
+    .home-page .summary-wrap{
+      padding-top:12px;
+      padding-bottom:10px;
+      border-bottom:1px solid #e5e7eb;
+      margin-bottom:35px;
     }
-    :global(.summary-card .prose a:not(.btn):hover),
-    :global(.feature-copy .prose a:not(.btn):hover) {
-      background-color: #d8d8d8;
-      box-shadow: 0 4px 12px rgba(255, 255, 255, 0.28);
-      transform: translateY(0px);
-      text-decoration: none;
+    .home-page .lead{
+      margin:0;
+      font-size:1.075rem;
+      line-height:1.6;
+      color:#111827;
+      max-width:70rem;
     }
-    :global(.summary-card .prose a.active:not(.btn)),
-    :global(.feature-copy .prose a.active:not(.btn)) {
-      background-color: #111827;
-      color: #fff;
-      font-weight: 700;
-      box-shadow: 0 4px 12px rgba(17,24,39,0.25);
+
+    /* IMAGE UNDER SUMMARY (same styling as Browse) */
+    .home-page .summary-image{
+      width:100%;
+      margin: 10px 0 26px;
+      border-radius:6px;
+      overflow:hidden;
+      padding-bottom: 15px;
     }
-    :global(.summary-card .prose a:not(.btn):focus-visible),
-    :global(.feature-copy .prose a:not(.btn):focus-visible) {
-      outline: 3px solid rgba(79,70,229,0.45);
-      outline-offset: 2px;
-      text-decoration: none;
+    .home-page .summary-image img{
+      width:100%;
+      height:auto;
+      display:block;
+      border-radius:6px;
+    }
+
+    /* intro block container */
+    .home-intro{
+      margin-top:10px;
+      margin-bottom:18px;
+    }
+
+    .err{
+      color:#b91c1c;
+      background:#fee2e2;
+      padding:.75rem 1rem;
+      border-radius:.5rem;
+      margin-top:12px;
+    }
+
+    .muted{
+      color:#6b7280;
+      margin-top:8px;
+    }
+
+    /* HUB GRID */
+    .hub{ margin-top:4px; }
+
+    /* HUB GRID - 4 across on desktop */
+.hub-grid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap:22px;
+}
+
+/* Tablet */
+@media (max-width: 1100px){
+  .hub-grid{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px){
+  .hub-grid{
+    grid-template-columns: 1fr;
+  }
+}
+
+
+    .hub-card{
+      text-decoration:none;
+      color:inherit;
+      border-radius:18px;
+      border:1px solid #e2e4e8;
+      background:#fff;
+      box-shadow:0 6px 18px rgba(0,0,0,0.06);
+      position:relative;
+      overflow:hidden;
+      transition:transform 0.14s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+    }
+    .hub-card:hover{
+      transform:translateY(-3px);
+      box-shadow:0 12px 26px rgba(0,0,0,0.12);
+    }
+    .hub-card-inner{
+  padding: 20px 20px 22px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      position:relative;
+      z-index:1;
+    }
+    .hub-icon{
+      font-size:2.8rem;
+      line-height:1;
+      margin-bottom:4px;
+      user-select:none;
+      pointer-events:none;
+      transform:translateY(0);
+      transition:transform 0.16s ease;
+    }
+    .hub-card:hover .hub-icon{
+      transform:translateY(-2px);
+    }
+    .hub-title{
+      font-size:1.25rem;
+      font-weight:600;
+      margin:0;
+      color:#111827;
+    }
+    .hub-text{
+      margin:0;
+      font-size:.98rem;
+      line-height:1.52;
+      color:#4b5563;
+      flex-grow:1;
+    }
+    .hub-cta{
+      font-size:.92rem;
+      font-weight:600;
+      color:#0f172a;
+       margin-top: 2px;
+    }
+    .hub-cta::after{
+      content:"↗";
+      margin-left:4px;
+      font-size:.8em;
+    }
+
+    .hub-card[data-hub="neigh"]{ --hub-accent:#22c55e; }
+    .hub-card[data-hub="types"]{ --hub-accent:#f97316; }
+    .hub-card[data-hub="new"]{ --hub-accent:#0ea5e9; }
+    .hub-card[data-hub="match"]{ --hub-accent:#8b5cf6; }
+
+    .hub-card::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      z-index:0;
+      background:radial-gradient(
+        circle at 0 0,
+        color-mix(in srgb, var(--hub-accent) 10%, #ffffff 90%),
+        transparent 70%
+      );
+      opacity:0;
+      transition:opacity 0.16s ease;
+    }
+    .hub-card:hover::before{ opacity:1; }
+
+    /* LISTINGS SECTION + TABS */
+    .listings-section{
+      margin-top:34px;
+      margin-bottom:28px;
+    }
+    .listings-head{
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:6px;
+    }
+    .listings-head h2{
+      margin:0;
+      font-size:1.5rem;
+      letter-spacing:.01em;
+      margin-bottom:10px;
+    }
+    .listings-link{
+      font-size:.85rem;
+      text-decoration:none;
+      color:#111827;
+      opacity:.7;
+    }
+    .listings-link:hover{
+      opacity:1;
+      text-decoration:underline;
+    }
+
+    @media (max-width:600px){
+      .listings-head{
+        flex-direction:column;
+        align-items:flex-start;
+        gap:4px;
+      }
+    }
+
+    .listing-wrap{
+      border-radius:0;
+      border:none;
+      padding:0;
+      background:transparent;
+      box-shadow:none;
+    }
+
+    .listing-wrap--tabs{
+      padding:0;
+      margin-top:4px;
+    }
+
+    .listing-tabs{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-bottom:4px;
+    }
+    .listing-tab{
+      border-radius:9999px;
+      padding:4px 10px;
+      font-size:.82rem;
+      font-weight:500;
+      border:1px solid transparent;
+      background:#f3f4f6;
+      color:#111827;
+      cursor:pointer;
+      transition:
+        background-color .2s ease,
+        color .2s ease,
+        border-color .2s ease,
+        transform .15s ease,
+        box-shadow .15s ease;
+    }
+    .listing-tab:hover{
+      background:#e5e7eb;
+      transform:translateY(-1px);
+    }
+    .listing-tab.is-active{
+      background:#111827;
+      color:#fff;
+      border-color:#111827;
+      box-shadow:0 1px 4px rgba(0,0,0,.18);
+      transform:translateY(-1px);
+    }
+
+    .listing-panels{ margin-top:6px; }
+    .listing-panel{ display:none; }
+    .listing-panel.is-active{ display:block; }
+
+    @media(max-width:640px){
+      .rv-host{ padding-bottom:4px; }
+    }
+
+    /* NEIGHBOURHOOD CARDS */
+    .neigh-section{
+      margin-top:30px;
+      margin-bottom:40px;
+    }
+    .neigh-head{
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .neigh-head h2{
+      margin:0;
+      font-size:1.2rem;
+    }
+    .neigh-link{
+      font-size:.9rem;
+      text-decoration:none;
+      color:#111827;
+      opacity:.8;
+    }
+    .neigh-link:hover{ opacity:1; }
+
+    .posts-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:18px;
+      margin-top:12px;
+      margin-bottom:8px;
+    }
+    @media(max-width:900px){ .posts-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media(max-width:560px){ .posts-grid{ grid-template-columns:1fr; } }
+
+    .post-card{
+      display:flex;
+      flex-direction:column;
+      background:#fff;
+      border:1px solid #e2e4e8;
+      border-radius:16px;
+      overflow:hidden;
+      text-decoration:none;
+      color:inherit;
+      box-shadow:0 6px 18px rgba(0,0,0,.06);
+      transition:transform .12s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    .post-card:hover{
+      transform:translateY(-2px);
+      box-shadow:0 10px 24px rgba(0,0,0,.12);
+      border-color:#d5d7db;
+    }
+
+    .pc-media{
+      position:relative;
+      width:100%;
+      aspect-ratio:5 / 2;
+    }
+    .pc-media > img{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+
+    .pc-body{ padding:12px 14px 14px; }
+    .pc-meta{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-bottom:6px;
+      font-size:.82rem;
+      color:#6b7280;
+    }
+    .pc-pill{
+      display:inline-flex;
+      align-items:center;
+      padding:3px 8px;
+      border-radius:999px;
+      background:#eef2f7;
+      color:#415a77;
+      font-size:.75rem;
+      text-transform:lowercase;
+    }
+
+    .pc-title{
+      margin:2px 0 6px;
+      font-size:1.05rem;
+      line-height:1.3;
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      min-height:calc(2 * 1.3em);
+    }
+
+    .pc-excerpt{
+      margin:0;
+      color:#4b5563;
+      line-height:1.45;
+      display:-webkit-box;
+      -webkit-line-clamp:4;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      min-height:calc(4 * 1.45em);
     }
   </style>
 </Site>

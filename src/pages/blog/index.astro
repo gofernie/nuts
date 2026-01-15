@@ -3,44 +3,133 @@
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 
 const PATH_BASE = "/blog";
 
 /* ---------- helpers ---------- */
-const RESERVED = new Set(["index","page","pages","all","view","list"]);
-const get = (r:any, k:string) =>
-  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+const RESERVED = new Set(["index", "page", "pages", "all", "view", "list"]);
 
-const slugify = (v:string) =>
-  (v ?? "").toLowerCase().trim()
-    .replace(/&/g,"-and-")
-    .replace(/[^a-z0-9]+/g,"-")
-    .replace(/^-+|-+$/g,"");
-
-const visible = (r:any) => {
-  const s = get(r,"status").toLowerCase();
-  const rawSlug = get(r,"slug").toLowerCase();
-  return s !== "hidden" && s !== "inactive" && !RESERVED.has(rawSlug);
+const get = (r: any, ...keys: string[]) => {
+  if (!r) return "";
+  for (const k of keys) {
+    const key = String(k);
+    const direct = r[key];
+    if (direct !== undefined && direct !== null && String(direct).trim() !== "") {
+      return String(direct).trim();
+    }
+    const lower = r[key.toLowerCase()];
+    if (lower !== undefined && lower !== null && String(lower).trim() !== "") {
+      return String(lower).trim();
+    }
+    const upper = r[key.toUpperCase()];
+    if (upper !== undefined && upper !== null && String(upper).trim() !== "") {
+      return String(upper).trim();
+    }
+  }
+  return "";
 };
 
-const stripMeta = (s:string="") =>
-  s.replace(/<[^>]*>/g, " ").replace(/&[^;\s]+;/g, " ").replace(/\s+/g, " ").trim();
-const stripScripts = (html:string) =>
+const slugify = (v: string) =>
+  (v ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+// canonical slug for any row
+const rowSlug = (r: any) =>
+  (get(r, "slug") || slugify(get(r, "title"))).toLowerCase();
+
+const visible = (r: any) => {
+  const s = get(r, "status").toLowerCase();
+  const rs = rowSlug(r);
+  return s !== "hidden" && s !== "inactive" && !RESERVED.has(rs);
+};
+
+const stripMeta = (s: string = "") =>
+  s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const stripScripts = (html: string = "") =>
   html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
-const stripTags = (s:string="") =>
-  s.replace(/<[^>]*>/g, " ").replace(/&[^;\s]+;/g," ").replace(/\s+/g," ").trim();
-const excerpt = (s:string, n=260) => {
+
+const stripTags = (s: string = "") =>
+  s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const excerpt = (s: string, n = 240) => {
   const t = stripTags(s);
-  return t.length > n ? t.slice(0, n-1).trimEnd() + "…" : t;
+  return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
 };
 
-const isAbs = (s:string="") => /^https?:\/\//i.test(s);
-const pick = (...vals:string[]) => vals.find(v => v && v.length > 0) || "";
-const fmtDate = (ms:number) =>
-  ms ? new Date(ms).toLocaleDateString("en-CA", { year:"numeric", month:"short", day:"numeric" }) : "";
+const isAbs = (s: string = "") => /^https?:\/\//i.test(s);
+const pick = (...vals: string[]) => vals.find((v) => v && v.length > 0) || "";
+
+const fmtDate = (ms: number) =>
+  ms
+    ? new Date(ms).toLocaleDateString("en-CA", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : "";
+
+// normalised category key (used for data-cat and ?cat=)
+const catKey = (cat: string = "other") =>
+  (cat || "other")
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+/* ---------- accent + labels per category ---------- */
+const accentPalette = [
+  "#0ea5e9", // sky blue
+  "#22c55e", // green
+  "#6366f1", // indigo
+  "#f97316", // orange
+  "#eab308", // amber
+  "#0f766e", // teal
+  "#14b8a6", // aqua
+];
+
+const accentForCategory = (key: string = "other") => {
+  const s = (key || "other").toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = (hash + s.charCodeAt(i)) % accentPalette.length;
+  }
+  return accentPalette[hash];
+};
+
+const labelForCategory = (cat: string = "other") => {
+  const norm = (cat || "").trim();
+  if (!norm) return "Other";
+
+  const cleaned = norm
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleaned
+    .split(" ")
+    .map((word) =>
+      word.length === 0
+        ? ""
+        : word[0].toUpperCase() + word.slice(1).toLowerCase(),
+    )
+    .join(" ");
+};
 
 /* ---------- types ---------- */
 type Row = Record<string, any>;
@@ -52,6 +141,7 @@ type Item = {
   card_img?: string;
   sort: number;
   categories: string[];
+  primaryCat: string; // catKey form
   dateMs: number;
   dateISO: string;
 };
@@ -66,271 +156,1064 @@ try {
   if (!url) throw new Error("Missing PUBLIC_BLOG_JSON in .env (restart dev).");
 
   const raw = await getJson<any>(url);
-  const rows:any[] =
-    Array.isArray(raw) ? raw :
-    Array.isArray(raw?.data) ? raw.data :
-    Array.isArray(raw?.rows) ? raw.rows : [];
+  const rows: any[] = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.data)
+    ? raw.data
+    : Array.isArray(raw?.rows)
+    ? raw.rows
+    : [];
 
-  // header row is slug === "index"
-  header = rows.find(r => get(r,"slug").toLowerCase() === "index") ?? null;
+  // header row is where slug OR title resolves to "index"
+  header =
+    rows.find((r) => {
+      const id = rowSlug(r);
+      return id === "index";
+    }) ?? null;
 
   items = rows
-    .filter((r:any) => {
+    .filter((r: any) => {
       if (!visible(r)) return false;
-      return get(r,"slug").toLowerCase() !== "index";
+      return rowSlug(r) !== "index";
     })
-    .map((r:any): Item => {
-      const catRaw = get(r,"category");
+    .map((r: any): Item => {
+      const catRaw = get(r, "category");
       const categories = catRaw
-        ? catRaw.split(/[,/|]+/g).map((c:string)=>c.trim()).filter(Boolean)
-            .map((c:string)=>c.replace(/\s+/g," ").replace(/[–—]/g,"-").trim())
+        ? catRaw
+            .split(/[,/|]+/g)
+            .map((c: string) => c.trim())
+            .filter(Boolean)
+            .map((c: string) =>
+              c.replace(/\s+/g, " ").replace(/[–—]/g, "-").trim(),
+            )
         : [];
 
       // accept "date" or "publish_date"
-      const pd = get(r,"date") || get(r,"publish_date");
+      const pd = get(r, "date") || get(r, "publish_date");
       const parsed = pd ? Date.parse(pd) : NaN;
       const dateMs = Number.isFinite(parsed) ? parsed : 0;
       const dateISO = dateMs ? new Date(dateMs).toISOString() : "";
 
+      const primaryCat = catKey(categories[0] || "other");
+      const slug = rowSlug(r); // already lowercased
+
       return {
-        slug: get(r,"slug") || slugify(get(r,"title")),
-        title: get(r,"title"),
-        summary: get(r,"summary"),
-        hero_img: get(r,"hero_img"),
-        card_img: get(r,"card_img"),
-        sort: +get(r,"sort") || Number.MAX_SAFE_INTEGER,
+        slug,
+        title: get(r, "title"),
+        summary: get(r, "summary"),
+        hero_img: get(r, "hero_img"),
+        card_img: get(r, "card_img"),
+        sort: +get(r, "sort") || Number.MAX_SAFE_INTEGER,
         categories,
+        primaryCat,
         dateMs,
-        dateISO
+        dateISO,
       };
     })
-    .filter(r => r.slug && r.title)
-    // Default: manual sort then title
-// NEW: sort newest first (dateMs desc), fallback to manual sort, fallback to title
-.sort((a,b) => (b.dateMs - a.dateMs) || (Number(a.sort)-Number(b.sort)) || a.title.localeCompare(b.title));
-
-} catch (e:any) {
+    .filter((r) => r.slug && r.title)
+    .sort((a, b) => {
+      // primary sort: newest date first
+      if (b.dateMs !== a.dateMs) return b.dateMs - a.dateMs;
+      // tie-breaker: sort column (higher first)
+      return Number(b.sort) - Number(a.sort);
+    });
+} catch (e: any) {
   error = e?.message || "Failed to load data.";
 }
 
 /* ---------- header fields (sheet-driven) ---------- */
-const pageTitle     = header ? get(header,"page_title") || "Fernie Blog" : "Fernie Blog";
-const h1            = header ? get(header,"h1")         || "Fernie Blog" : "Fernie Blog";
-const subhead       = header ? get(header,"subhead")    || get(header,"kicker") : "";
-const headerSummary = header ? get(header,"summary")    : "";
-const heroImgRaw    = header ? get(header,"hero_img")   : "";
-const heroImg       = heroImgRaw ? (isAbs(heroImgRaw) ? heroImgRaw : heroPath(heroImgRaw)) : "";
+const pageTitle = header
+  ? get(header, "page_title", "seo_title", "title") || "Fernie Blog"
+  : "Fernie Blog";
 
-const rawSeoDesc = header ? get(header,"seo_description") || headerSummary : "";
-const seoDesc    = stripMeta(rawSeoDesc);
+const h1 = header
+  ? get(header, "h1", "title") || "Fernie Blog"
+  : "Fernie Blog";
+
+const subhead = header ? get(header, "subhead", "kicker") : "";
+const headerSummary = header ? get(header, "summary") : "";
+const heroImgRaw = header ? get(header, "hero_img") : "";
+const rawSeoDesc =
+  header ? get(header, "seo_description") || headerSummary : "";
+const seoDesc = stripMeta(rawSeoDesc);
 
 const SUMMARY_IS_HTML = true;
 const summaryHtml = SUMMARY_IS_HTML ? stripScripts(headerSummary) : "";
 
+/* keep around */
+const DEFAULT_BLOG_HERO = "";
+
+let heroImg: string = "";
+if (heroImgRaw) {
+  heroImg = isAbs(heroImgRaw) ? heroImgRaw : heroPath(heroImgRaw);
+} else if (DEFAULT_BLOG_HERO) {
+  heroImg = DEFAULT_BLOG_HERO;
+}
+
 /* ---------- categories for filter UI ---------- */
-const allCats = Array.from(
-  new Set(items.flatMap(it => it.categories.map(c => c.trim())))
-).sort((a,b) => a.localeCompare(b));
+const primaryCatLabels = new Map<string, string>();
+
+items.forEach((it) => {
+  const cat0 = (it.categories[0] || "other").trim();
+  if (!cat0) return;
+
+  const norm = catKey(cat0);
+  if (!primaryCatLabels.has(norm)) {
+    primaryCatLabels.set(norm, cat0);
+  }
+});
+
+const allCats = Array.from(primaryCatLabels.values()).sort((a, b) =>
+  a.localeCompare(b),
+);
+
 const hasCategories = allCats.length > 0;
+
+// accent for the blog index header
+const headerAccent = accentForCategory("blog-index");
+
+/* ---------- featured ---------- */
+const featured = items.length ? items[0] : null;
+const rest = items.length > 1 ? items.slice(1) : [];
+
+/* ---------- show-more config ---------- */
+const SHOW_STEP = 10;
 ---
 
-<Site title={pageTitle} seo_title={pageTitle} seo_description={seoDesc}>
-  {/* HERO */}
-  <HeroBleed
-    src={heroImg}
-    title={h1}
-    kicker={subhead}
-    containerMax={1200}
-    containerPad={12}
-    flush={false}
-  />
+<Site
+  title={pageTitle}
+  seo_title={pageTitle}
+  seo_description={seoDesc}
+  wrapContent={false}
+  heroPreload={heroImg ? { href: heroImg, imagesizes: "100vw" } : undefined}
+>
+  <div class="page-shell pad-x">
+    {/* INTRO HEADER - Living index clone */}
+    <section class="page-intro" style={`--accent:${headerAccent};`}>
+      <nav class="blog-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <span class="blog-breadcrumb-current">Blog</span>
+      </nav>
 
-  {/* SUMMARY */}
-  {headerSummary && (
-    <div class="container summary-wrap">
-      {SUMMARY_IS_HTML
-        ? <div class="lead" set:html={summaryHtml}></div>
-        : <p class="lead">{headerSummary}</p>}
-    </div>
-  )}
+      <div class="blog-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
 
-  {/* CATEGORY FILTERS ONLY */}
-  {hasCategories && (
-    <div class="container filters">
-      <div class="chips" role="tablist" aria-label="Filter by category">
-        <button class="chip active" data-cat="__all" role="tab" aria-selected="true">All</button>
-        {allCats.map((c) => (
-          <button class="chip" data-cat={c} role="tab" aria-selected="false">{c}</button>
-        ))}
+        <div class="title-row">
+          <h1 class="page-title">{h1}</h1>
+        </div>
+
+        {subhead && <p class="page-subhead">{subhead}</p>}
       </div>
+    </section>
+
+    {/* FADED MOUNTAIN STRIP */}
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mountainFadeIndex" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="
+            M0 18
+            L5 8
+            L11 14
+            L18 5
+            L25 13
+            L32 4
+            L40 12
+            L48 3
+            L56 11
+            L64 4
+            L72 13
+            L80 6
+            L90 15
+            L100 7
+            L100 20
+            L0 20
+            Z
+          "
+          fill="url(#mountainFadeIndex)"
+        />
+      </svg>
     </div>
-  )}
 
-  {/* GRID */}
-  <div class="container">
-    {error && <p class="err">{error}</p>}
+    {/* SUMMARY - keep exactly as-is */}
+    {headerSummary && (
+      <section class="summary-wrap">
+        <div class="lead" set:html={summaryHtml}></div>
+      </section>
+    )}
 
-    {!error && (
-      <div class="grid" id="blogGrid">
-        {items.map((it) => {
+    {/* FEATURED - text-first */}
+    {!error && featured && (
+      <section class="featured-wrap">
+        <div class="featured-label">Featured analysis</div>
+
+        <a
+          class="post-card featured"
+          href={`${PATH_BASE}/${featured.slug}`}
+          data-astro-prefetch="hover"
+          aria-label={featured.title}
+          data-cat={featured.primaryCat || "other"}
+          style={`--accent:${accentForCategory(featured.primaryCat || "other")};`}
+        >
+          <div class="pc-body">
+            <div class="pc-meta">
+              {featured.dateMs > 0 && (
+                <time class="pc-date" datetime={featured.dateISO}>
+                  {fmtDate(featured.dateMs)}
+                </time>
+              )}
+              <span class="pc-pill">
+                {labelForCategory(
+                  (featured.categories?.[0] ||
+                    featured.primaryCat ||
+                    "Other").toString(),
+                )}
+              </span>
+            </div>
+
+            <h2 class="pc-title featured-title">{featured.title}</h2>
+
+            {featured.summary && (
+              <p class="pc-excerpt featured-excerpt">
+                {excerpt(featured.summary, 320)}
+              </p>
+            )}
+
+            <div class="featured-cta">
+              <span class="cta-dot" aria-hidden="true"></span>
+              <span>Read the breakdown</span>
+              <span class="cta-arrow" aria-hidden="true">→</span>
+            </div>
+          </div>
+        </a>
+      </section>
+    )}
+
+    {/* SEARCH */}
+    <div class="searchbar" aria-label="Search blog posts">
+      <div class="searchrow">
+        <label class="sr-only" for="blogSearch">Search articles</label>
+        <input
+          id="blogSearch"
+          class="search-input"
+          type="search"
+          inputmode="search"
+          autocomplete="off"
+          placeholder="Search articles…"
+        />
+        <button class="search-clear" type="button" aria-label="Clear search" hidden>
+          ✕
+        </button>
+      </div>
+      <div class="search-meta" aria-live="polite"></div>
+    </div>
+
+    {/* CATEGORY FILTERS */}
+    {hasCategories && (
+      <div class="filters" aria-label="Blog filters">
+        <div class="chips" role="tablist" aria-label="Filter by category">
+          <button
+            class="chip chip-active"
+            data-cat="__all"
+            role="tab"
+            aria-selected="true"
+          >
+            All
+          </button>
+          {allCats.map((c) => {
+            const norm = catKey(c);
+            const accent = accentForCategory(norm);
+            return (
+              <button
+                class="chip"
+                data-cat={norm}
+                role="tab"
+                aria-selected="false"
+                style={`--accent:${accent};`}
+              >
+                {labelForCategory(c)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
+    {/* GRID */}
+    <div class="posts-grid" id="blogGrid">
+      {error && <p class="err">{error}</p>}
+
+      {!error &&
+        rest.map((it) => {
           const raw = pick(it.card_img || "", it.hero_img || "");
           const img = raw ? (isAbs(raw) ? raw : heroPath(raw)) : "";
-          const cats = it.categories;
-          const catAttr = cats.join("|");
+          const cat = it.primaryCat || "other";
+          const accent = accentForCategory(cat);
+          const labelSource = it.categories[0] || cat;
+          const label = labelForCategory(labelSource);
 
           return (
             <a
-              class="card"
+              class="post-card"
               href={`${PATH_BASE}/${it.slug}`}
               data-astro-prefetch="hover"
               aria-label={it.title}
-              data-cats={catAttr}
-              data-date={String(it.dateMs)}
+              data-cat={cat}
+              style={`--accent:${accent};`}
             >
               {img && (
-                <img
-                  src={img}
-                  alt={it.title}
-                  loading="lazy"
-                  decoding="async"
-                  sizes="(min-width: 900px) 33vw, 50vw"
-                />
+                <div class="pc-media">
+                  <img
+                    src={img}
+                    alt={it.title}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
               )}
-              <div class="body">
-                {/* DATE ABOVE TITLE */}
-                {it.dateMs > 0 && (
-                  <time class="meta-date" datetime={it.dateISO}>{fmtDate(it.dateMs)}</time>
-                )}
-                <h2>{it.title}</h2>
-
-                {/* Category badges */}
-                {cats.length > 0 && (
-                  <div class="badges" aria-label="Categories">
-                    {cats.map((c) => <span class="badge">{c}</span>)}
-                  </div>
-                )}
-
-                {it.summary && <p class="summary">{excerpt(it.summary, 260)}</p>}
+              <div class="pc-body">
+                <div class="pc-meta">
+                  {it.dateMs > 0 && (
+                    <time class="pc-date" datetime={it.dateISO}>
+                      {fmtDate(it.dateMs)}
+                    </time>
+                  )}
+                  <span class="pc-pill">{label}</span>
+                </div>
+                <h3 class="pc-title">{it.title}</h3>
+                {it.summary && <p class="pc-excerpt">{excerpt(it.summary, 240)}</p>}
               </div>
             </a>
           );
         })}
+    </div>
+
+    {/* SHOW MORE */}
+    {!error && rest.length > SHOW_STEP && (
+      <div class="showmore-wrap">
+        <button id="blogShowMore" class="showmore-btn" type="button">
+          Show more
+        </button>
+        <div class="showmore-meta" aria-live="polite"></div>
       </div>
     )}
   </div>
 
-  {/* client-only category filter */}
   <script>
-    (() => {
+    // Filtering + Search + URL sync + Show more (plain JS)
+    (function () {
+      const SHOW_STEP = 12;
+      let shownLimit = SHOW_STEP;
+
       const grid = document.getElementById("blogGrid");
-      const chips = document.querySelectorAll(".chip");
-      if (!grid || !chips.length) return;
+      const chips = Array.from(document.querySelectorAll(".chip"));
+      const featured = document.querySelector(".post-card.featured");
+
+      const qInput = document.getElementById("blogSearch");
+      const qClear = document.querySelector(".search-clear");
+      const qMeta = document.querySelector(".search-meta");
+
+      const showMoreBtn = document.getElementById("blogShowMore");
+      const showMoreMeta = document.querySelector(".showmore-meta");
+
+      if (!chips.length && !qInput) return;
+
+      const gridCards = grid ? Array.from(grid.querySelectorAll(".post-card")) : [];
+      const allCards = [...(featured ? [featured] : []), ...gridCards];
+
+      // build searchable text once (title + excerpt + meta)
+      allCards.forEach((card) => {
+        const t = (card.innerText || "").toLowerCase();
+        card.dataset.search = t;
+      });
 
       function setActive(btn) {
         chips.forEach((b) => {
-          b.classList.toggle("active", b === btn);
-          b.setAttribute("aria-selected", b === btn ? "true" : "false");
+          const on = b === btn;
+          b.classList.toggle("chip-active", on);
+          b.setAttribute("aria-selected", on ? "true" : "false");
         });
       }
 
-      function applyFilter(cat) {
-        const cards = grid.querySelectorAll(".card");
-        cards.forEach((card) => {
-          const attr = card.getAttribute("data-cats") || "";
-          const list = attr ? attr.split("|").map(s => s.trim()) : [];
-          const show = (cat === "__all") || list.includes(cat);
-          (card as HTMLElement).style.display = show ? "" : "none";
-        });
+      function getActiveCat() {
+        const active = document.querySelector(".chip.chip-active");
+        return (active?.getAttribute("data-cat") || "__all").toLowerCase();
       }
 
+      function getQuery() {
+        return (qInput?.value || "").trim().toLowerCase();
+      }
+
+      function syncUrl(cat, q) {
+        const url = new URL(window.location.href);
+
+        const c = (cat || "__all").toLowerCase();
+        const query = (q || "").trim();
+
+        if (c === "__all") url.searchParams.delete("cat");
+        else url.searchParams.set("cat", c);
+
+        if (!query) url.searchParams.delete("q");
+        else url.searchParams.set("q", query);
+
+        window.history.replaceState({}, "", url.toString());
+      }
+
+      function matchesCat(card, catKey) {
+        const c = (card.getAttribute("data-cat") || "other").toLowerCase();
+        return catKey === "__all" || c === catKey;
+      }
+
+      function matchesQuery(card, q) {
+        if (!q) return true;
+        const hay = (card.dataset.search || "").toLowerCase();
+        return hay.includes(q);
+      }
+
+      function applyAll() {
+        const cat = getActiveCat();
+        const q = getQuery();
+
+        let shown = 0;
+
+        // Featured (not limited)
+        if (featured) {
+          const show = matchesCat(featured, cat) && matchesQuery(featured, q);
+          featured.style.display = show ? "" : "none";
+          if (show) shown++;
+        }
+
+        // Grid (limited)
+        let gridShown = 0;
+        let gridMatches = 0;
+
+        gridCards.forEach((card) => {
+          const match = matchesCat(card, cat) && matchesQuery(card, q);
+          if (match) gridMatches++;
+
+          const show = match && gridShown < shownLimit;
+          card.style.display = show ? "" : "none";
+
+          if (show) {
+            gridShown++;
+            shown++;
+          }
+        });
+
+        // UI bits
+        if (qClear) qClear.hidden = !q;
+
+        if (qMeta) {
+          qMeta.textContent = q
+            ? `${shown} result${shown === 1 ? "" : "s"} for “${q}”`
+            : "";
+        }
+
+        // Show more UI
+        if (showMoreBtn) {
+          const remaining = Math.max(0, gridMatches - gridShown);
+          showMoreBtn.hidden = remaining <= 0;
+
+          if (showMoreMeta) {
+            showMoreMeta.textContent =
+              remaining > 0
+                ? `${remaining} more article${remaining === 1 ? "" : "s"}`
+                : "";
+          }
+        }
+
+        syncUrl(cat, q);
+      }
+
+      // Initialise from URL (?cat=, ?q=)
+      const params = new URLSearchParams(window.location.search);
+      const initialCat = (params.get("cat") || "").toLowerCase();
+      const initialQ = (params.get("q") || "").trim();
+
+      if (qInput && initialQ) qInput.value = initialQ;
+
+      if (initialCat) {
+        const target = chips.find((btn) => {
+          const dc = (btn.getAttribute("data-cat") || "").toLowerCase();
+          return dc === initialCat;
+        });
+        if (target) setActive(target);
+      }
+
+      // Events: chips
       chips.forEach((btn) => {
         btn.addEventListener("click", (e) => {
           e.preventDefault();
-          const cat = btn.getAttribute("data-cat") || "__all";
           setActive(btn);
-          applyFilter(cat);
+          shownLimit = SHOW_STEP;
+          applyAll();
+        });
+
+        btn.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setActive(btn);
+            shownLimit = SHOW_STEP;
+            applyAll();
+          }
         });
       });
+
+      // Events: search
+      if (qInput) {
+        qInput.addEventListener("input", () => {
+          shownLimit = SHOW_STEP;
+          applyAll();
+        });
+      }
+
+      if (qClear && qInput) {
+        qClear.addEventListener("click", () => {
+          qInput.value = "";
+          shownLimit = SHOW_STEP;
+          applyAll();
+          qInput.focus();
+        });
+      }
+
+      // Events: show more
+      if (showMoreBtn) {
+        showMoreBtn.addEventListener("click", () => {
+          shownLimit += SHOW_STEP;
+          applyAll();
+        });
+      }
+
+      // first run
+      applyAll();
     })();
   </script>
 
   <style>
-    .container { max-width: 1200px; margin-inline: auto; padding-inline: 12px; }
-    .summary-wrap{
-      padding-top:10px;
-      padding-bottom:10px;
-      border-bottom:1px solid #e5e7eb;
-      margin-bottom:35px;
+    .page-shell {
+      max-width: 1280px;
+      margin-inline: auto;
+      margin-top: 14px;
+      margin-bottom: 40px;
     }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-    .err { color: #b91c1c; background: #fee2e2; padding: .75rem 1rem; border-radius: .5rem; margin-top: 12px; }
 
-    /* category chips */
-    .filters { margin-top: 8px; }
-    .chips { display:flex; flex-wrap:wrap; gap: 8px; }
-    .chip{
-      appearance:none; border:none; cursor:pointer;
-      font: inherit; padding: .4rem .66rem; border-radius: 999px;
-      background:#f3f4f6; color:#111827; border:1px solid #e5e7eb;
-      transition: background .12s ease, border-color .12s ease, transform .08s ease;
-      white-space: nowrap;
+    .pad-x {
+      padding-inline: var(--edge-pad) !important;
     }
-    .chip:hover{ background:#eef2ff; border-color:#c7d2fe; transform: translateY(-1px); }
-    .chip.active{ background:#e0e7ff; border-color:#a5b4fc; }
 
-    /* 3-up grid */
-    .grid {
+    @media (min-width: 900px) {
+      .pad-x {
+        padding-inline: var(--edge-pad-lg) !important;
+      }
+    }
+
+    /* INTRO HEADER - Living index clone */
+    .page-intro{
+      max-width: var(--container-max);
+      margin: 0 auto 10px;
+      padding-top: 28px;
+    }
+
+    .blog-breadcrumb{
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .blog-breadcrumb a{
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    .blog-breadcrumb a:hover{ border-bottom-color: var(--accent); }
+    .blog-breadcrumb-current{ opacity: 0.7; }
+
+    .blog-title-block{ max-width: 48rem; }
+
+    .accent-bars{ display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+    .accent-bar{ height: 4px; border-radius: 999px; background: var(--accent); }
+    .accent-bar.primary{ width: 80px; opacity: 0.9; }
+    .accent-bar.secondary{ width: 40px; opacity: 0.45; }
+
+    .title-row{ display: flex; align-items: flex-start; gap: 0.75rem; }
+
+    .page-title{
+      margin: 0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height: 1.08;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #111827;
+    }
+
+    .page-subhead{
+      margin: 6px 0 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }
+
+    .mountain-strip {
+      margin: 10px auto 22px;
+      height: 48px;
+      max-height: 60px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.02), transparent);
+    }
+
+    .mountain-strip svg {
+      width: 100%;
+      height: 100%;
+      opacity: 0.95;
+      mix-blend-mode: multiply;
+    }
+
+    /* SUMMARY - upgraded lead block (unchanged) */
+    .summary-wrap {
+      padding-top: 10px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 22px;
+    }
+
+    .lead {
+      max-width: 54rem;
+      margin: 0;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: color-mix(in srgb, #ffffff 92%, var(--accent) 8%);
+      border: 1px solid color-mix(in srgb, #e5e7eb 78%, var(--accent) 22%);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+      font-size: 1.05rem;
+      line-height: 1.62;
+      color: #111827;
+      position: relative;
+    }
+
+    .lead :global(p) {
+      margin: 0.75rem 0;
+    }
+    .lead :global(p:first-child) {
+      margin-top: 0;
+    }
+    .lead :global(p:last-child) {
+      margin-bottom: 0;
+    }
+
+    .lead::before {
+      content: "";
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      bottom: 12px;
+      width: 3px;
+      border-radius: 999px;
+      background: var(--accent);
+      opacity: 0.9;
+    }
+
+    .err {
+      color: #b91c1c;
+      background: #fee2e2;
+      padding: 0.75rem 1rem;
+      border-radius: 0.75rem;
+      margin-top: 12px;
+    }
+
+    /* Featured */
+    .featured-wrap {
+      margin: 22px 0 22px; /* crowding fix */
+    }
+
+    .featured-label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+      color: #111827;
+      opacity: 0.7;
+      margin: 0 0 10px;
+    }
+
+    /* SEARCH */
+    .searchbar{
+      max-width: 54rem;
+      margin: 6px 0 18px;
+    }
+
+    .searchrow{
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .search-input{
+      width: 100%;
+      padding: 10px 42px 10px 14px;
+      border-radius: 999px;
+      border: 1px solid #e2e4e8;
+      background: #fff;
+      font-size: 0.95rem;
+      line-height: 1.2;
+      outline: none;
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+
+    .search-input:focus{
+      border-color: color-mix(in srgb, var(--accent) 45%, #e2e4e8);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.06);
+    }
+
+    .search-clear{
+      position: absolute;
+      right: 10px;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid #e2e4e8;
+      background: #fff;
+      color: #374151;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+    }
+
+    .search-clear:hover{
+      background: #f6f8fb;
+    }
+
+    .search-meta{
+      margin-top: 8px;
+      font-size: 0.82rem;
+      color: #6b7280;
+    }
+
+    /* screen-reader utility */
+    .sr-only{
+      position:absolute;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
+
+    /* FILTERS - crowding fix */
+    .filters {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 0 0 22px;
+      padding-top: 14px;
+      border-top: 1px solid #eef0f3;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      max-width: 64rem;
+    }
+
+    .chip {
+      --accent: #4b5563;
+      border: 1px solid #e2e4e8;
+      background: #fff;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      line-height: 1.05;
+      color: #374151;
+      cursor: pointer;
+      transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease,
+        transform 0.08s ease,
+        box-shadow 0.15s ease;
+      appearance: none;
+    }
+
+    .chip:hover {
+      background: #f6f8fb;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
+    }
+
+    .chip:focus-visible {
+      outline: 2px solid
+        color-mix(in srgb, var(--accent, #0ea5e9) 55%, #111827 45%);
+      outline-offset: 2px;
+    }
+
+    .chip-active {
+      background: #eef2f7;
+      color: #111827;
+      border-color: #dde2e8;
+    }
+
+    .chip[data-cat]:not([data-cat="__all"]) {
+      border-color: color-mix(
+        in srgb,
+        var(--accent, #e2e4e8) 60%,
+        #e2e4e8 40%
+      );
+    }
+
+    .chip-active[data-cat]:not([data-cat="__all"]) {
+      background: color-mix(in srgb, #ffffff 68%, var(--accent, #e5e7eb) 32%);
+      border-color: var(--accent, #e5e7eb);
+      color: #111827;
+    }
+
+    /* GRID */
+    .posts-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 18px;
-      margin-top: 18px;
-    }
-    @media (max-width: 900px)  { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 560px)  { .grid { grid-template-columns: 1fr; } }
-
-    .card{
-      display:flex; flex-direction:column;
-      background:#fff; border:1px solid #e5e7eb; border-radius:14px;
-      overflow:hidden; text-decoration:none; color:inherit;
-      transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
-    }
-    .card:hover{ transform: translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,.08); border-color:#d1d5db; }
-
-    .card > img{
-      width:100%;
-      aspect-ratio:5 / 3;
-      object-fit:cover;
-      display:block;
+      gap: 20px;
+      margin-top: 6px;
+      margin-bottom: 52px;
     }
 
-    .card .body{ padding:12px; }
-    .card .body .meta-date{
-      display:block;
-      font-size:.8rem;
-      color:#6b7280;   /* slate-500 */
-      margin: 2px 0 6px;
-    }
-    .card .body h2{ margin:0 0 6px; font-size:1.05rem; line-height:1.3; color:#111827; }
-
-    /* badges */
-    .badges { display:flex; flex-wrap:wrap; gap:6px; margin: 4px 0 8px; }
-    .badge{
-      display:inline-block; font-size:.75rem; line-height:1;
-      padding:.28rem .5rem; border-radius:999px; background:#f3f4f6; color:#374151; border:1px solid #e5e7eb;
+    @media (max-width: 900px) {
+      .posts-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
 
-    /* clamp summary to 4 lines */
-    .card .body p.summary{
-      margin:0;
-      color:#374151;
-      font-size:.95rem;
-      line-height:1.32;
-      display:-webkit-box;
-      -webkit-line-clamp:4;
-      -webkit-box-orient:vertical;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      max-height: calc(1.32em * 4);
+    @media (max-width: 560px) {
+      .posts-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .post-card {
+      --accent: #4b5563;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border: 1px solid var(--card-border, #e6e7ea);
+      border-radius: 18px;
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: var(--shadow, 0 8px 22px rgba(0, 0, 0, 0.08));
+      transition:
+        transform 0.12s ease,
+        box-shadow 0.15s ease,
+        border-color 0.15s ease,
+        background-color 0.15s ease;
+      position: relative;
+    }
+
+    /* always-on thin accent line */
+    .post-card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 4px;
+      background: linear-gradient(
+        90deg,
+        var(--accent),
+        color-mix(in srgb, var(--accent) 40%, #ffffff)
+      );
+      opacity: 0.85;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .post-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-hover, 0 12px 28px rgba(0, 0, 0, 0.12));
+      border-color: var(--accent);
+      background: color-mix(in srgb, #ffffff 94%, var(--accent) 6%);
+    }
+
+    .post-card:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--accent) 65%, #111827 35%);
+      outline-offset: 3px;
+    }
+
+    .post-card .pc-media {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 5 / 2;
+      z-index: 0;
+    }
+
+    .post-card .pc-media > img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .pc-body {
+      padding: 13px 15px 15px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .pc-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 7px;
+      font-size: 0.82rem;
+      color: #6b7280;
+    }
+
+    .pc-date {
+      opacity: 0.92;
+    }
+
+    .pc-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      background: color-mix(in srgb, #ffffff 86%, var(--accent) 14%);
+      color: color-mix(in srgb, var(--accent) 82%, #111827 18%);
+      border: 1px solid color-mix(in srgb, var(--accent) 32%, #ffffff 68%);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    }
+
+    .pc-title {
+      margin: 2px 0 7px;
+      font-size: 1.02rem;
+      line-height: 1.34;
+      font-weight: 680;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-height: calc(2 * 1.34em);
+      color: #111827;
+      letter-spacing: -0.01em;
+    }
+
+    .pc-excerpt {
+      margin: 0;
+      color: #4b5563;
+      line-height: 1.48;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-height: calc(2 * 1.48em);
+      font-size: 0.95rem;
+    }
+
+    /* Featured layout tweaks */
+    .post-card.featured {
+      border-radius: 22px;
+      border-color: color-mix(in srgb, var(--accent) 35%, #e6e7ea 65%);
+      background: color-mix(in srgb, #ffffff 90%, var(--accent) 10%);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.1);
+    }
+
+    .featured .pc-body {
+      padding: 16px 18px 18px;
+      max-width: 54rem;
+    }
+
+    .featured-title {
+      font-size: clamp(1.2rem, 1.4vw, 1.5rem);
+      line-height: 1.22;
+      -webkit-line-clamp: 3;
+      min-height: unset;
+    }
+
+    .featured-excerpt {
+      -webkit-line-clamp: 3;
+      min-height: unset;
+      font-size: 0.98rem;
+      color: #374151;
+    }
+
+    .featured-cta {
+      margin-top: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      font-weight: 650;
+      color: #111827;
+      opacity: 0.92;
+    }
+
+    .cta-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px
+        color-mix(in srgb, var(--accent) 18%, transparent 82%);
+    }
+
+    .cta-arrow {
+      transform: translateY(-1px);
+      opacity: 0.9;
+    }
+
+    /* SHOW MORE */
+    .showmore-wrap{
+      display: grid;
+      place-items: center;
+      gap: 10px;
+      margin-top: -22px;
+      margin-bottom: 34px;
+    }
+
+    .showmore-btn{
+      border: 1px solid #e2e4e8;
+      background: #fff;
+      border-radius: 999px;
+      padding: 10px 16px;
+      font-size: 0.92rem;
+      font-weight: 650;
+      cursor: pointer;
+      transition: transform .08s ease, box-shadow .15s ease, background .15s ease;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.06);
+    }
+    .showmore-btn:hover{
+      transform: translateY(-1px);
+      background: #f6f8fb;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.10);
+    }
+    .showmore-btn:focus-visible{
+      outline: 2px solid color-mix(in srgb, var(--accent) 55%, #111827 45%);
+      outline-offset: 3px;
+    }
+
+    .showmore-meta{
+      font-size: 0.85rem;
+      color: #6b7280;
     }
   </style>
 </Site>

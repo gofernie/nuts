@@ -3,12 +3,14 @@
 export const prerender = true;
 
 import Site from "../../layouts/Site.astro";
-import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import sanitizeHtml from "sanitize-html";
-import CTAForm3 from "../../components/CTAForm3.astro";
-import ListingsAccordion from "../../components/ListingsAccordion.astro"; // ✅ use shared component
+import CTAForm from "../../components/CTAForm.astro";
+import ListingsAccordion from "../../components/ListingsAccordion.astro";
+import GoogleMyMapEmbed from "../../components/GoogleMyMapEmbed.astro";
+import { Fragment } from "astro/jsx-runtime";
+import { DEFAULT_ACCENT } from "../../lib/categoryColours";
 
 /* ---------- sanitize config ---------- */
 const ALLOWED = {
@@ -18,10 +20,12 @@ const ALLOWED = {
   ],
   allowedAttributes: {
     a: ["href","target","rel"],
-    img: ["src","alt","title","loading","decoding"]
+    img: ["src","alt","title","loading","decoding"],
+    div: ["data-embed"],
+    span: ["data-embed"]
   },
   transformTags: {
-    a: (_tag: any, attr: any) => ({
+    a: (_tag, attr) => ({
       tagName: "a",
       attribs: { ...attr, rel: "noopener nofollow ugc" }
     })
@@ -33,51 +37,65 @@ export async function getStaticPaths() {
   const url = import.meta.env.PUBLIC_LIVING_JSON;
   if (!url) return [];
 
-  const getField = (r:any, k:string) =>
+  const getField = (r: any, k: string) =>
     (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
-      .toString().trim();
+      .toString()
+      .trim();
 
-  const slugifyLocal = (v:string) =>
-    (v ?? "").toLowerCase().trim()
-      .replace(/&/g,"-and-")
-      .replace(/[^a-z0-9]+/g,"-")
-      .replace(/^-+|-+$/g,"");
+  const slugifyLocal = (v: string) =>
+    (v ?? "")
+      .toLowerCase()
+      .trim()
+      .replace(/&/g, "-and-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
 
-  let rows:any[] = [];
+  let rows: any[] = [];
   try {
     const raw = await getJson<any>(url);
-    rows = Array.isArray(raw) ? raw
-      : Array.isArray(raw?.data) ? raw.data
-      : Array.isArray(raw?.rows) ? raw.rows : [];
-  } catch { return []; }
+    rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
+  } catch {
+    return [];
+  }
 
   const indexRow =
-    rows.find((r:any) => getField(r,"slug").toLowerCase() === "index") || null;
+    rows.find((r: any) => getField(r, "slug").toLowerCase() === "index") || null;
 
-  const items = rows.map((r:any) => {
-    const status  = getField(r,"status").toLowerCase();
-    const rawSlug = getField(r,"slug").toLowerCase();
-    const hidden  = status === "hidden" || status === "inactive" || rawSlug === "index";
-    if (hidden) return null;
+  const items = rows
+    .map((r: any) => {
+      const status = getField(r, "status").toLowerCase();
+      const rawSlug = getField(r, "slug").toLowerCase();
+      const hidden =
+        status === "hidden" || status === "inactive" || rawSlug === "index";
+      if (hidden) return null;
 
-    const title = getField(r,"title");
-    const slug  = (rawSlug || slugifyLocal(title)).toLowerCase();
-    return slug ? { params: { slug }, props: { row: r, indexRow } } : null;
-  }).filter(Boolean) as any[];
+      const title = getField(r, "title");
+      const slug = (rawSlug || slugifyLocal(title)).toLowerCase();
+      return slug ? { params: { slug }, props: { row: r, indexRow } } : null;
+    })
+    .filter(Boolean) as any[];
 
   return items;
 }
 
 /* ---------- Page helpers ---------- */
-const get = (r:any, ...keys:string[]) => {
+const get = (r: any, ...keys: string[]) => {
   for (const k of keys) {
     const v = r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()];
-    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return String(v).trim();
+    }
   }
   return "";
 };
 
-function resolveImgFromCell(v:string): string {
+function resolveImgFromCell(v: string): string {
   const s = (v ?? "").trim();
   if (!s) return "";
   if (/^https?:\/\//i.test(s)) return s;
@@ -86,58 +104,172 @@ function resolveImgFromCell(v:string): string {
 }
 
 /* meta cleaner for SEO text (no truncation) */
-const stripMeta = (s:string="") =>
-  s.replace(/<[^>]+>/g," ")
-   .replace(/&[^;\s]+;/g," ")
-   .replace(/\s+/g," ")
-   .trim();
-
-/* tiny url helpers for hero */
-const isAbs = (s:string="") => /^https?:\/\//i.test(s);
-const isCFHero = (s:string="") => /imagedelivery\.net\/[^/]+\/[^/]+\/hero$/i.test(s);
+const stripMeta = (s: string = "") =>
+  s
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /* ---------- Page data ---------- */
 type Row = Record<string, any>;
-const { row: rowIn, indexRow: indexRowIn } = Astro.props as { row?: Row; indexRow?: Row | null };
+const { row: rowIn, indexRow: indexRowIn } = Astro.props as {
+  row?: Row;
+  indexRow?: Row | null;
+};
 const row = rowIn ?? {};
 const indexRow = indexRowIn ?? null;
 
 /* basic fields */
-const title    = get(row, "title") || "Living in Fernie";
-const subhead  = get(row, "subhead");
-const heroImg  = get(row, "hero_img","heroImg","HeroImg");
-const seoTitle = get(row, "seo_title","seoTitle") || title;
+const title = get(row, "title") || "Living in Fernie";
+const subhead = get(row, "subhead");
+const seoTitle = get(row, "seo_title", "seoTitle") || title;
 
 /* content */
-const summaryRaw = get(row, "summary","Summary","excerpt","description");
-const bodyRaw    = get(row, "long_copy","LongCopy","body","content","longtext");
+const summaryRaw = get(row, "summary", "Summary", "excerpt", "description");
+const bodyRaw = get(row, "long_copy", "LongCopy", "body", "content", "longtext");
 
 /* explicit SEO description (preferred) */
-const seoRaw     = get(row, "seo_description","seoDescription","seo_desc","SEO_Description");
+const seoRaw = get(
+  row,
+  "seo_description",
+  "seoDescription",
+  "seo_desc",
+  "SEO_Description"
+);
 
 /* sanitize for render */
 const safeSummary = sanitizeHtml(summaryRaw, ALLOWED);
-const safeBody    = sanitizeHtml(bodyRaw, ALLOWED);
+const safeBody = sanitizeHtml(bodyRaw, ALLOWED);
+
+/* ---------- Maps registry ---------- */
+type MapEmbed = {
+  mapId: string;
+  title: string;
+  heading?: string;
+  note?: string;
+  height?: number;
+};
+
+/* Normalize keys so all these become the same:
+   "fernie-ev", "FERNIE_EV", "Map:fernie ev" -> "FERNIE_EV" */
+const normMapKey = (k: string) =>
+  String(k || "")
+    .trim()
+    .replace(/^map:/i, "")
+    .replace(/[_\s]+/g, "-")
+    .replace(/[^a-z0-9-]+/gi, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toUpperCase()
+    .replace(/-/g, "_");
+
+/* Default (safe fallback) */
+let MAP_EMBEDS: Record<string, MapEmbed> = {
+  FERNIE_EV: {
+    title: "Fernie EV charging locations",
+    mapId: "1UV_hkjCXzuY1RwceYaLmAub-eCIEgZY",
+    heading: "Map - Fernie EV charging locations",
+    note:
+      "The map below shows currently documented public EV charging locations in Fernie. Availability, pricing, and access can change - check a live charging app before relying on a specific station.",
+    height: 560,
+  },
+};
+
+/* OPTIONAL: load registry from Sheets if PUBLIC_MAPS_JSON exists */
+const MAPS_URL = import.meta.env.PUBLIC_MAPS_JSON;
+
+if (MAPS_URL) {
+  try {
+    const raw = await getJson<any>(MAPS_URL);
+    const rows: any[] = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+      ? raw.rows
+      : [];
+
+    const getM = (r: any, ...keys: string[]) => {
+      for (const k of keys) {
+        const v = r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()];
+        if (v !== undefined && v !== null && String(v).trim() !== "") {
+          return String(v).trim();
+        }
+      }
+      return "";
+    };
+
+    const built: Record<string, MapEmbed> = rows.reduce(
+      (acc: Record<string, MapEmbed>, r: any) => {
+        const keyRaw = getM(r, "map_slug", "key", "slug", "map_key", "mapKey", "id");
+        const mapId  = getM(r, "google_map_id", "googleMapId", "mapId", "map_id", "map", "mapid");
+
+        const t = getM(r, "title") || keyRaw;
+
+        const key = normMapKey(keyRaw);
+        if (!key || !mapId) return acc;
+
+        const heightNum = Number(getM(r, "height"));
+        acc[key] = {
+          mapId,
+          title: t,
+          heading: getM(r, "heading") || undefined,
+          note: getM(r, "note") || undefined,
+          height: Number.isFinite(heightNum) ? heightNum : undefined,
+        };
+        return acc;
+      },
+      {}
+    );
+
+    MAP_EMBEDS = { ...MAP_EMBEDS, ...built };
+  } catch {
+    // fail-soft
+  }
+}
+
+/* ---------- Split sanitized HTML into renderable parts ---------- */
+type BodyPart =
+  | { type: "html"; value: string }
+  | { type: "map"; key: string };
+
+function splitEmbeds(html: string): BodyPart[] {
+  const raw = String(html ?? "");
+
+  const re =
+    /<div\s+[^>]*data-embed\s*=\s*["']\s*MAP:([^"']+)\s*["'][^>]*>\s*<\/div>/gi;
+
+  const out: BodyPart[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = re.exec(raw))) {
+    const idx = m.index ?? 0;
+    const before = raw.slice(last, idx);
+    if (before) out.push({ type: "html", value: before });
+
+    out.push({ type: "map", key: m[1] });
+
+    last = idx + m[0].length;
+  }
+
+  const tail = raw.slice(last);
+  if (tail) out.push({ type: "html", value: tail });
+
+  return out;
+}
+
+const bodyParts = splitEmbeds(safeBody);
 
 /* optional gallery from spare_1..3 */
-const gallery = [1,2,3].map(n => {
-  const src = resolveImgFromCell(get(row, `spare_${n}`));
-  const cap = get(row, `spare_${n}_caption`);
-  return src ? { src, cap } : null;
-}).filter(Boolean);
-
-/* Hero image resolve + preload (responsive) */
-const heroResolved = heroImg ? (isAbs(heroImg) ? heroImg : heroPath(heroImg)) : "";
-const heroSm = isCFHero(heroResolved) ? heroResolved.replace("/hero", "/public") : "";
-
-const heroPreload = heroResolved
-  ? {
-      href: heroResolved,
-      imagesrcset: heroSm ? `${heroSm} 1366w, ${heroResolved} 1600w` : "",
-      imagesizes: "(max-width: 900px) 100vw, 1200px",
-      as: "image",
-    }
-  : null;
+const gallery = [1, 2, 3]
+  .map((n) => {
+    const src = resolveImgFromCell(get(row, `spare_${n}`));
+    const cap = get(row, `spare_${n}_caption`);
+    return src ? { src, cap } : null;
+  })
+  .filter(Boolean);
 
 /* SEO description preference */
 const seoDesc = stripMeta(seoRaw || summaryRaw || "");
@@ -148,96 +280,366 @@ const debug = Astro.url?.searchParams?.get("debug") === "1";
 /* Formspree for CTA */
 const formspreeId = String(import.meta.env.PUBLIC_FORMSPREE_ID ?? "");
 
-/* ----- Listings config (sheet-driven, but delegated to component) ----- */
-const listingsMode  = (get(row, "listings_mode") || "accordion").toLowerCase(); // "open" | "accordion" | "off"
-const listingsLabel = get(row, "listings_label") || "Explore Fernie real estate listings";
-const listingsSub   = get(row, "listings_sub")   || "See the newest listings currently active on the MLS.";
+/* ----- Listings config ----- */
+const listingsMode = (get(row, "listings_mode") || "accordion").toLowerCase();
+const listingsLabel =
+  get(row, "listings_label") || "Explore NEW Fernie Real Estate Listings";
+const listingsSub =
+  get(row, "listings_sub") ||
+  "See the newest listings currently active on the MLS.";
 
-// Pass either/both; the component will extract/validate:
-const cta1Raw   = get(row, "cta1","CTA1");
-const blockId   = get(row, "rv_block_id","rv_block");
+const cta1Raw = get(row, "cta1", "CTA1");
+const blockId = get(row, "rv_block_id", "rv_block");
+
+/* ---------- Category + breadcrumb helpers ---------- */
+const categoryField = get(row, "category", "Category");
+const categoryRaw = categoryField ? categoryField.split(/[,/|]+/)[0].trim() : "";
+
+const categoryKey = categoryRaw
+  ? categoryRaw
+      .toLowerCase()
+      .replace(/[–—]/g, "-")
+      .replace(/&/g, "-and-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+  : "";
+
+const hasCategory = !!categoryKey;
+
+function labelForCategory(cat = "other") {
+  const norm = (cat || "").trim();
+  if (!norm) return "Other";
+
+  const cleaned = norm
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleaned
+    .split(" ")
+    .map((word) =>
+      word.length === 0
+        ? ""
+        : word[0].toUpperCase() + word.slice(1).toLowerCase()
+    )
+    .join(" ");
+}
+
+/* ✅ Use SITE accent (not category palette) for this page header */
+const headerAccent = DEFAULT_ACCENT;
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} heroPreload={heroPreload}>
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  wrapContent={false}
+>
+  {debug && (
+    <pre style="max-width:1200px;margin:12px auto;padding:10px;border:1px solid #ddd;background:#fafafa;overflow:auto;font-size:12px;">
+      {JSON.stringify(
+        { mapsLoaded: Object.keys(MAP_EMBEDS), bodyParts },
+        null,
+        2
+      )}
+    </pre>
+  )}
+
   <Fragment slot="head">
     <link rel="preconnect" href="https://imagedelivery.net" />
   </Fragment>
 
   {debug && (
     <pre style="max-width:1200px;margin:8px auto;padding:8px 12px;border:1px solid #eee;background:#fafafa;overflow:auto">
-      {JSON.stringify({ row, derived:{ listingsMode, listingsLabel, cta1Raw, blockId } }, null, 2)}
+      {JSON.stringify(
+        { row, derived: { listingsMode, listingsLabel, listingsSub, cta1Raw, blockId } },
+        null,
+        2
+      )}
     </pre>
   )}
 
-  <HeroBleed
-    src={heroResolved}
-    imagesrcset={heroSm ? `${heroSm} 1366w, ${heroResolved} 1600w` : ""}
-    imagesizes="(max-width: 900px) 100vw, 1200px"
-    title={title}
-    kicker={subhead}
-    containerMax={1200}
-    containerPad={12}
-  />
+  <div class="page-shell pad-x">
+    {/* INTRO HEADER – MATCH LIVING INDEX */}
+    <section class="page-intro" style={`--accent:${headerAccent};`}>
+      <nav class="living-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <a href="/living/">Living in Fernie</a>
 
-  {/* ---- SUMMARY ---- */}
-  {safeSummary && (
-    <div class="container summary-wrap">
-      <div class="lead prose prose-neutral max-w-none" set:html={safeSummary}></div>
-    </div>
-  )}
+        {hasCategory && (
+          <>
+            <span>/</span>
+            <a href={`/living/?cat=${encodeURIComponent(categoryKey)}`}>
+              {labelForCategory(categoryRaw)}
+            </a>
+          </>
+        )}
 
-  {gallery.length > 0 && (
-    <div class="container gallery-wrap">
-      <div class="gallery">
-        {gallery.map(({src,cap}) => (
-          <figure class="tile">
-            <img loading="lazy" decoding="async" src={src} alt={cap || title} />
-            {cap && <figcaption>{cap}</figcaption>}
-          </figure>
-        ))}
+        <span>/</span>
+        <span class="living-breadcrumb-current">{title}</span>
+      </nav>
+
+      <div class="living-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
+
+        <div class="title-row">
+          {title && <h1 class="page-title">{title}</h1>}
+        </div>
+
+        {subhead && <p class="page-subhead">{subhead}</p>}
       </div>
-    </div>
-  )}
+    </section>
 
-  {safeBody && (
-    <div class="container body-wrap">
-      <div class="lead prose prose-neutral max-w-none" set:html={safeBody}></div>
+    {/* FADED MOUNTAIN STRIP */}
+    <div class="mountain-strip" aria-hidden="true">
+      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mountainFadeLivingSlug" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
+            <stop offset="1" stop-color="rgba(0,0,0,0)" />
+          </linearGradient>
+        </defs>
+        <path
+          d="
+            M0 18
+            L5 8
+            L11 14
+            L18 5
+            L25 13
+            L32 4
+            L40 12
+            L48 3
+            L56 11
+            L64 4
+            L72 13
+            L80 6
+            L90 15
+            L100 7
+            L100 20
+            L0 20
+            Z
+          "
+          fill="url(#mountainFadeLivingSlug)"
+        />
+      </svg>
     </div>
-  )}
 
-  <div class="container cta-wrap">
-    <CTAForm3
-      pageSlug={Astro.params.slug}
-      pageTitle={title}
-      formId={formspreeId}
-    />
+    {/* SUMMARY */}
+    {safeSummary && (
+      <section class="summary-wrap">
+        <div class="lead prose prose-neutral max-w-none" set:html={safeSummary}></div>
+      </section>
+    )}
+
+    {/* GALLERY */}
+    {gallery.length > 0 && (
+      <section class="gallery-wrap">
+        <div class="gallery">
+          {gallery.map(({ src, cap }) => (
+            <figure class="tile">
+              <img loading="lazy" decoding="async" src={src} alt={cap || title} />
+              {cap && <figcaption>{cap}</figcaption>}
+            </figure>
+          ))}
+        </div>
+      </section>
+    )}
+
+    {/* BODY */}
+    {safeBody && (
+      <section class="body-wrap">
+        <div class="lead prose prose-neutral max-w-none">
+          {bodyParts.map((p) => {
+            if (p.type === "html") return <div set:html={p.value}></div>;
+
+            const m = MAP_EMBEDS[normMapKey(p.key)];
+            if (!m) {
+              return <div set:html={`<p><strong>Missing embed:</strong> MAP:${p.key}</p>`}></div>;
+            }
+
+            return (
+              <GoogleMyMapEmbed
+                mapId={m.mapId}
+                title={m.title}
+                heading={m.heading || m.title}
+                note={m.note || ""}
+                height={m.height}
+              />
+            );
+          })}
+        </div>
+      </section>
+    )}
+
+    {/* CTA FORM */}
+    <section class="cta-wrap">
+      <CTAForm pageSlug={Astro.params.slug} pageTitle={title} formId={formspreeId} />
+    </section>
+
+    {/* LISTINGS */}
+    {listingsMode !== "off" && (
+      <div class="living-accordion">
+        <ListingsAccordion
+          container={false}
+          label={listingsLabel}
+          subline={listingsSub}
+          cta1={cta1Raw}
+          block={blockId}
+          open={listingsMode === "open"}
+        />
+      </div>
+    )}
   </div>
 
-  {/* ---- LISTINGS (shared component; reads id from cta1 or rv_block_id) ---- */}
-  {listingsMode !== "off" && (
-    <ListingsAccordion
-      label={listingsLabel}
-      subline={listingsSub}
-      cta1={cta1Raw}
-      block={blockId}
-    />
-  )}
-
   <style>
-    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
-    .summary-wrap{ padding-top:10px; padding-bottom:10px; border-bottom:1px solid #e5e7eb; margin-bottom:35px; }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-    .lead.prose p, .lead.prose li { font-size:1.075rem !important; line-height:1.6 !important; color:#111827; }
-    .lead.prose :where(h2,h3){ margin-top:1.2em; }
+    .living-accordion { margin-top: 8px; }
 
-    .gallery-wrap{ padding-top:14px; padding-bottom:6px; }
-    .gallery{ display:grid; gap:10px; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
-    .tile{ position:relative; overflow:hidden; border-radius:14px; background:#f4f4f5; }
-    .tile img{ width:100%; height:220px; object-fit:cover; transform: scale(1.02); transition: transform .4s ease, filter .4s ease; }
-    .tile:hover img{ transform: scale(1.06); filter: saturate(1.1) contrast(1.05); }
-    .tile figcaption{ position:absolute; left:10px; bottom:10px; padding:4px 8px; background:rgba(0,0,0,.55); color:#fff; font-size:.85rem; border-radius:8px; }
+    .page-shell{
+      max-width: 1280px;
+      margin-inline: auto;
+      margin-top: 14px;
+      margin-bottom: 40px;
+    }
+    .pad-x{ padding-inline: var(--edge-pad) !important; }
+    @media (min-width: 900px){ .pad-x{ padding-inline: var(--edge-pad-lg) !important; } }
 
-    .body-wrap{ padding-top:12px; }
+    /* INTRO – match living index */
+    .page-intro{
+      max-width: var(--container-max);
+      margin: 0 auto 10px;
+      padding-top: 28px;
+    }
+
+    .living-breadcrumb{
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .living-breadcrumb a{
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      color: inherit; /* prevent purple visited link styling */
+    }
+    .living-breadcrumb a:visited{ color: inherit; }
+    .living-breadcrumb a:hover{ border-bottom-color: var(--accent); }
+    .living-breadcrumb-current{ opacity: 0.7; }
+
+    .living-title-block{ max-width: 48rem; }
+
+    .accent-bars{ display:flex; gap:0.25rem; margin-bottom:0.75rem; }
+    .accent-bar{ height:4px; border-radius:999px; background: var(--accent); }
+    .accent-bar.primary{ width:80px; opacity:0.9; }
+    .accent-bar.secondary{ width:40px; opacity:0.45; }
+
+    .title-row{ display:flex; align-items:flex-start; gap:0.75rem; }
+
+    .page-title{
+      margin:0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height:1.08;
+      font-weight:700;
+      letter-spacing:-0.015em;
+      color:#111827;
+    }
+
+    /* ✅ MATCH INDEX SUBHEAD (uppercase + accent) */
+    .page-subhead{
+      margin: 6px 0 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      max-width: 52rem;
+    }
+
+    .mountain-strip{
+      margin: 8px auto 24px;
+      height: 48px;
+      max-height: 60px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
+    }
+    .mountain-strip svg{
+      width:100%;
+      height:100%;
+      opacity:0.9;
+      mix-blend-mode:multiply;
+    }
+
+    /* ✅ MATCH INDEX SUMMARY SPACING */
+    .summary-wrap{
+      padding-top: 12px;
+      padding-bottom: 25px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 20px;
+    }
+
+    .lead{
+      margin:0;
+      font-size:1.075rem;
+      line-height:1.6;
+      color:#111827;
+    }
+
+    :global(.lead.prose h2){
+      font-size: 2rem;
+      line-height: 1.35;
+      margin-top: 0.6em !important;
+      margin-bottom: 0.5em !important;
+      font-weight: 500;
+    }
+    :global(.lead.prose h3){
+      font-size: 1.15rem;
+      line-height: 1.4;
+      margin-top: 0.9em !important;
+      margin-bottom: 0.4em !important;
+      font-weight: 600;
+    }
+
+    /* GALLERY */
+    .gallery-wrap{ padding-top: 14px; padding-bottom: 6px; }
+    .gallery{
+      display:grid;
+      gap:10px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .tile{
+      position:relative;
+      overflow:hidden;
+      border-radius:6px;
+      margin:0;
+      padding:0;
+    }
+    .tile img{
+      display:block;
+      width:100%;
+      height:auto;
+      border-radius:inherit;
+      object-fit:cover;
+      transform:none;
+      transition:none;
+    }
+    .tile figcaption{
+      position:absolute;
+      left:10px;
+      bottom:10px;
+      padding:4px 8px;
+      background: rgba(0,0,0,.55);
+      color:#fff;
+      font-size:.85rem;
+      border-radius:8px;
+    }
+
+    .body-wrap{ margin-top:16px; }
     .cta-wrap{ padding-top:18px; padding-bottom:22px; }
   </style>
 </Site>

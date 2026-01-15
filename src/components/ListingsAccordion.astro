@@ -1,12 +1,13 @@
 ---
 /** Shared white accordion for RealtyVis listings
  * Props:
- *  - label?: string                         (headline)
- *  - subline?: string                       (small line under headline)
- *  - block?: string                          (RV block id, e.g. MQP2VMLT-HDQLLMRY)
- *  - cta1?: string                           (optional: cell that may contain the embed or id)
- *  - open?: boolean                          (default false)
- *  - container?: boolean                     (wrap in max-width container; default true)
+ *  - label?: string
+ *  - subline?: string
+ *  - block?: string
+ *  - cta1?: string
+ *  - open?: boolean
+ *  - container?: boolean
+ *  - variant?: "default" | "blog"   // optional; auto-detects /blog if omitted
  */
 import RVEmbed from "./RVEmbed.astro";
 
@@ -17,15 +18,17 @@ export interface Props {
   cta1?: string;
   open?: boolean;
   container?: boolean;
+  variant?: "default" | "blog";
 }
 
 const {
-  label = "Explore Fernie real estate listings",
+  label = "Explore NEW Fernie Real Estate Listings",
   subline = "See the newest listings currently active on the MLS.",
   block = "",
   cta1 = "",
   open = false,
   container = true,
+  variant, // optional; we may auto-detect below
 } = Astro.props;
 
 /* -------- helpers to extract id from CTA1 cell -------- */
@@ -54,6 +57,7 @@ function extractBlockIdFromCTA1(input:string): string {
 
   return "";
 }
+
 const isValid = (id:string) => !!id && /^[A-Z0-9]{6,}-[A-Z0-9-]{6,}$/i.test(id.trim());
 
 // final id preference: explicit block prop, else parsed from cta1
@@ -61,16 +65,20 @@ const candidateFromCta1 = extractBlockIdFromCTA1(cta1);
 const rvBlockId = isValid(block) ? block.toUpperCase()
                : isValid(candidateFromCta1) ? candidateFromCta1
                : "";
+
+/* -------- variant: auto blog if route starts with /blog (can still override) -------- */
+const routeIsBlog = Astro.url?.pathname?.startsWith?.("/blog") === true;
+const useVariant: "default" | "blog" = variant ?? (routeIsBlog ? "blog" : "default");
 ---
 
-<section class={container ? "container listings-card mt-12" : "listings-card mt-12"}>
-  <details class="listing-accordion" {...(open ? {open:true} : {})}>
+<section class={`${container ? "container " : ""}listings-card mt-12 ${useVariant === "blog" ? "is-blog" : ""}`}>
+  <details class="listing-accordion" {...(open ? { open: true } : {})}>
     <summary class="listing-summary">
       <div class="ls-left">
         <div class="ls-title">
           {/* thin outline search icon */}
           <svg class="ls-ico" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" role="presentation">
-            <g fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" opacity=".70">
+            <g fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" opacity=".80">
               <circle cx="11" cy="11" r="7" />
               <path d="M20 20l-3.2-3.2" />
             </g>
@@ -94,27 +102,75 @@ const rvBlockId = isValid(block) ? block.toUpperCase()
   </details>
 
   <style>
-    .container{ max-width:1200px; margin-inline:auto; padding-inline:12px; }
+    .container{ max-width:1200px; margin-inline:auto; padding-inline:0px; }
 
-    /* card */
+    /* ===== Card chrome with accent variable ===== */
     .listings-card{
-      border:1px solid #e5e7eb;
+      --acc-accent: #94a3b8;   /* slate-400 default (Living vibe) */
+      --acc-border: color-mix(in srgb, var(--acc-accent) 38%, #e5e7eb);
+      border:1px solid var(--acc-border);
       border-radius:16px;
       background:#fff;
       box-shadow:0 8px 24px rgba(0,0,0,.06);
       overflow:hidden;
+
+      position: relative; /* for ring */
+      transition: border-color .15s ease, box-shadow .15s ease, transform .12s ease;
+      will-change: transform, box-shadow;
+    }
+    /* Blog variant: slightly louder accent (still tasteful) */
+    .listings-card.is-blog{
+      --acc-accent: #6d28d9;   /* violet-700 brandish, tempered via color-mix */
+    }
+
+    /* 🔔 Crisp coloured ring using a pseudo-element */
+    .listings-card::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      border-radius:16px;
+      pointer-events:none;
+      box-shadow: 0 0 0 0 var(--acc-accent);
+      opacity:0;
+      transition: box-shadow .15s ease, opacity .15s ease;
+    }
+
+    /* 🖱️ Hover lift — card or summary hover both trigger */
+    .listings-card:hover,
+    .listings-card:has(.listing-summary:hover){
+      transform: translateY(-1px);
+      box-shadow: 0 10px 28px -6px rgba(0,0,0,.07);
+      border-color: var(--acc-accent);
+    }
+    .listings-card:hover::after,
+    .listings-card:has(.listing-summary:hover)::after{
+      box-shadow: 0 0 0 2px var(--acc-accent);
+      opacity:.9;
+    }
+
+    /* ✅ Open state stronger than hover */
+    .listings-card:has(.listing-accordion[open]){
+      box-shadow: 0 14px 42px -6px rgba(0,0,0,.09);
+      border-color: var(--acc-accent);
+    }
+    .listings-card:has(.listing-accordion[open])::after{
+      box-shadow: 0 0 0 3px var(--acc-accent);
+      opacity:1;
     }
 
     /* hide native marker */
     .listing-accordion > summary{ list-style:none; }
     .listing-accordion > summary::-webkit-details-marker{ display:none; }
 
-    /* entire summary is one clickable bar */
-    .listing-summary{ display:block; padding:26px 28px; cursor:pointer; }
+    /* summary clickable zone (no grey fill on hover) */
+    .listing-summary{
+      display:block; padding:26px 28px; cursor:pointer;
+      background:transparent;
+    }
 
     .ls-left{ background:#fff; color:#111; }
     .ls-title{ display:flex; align-items:center; gap:10px; margin:0 0 10px 0; }
-    .ls-ico{ flex:0 0 auto; width:20px; height:20px; color:#111; opacity:.85; }
+    .ls-ico{ flex:0 0 auto; width:20px; height:20px; color: var(--acc-accent); }
     .ls-left h3{ margin:0; font-size:1.55rem; line-height:1.25; font-weight:700; }
     .ls-left p{ margin:0; opacity:.95; font-size:.98rem; }
 
@@ -122,6 +178,11 @@ const rvBlockId = isValid(block) ? block.toUpperCase()
     .ls-missing{
       font-size:.9rem; opacity:.75; padding:10px 12px;
       border:1px dashed #ddd; border-radius:10px; background:#fcfcfc;
+    }
+
+    /* reduced motion */
+    @media (prefers-reduced-motion: reduce){
+      .listings-card, .listing-summary{ transition:none; }
     }
   </style>
 </section>

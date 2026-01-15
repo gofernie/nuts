@@ -1,0 +1,49 @@
+---
+// File: src/components/GoogleMyMapEmbed.astro
+
+const {
+  mapId,                       // required: the My Maps "mid" value
+  title = "Map",               // iframe title attribute (accessibility)
+  height = 700,                // height in px (CSS-controlled)
+  heading = "Map",             // visible H3 above the map
+  note = "",                   // optional paragraph under heading
+  ehbc = "2E312F",             // optional Google param (keep your current default)
+} = Astro.props;
+
+if (!mapId) throw new Error("GoogleMyMapEmbed requires a mapId prop");
+
+const src = `https://www.google.com/maps/d/u/0/embed?mid=${encodeURIComponent(
+  String(mapId)
+)}&ehbc=${encodeURIComponent(String(ehbc))}`;
+---
+
+<section class="ev-charging-block" aria-label={title}>
+  <h3>{heading}</h3>
+
+  {note && <p class="ev-note">{note}</p>}
+
+  <div class="ev-map" style={`--map-h:${Number(height) || 580}px;`}>
+    <iframe
+      src={src}
+      title={title}
+      loading="lazy"
+      referrerpolicy="no-referrer-when-downgrade"
+      allowfullscreen
+    ></iframe>
+  </div>
+</section>
+
+<style>
+  .ev-charging-block { margin: 3rem 0; }
+  .ev-note { font-size: 0.95rem; color: var(--muted-text, #666); max-width: 60ch; }
+  .ev-map { margin-top: 1.25rem; overflow: hidden; }
+
+  /* Height belongs in CSS, and this will win over any global iframe styles */
+  .ev-map iframe {
+    display: block;
+    width: 100%;
+    height: var(--map-h);
+    border: 0;
+    border-radius: 14px;
+  }
+</style>

@@ -1,0 +1,364 @@
+---
+// File: src/pages/home-match-v2.astro
+// Unified Home Match (Guided + Describe) - V2 parallel page
+
+export const prerender = true;
+
+import Site from "../layouts/Site.astro";
+import CTAForm from "../components/CTAForm.astro";
+import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../lib/categoryColours";
+
+const ACCENT = DEFAULT_ACCENT || (CATEGORY_COLOURS?.neighbourhoods ?? "#2f6f6a");
+---
+
+<Site
+  title="Fernie Home Match"
+  description="Describe what you want or answer a few quick questions - we’ll match you to Fernie neighbourhoods, property types, and live listings."
+>
+  <!-- keep this parallel page out of Google while you test -->
+  <head>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+
+  <main class="wrap">
+    <header class="hero" style={`--accent:${ACCENT}`}>
+      <div class="hero-inner">
+        <p class="kicker">Fernie Home Match</p>
+        <h1>Find your best-fit homes in Fernie</h1>
+        <p class="lead">
+          Describe what you want or answer a few quick questions - your choice. We’ll suggest neighbourhoods, property types, and a live listing search.
+        </p>
+
+        <div class="mode-row" role="tablist" aria-label="Input mode">
+          <button id="modeGuided" class="mode-btn is-active" type="button" role="tab" aria-selected="true">
+            Answer a few questions
+          </button>
+          <button id="modeFree" class="mode-btn" type="button" role="tab" aria-selected="false">
+            Describe it in your own words
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid">
+      <div class="card">
+        <form id="homeMatchForm">
+          <input type="hidden" name="mode" id="modeInput" value="guided" />
+
+          <!-- Guided -->
+          <div id="guidedPane">
+            <h2>Quick questions</h2>
+
+            <div class="field">
+              <label>Who is this for?</label>
+              <div class="chips" data-name="who">
+                <button type="button" class="chip" data-value="Family">Family</button>
+                <button type="button" class="chip" data-value="Couple">Couple</button>
+                <button type="button" class="chip" data-value="Solo">Solo</button>
+                <button type="button" class="chip" data-value="Investment">Investment</button>
+              </div>
+              <input type="hidden" name="who" id="whoVal" value="" />
+            </div>
+
+            <div class="field">
+              <label>Budget comfort zone</label>
+              <div class="chips" data-name="budget">
+                <button type="button" class="chip" data-value="Under $600k">Under $600k</button>
+                <button type="button" class="chip" data-value="$600k - $900k">$600k - $900k</button>
+                <button type="button" class="chip" data-value="$900k+">$900k+</button>
+                <button type="button" class="chip" data-value="Not sure">Not sure</button>
+              </div>
+              <input type="hidden" name="budget" id="budgetVal" value="" />
+            </div>
+
+            <div class="field">
+              <label>Timing</label>
+              <div class="chips" data-name="timing">
+                <button type="button" class="chip" data-value="ASAP">ASAP</button>
+                <button type="button" class="chip" data-value="3 - 6 months">3 - 6 months</button>
+                <button type="button" class="chip" data-value="6 - 12 months">6 - 12 months</button>
+                <button type="button" class="chip" data-value="Just exploring">Just exploring</button>
+              </div>
+              <input type="hidden" name="timing" id="timingVal" value="" />
+            </div>
+
+            <div class="field">
+              <label>Priorities (pick a few)</label>
+              <div class="chips multi" data-name="priorities">
+                <button type="button" class="chip" data-value="Walkable">Walkable</button>
+                <button type="button" class="chip" data-value="Ski access">Ski access</button>
+                <button type="button" class="chip" data-value="Quiet">Quiet</button>
+                <button type="button" class="chip" data-value="Views">Views</button>
+                <button type="button" class="chip" data-value="Rental potential">Rental potential</button>
+                <button type="button" class="chip" data-value="Garage / storage">Garage / storage</button>
+                <button type="button" class="chip" data-value="Newer build">Newer build</button>
+                <button type="button" class="chip" data-value="More space / yard">More space / yard</button>
+              </div>
+              <input type="hidden" name="priorities" id="prioritiesVal" value="" />
+            </div>
+
+            <div class="field">
+              <label for="guidedNotes">Anything else? (optional)</label>
+              <textarea
+                id="guidedNotes"
+                name="notes"
+                rows="5"
+                placeholder="Example: need a home office, dog-friendly yard, avoid steep winter driveways, prefer south exposure..."
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Free text -->
+          <div id="freePane" hidden>
+            <h2>Describe what you want</h2>
+            <p class="muted">
+              Write naturally - include budget, timing, and what matters most. We’ll translate it into Fernie next steps and a live search.
+            </p>
+            <div class="field">
+              <label for="freeText">Your description</label>
+              <textarea
+                id="freeText"
+                name="text"
+                rows="10"
+                placeholder="Example: Family of four, remote work, ideally 3 beds, garage, close to trails, budget around 850k, looking spring or summer..."
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="primary" id="submitBtn" type="submit">Get my Home Match</button>
+            <span class="status" id="status"></span>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Your results</h2>
+        <div id="result" class="result muted">
+          Submit your details to see recommendations here.
+        </div>
+
+        <div id="machine" class="machine" hidden>
+          <h3>Machine output</h3>
+          <pre id="machinePre"></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <CTAForm />
+    </section>
+  </main>
+
+  <style>
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+    .hero { margin-top: 10px; border-radius: 18px; padding: 28px 22px; background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.02)); border: 1px solid rgba(0,0,0,0.08); }
+    .hero-inner { max-width: 860px; }
+    .kicker { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.8; }
+    h1 { margin: 0 0 10px; font-size: 34px; line-height: 1.15; }
+    .lead { margin: 0; font-size: 16px; opacity: 0.9; }
+
+    .mode-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+    .mode-btn {
+      border: 1px solid rgba(0,0,0,0.14);
+      background: white;
+      padding: 10px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+    .mode-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(0,0,0,0.06); }
+    .mode-btn.is-active { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+
+    .grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 14px; }
+    @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+
+    .card { border-radius: 18px; border: 1px solid rgba(0,0,0,0.10); background: white; padding: 16px; box-shadow: 0 14px 30px rgba(0,0,0,0.05); }
+    .field { margin: 14px 0; }
+    label { display: block; font-weight: 700; margin-bottom: 8px; }
+    textarea {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid rgba(0,0,0,0.14);
+      padding: 12px;
+      font: inherit;
+      resize: vertical;
+    }
+    .muted { opacity: 0.8; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      border: 1px solid rgba(0,0,0,0.14);
+      background: white;
+      padding: 9px 11px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+    .chip:hover { transform: translateY(-1px); box-shadow: 0 10px 18px rgba(0,0,0,0.06); }
+    .chip.is-selected { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+
+    .actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+    .primary {
+      border: 0;
+      border-radius: 14px;
+      padding: 11px 14px;
+      background: var(--accent);
+      color: white;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 16px 30px rgba(0,0,0,0.08);
+      transition: transform 120ms ease;
+    }
+    .primary:hover { transform: translateY(-1px); }
+    .status { font-size: 13px; opacity: 0.85; }
+
+    .result { padding: 12px; border-radius: 14px; border: 1px dashed rgba(0,0,0,0.16); min-height: 140px; }
+    .machine { margin-top: 12px; }
+    pre { margin: 0; padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.04); overflow: auto; }
+    .cta { margin-top: 18px; }
+  </style>
+
+  <script is:inline>
+    const modeGuidedBtn = document.getElementById("modeGuided");
+    const modeFreeBtn = document.getElementById("modeFree");
+    const modeInput = document.getElementById("modeInput");
+
+    const guidedPane = document.getElementById("guidedPane");
+    const freePane = document.getElementById("freePane");
+
+    const form = document.getElementById("homeMatchForm");
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const machineWrap = document.getElementById("machine");
+    const machinePre = document.getElementById("machinePre");
+
+    const whoVal = document.getElementById("whoVal");
+    const budgetVal = document.getElementById("budgetVal");
+    const timingVal = document.getElementById("timingVal");
+    const prioritiesVal = document.getElementById("prioritiesVal");
+
+    function setMode(mode) {
+      modeInput.value = mode;
+
+      const isGuided = mode === "guided";
+      guidedPane.hidden = !isGuided;
+      freePane.hidden = isGuided;
+
+      modeGuidedBtn.classList.toggle("is-active", isGuided);
+      modeFreeBtn.classList.toggle("is-active", !isGuided);
+
+      modeGuidedBtn.setAttribute("aria-selected", String(isGuided));
+      modeFreeBtn.setAttribute("aria-selected", String(!isGuided));
+
+      statusEl.textContent = "";
+    }
+
+    modeGuidedBtn.addEventListener("click", () => setMode("guided"));
+    modeFreeBtn.addEventListener("click", () => setMode("free_text"));
+
+    function bindChipGroup(container, hiddenInput, isMulti) {
+      const chips = Array.from(container.querySelectorAll(".chip"));
+      const selected = new Set();
+
+      const sync = () => {
+        hiddenInput.value = isMulti ? Array.from(selected).join(", ") : (Array.from(selected)[0] || "");
+      };
+
+      chips.forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const v = chip.getAttribute("data-value") || "";
+          if (!v) return;
+
+          if (isMulti) {
+            if (selected.has(v)) selected.delete(v);
+            else selected.add(v);
+          } else {
+            selected.clear();
+            selected.add(v);
+            chips.forEach((c) => c.classList.remove("is-selected"));
+          }
+
+          chip.classList.toggle("is-selected", selected.has(v));
+          sync();
+        });
+      });
+    }
+
+    document.querySelectorAll(".chips").forEach((group) => {
+      const name = group.getAttribute("data-name");
+      const isMulti = group.classList.contains("multi");
+      if (name === "who") bindChipGroup(group, whoVal, false);
+      if (name === "budget") bindChipGroup(group, budgetVal, false);
+      if (name === "timing") bindChipGroup(group, timingVal, false);
+      if (name === "priorities") bindChipGroup(group, prioritiesVal, true);
+    });
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      statusEl.textContent = "Working...";
+      resultEl.classList.remove("muted");
+      resultEl.innerHTML = "Generating your match...";
+      machineWrap.hidden = true;
+
+      const fd = new FormData(form);
+      const mode = String(fd.get("mode") || "guided");
+
+      const payload =
+        mode === "free_text"
+          ? { mode, text: String(fd.get("text") || "").trim() }
+          : {
+              mode,
+              answers: {
+                who: String(fd.get("who") || "").trim(),
+                budget: String(fd.get("budget") || "").trim(),
+                timing: String(fd.get("timing") || "").trim(),
+                priorities: String(fd.get("priorities") || "").trim(),
+                notes: String(fd.get("notes") || "").trim(),
+              },
+            };
+
+      try {
+        const res = await fetch("/api/home-match-v2", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(txt || "Request failed");
+        }
+
+        const data = await res.json();
+
+        if (data?.html) resultEl.innerHTML = data.html;
+        else if (data?.markdown) resultEl.innerHTML = "<pre>" + escapeHtml(data.markdown) + "</pre>";
+        else resultEl.innerHTML = "No response returned.";
+
+        if (data?.machine) {
+          machineWrap.hidden = false;
+          machinePre.textContent = JSON.stringify(data.machine, null, 2);
+        }
+
+        statusEl.textContent = "Done.";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Something went wrong.";
+        resultEl.innerHTML =
+          "<p><strong>Sorry - that failed.</strong></p><p class='muted'>Try again, or switch modes.</p>";
+      }
+    });
+
+    setMode("guided");
+  </script>
+</Site>

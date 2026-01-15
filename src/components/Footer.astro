@@ -1,36 +1,539 @@
 ---
-// src/components/Footer.astro
+import { getJson } from "../lib/fetchJson";
+
 const year = new Date().getFullYear();
+const { section = "" } = Astro.props;
+
+const logo =
+  "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/b32ac00d-d02f-4572-581a-dbc08940f200/hero";
+
+const headshot =
+  "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/14049f7d-00ff-47de-4730-73cc06e5c600/hero";
+
+/* ---------------- data helpers ---------------- */
+
+const get = (r: any, k: string) =>
+  (r?.[k] ??
+    r?.[k?.toLowerCase?.()] ??
+    r?.[k?.toUpperCase?.()] ??
+    ""
+  ).toString().trim();
+
+const slugify = (v: string) =>
+  (v ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const visible = (r: any) => {
+  const s = get(r, "status").toLowerCase();
+  return s !== "hidden" && s !== "inactive";
+};
+
+const TYPES_URL         = import.meta.env.PUBLIC_TYPES_JSON;
+const NEIGHBOURHOODS_URL= import.meta.env.PUBLIC_SHEET_JSON;
+const BLOG_URL          = import.meta.env.PUBLIC_BLOG_JSON;
+const LIVING_URL        = import.meta.env.PUBLIC_LIVING_JSON;
+
+async function loadRows(url?: string) {
+  if (!url) return [];
+  try {
+    const raw = await getJson<any>(url);
+    const rows = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data) ? raw.data
+      : Array.isArray(raw?.rows) ? raw.rows
+      : [];
+    return rows.filter(visible);
+  } catch {
+    return [];
+  }
+}
+
+/* ---------------- fetch all footer data ---------------- */
+
+const [typesRows, neighbourhoodRows, blogRowsRaw, livingRows] =
+  await Promise.all([
+    loadRows(TYPES_URL),
+    loadRows(NEIGHBOURHOODS_URL),
+    loadRows(BLOG_URL),
+    loadRows(LIVING_URL),
+  ]);
+
+/* property types */
+const typeLinks = typesRows
+  .map((r) => {
+    const title = get(r, "title");
+    if (!title) return null;
+    const slug = get(r, "slug") || slugify(title);
+    return { title, href: `/types/${slug}` };
+  })
+  .filter(Boolean)
+  .slice(0, 10);
+
+/* neighbourhoods */
+const neighbourhoodLinks = neighbourhoodRows
+  .map((r) => {
+    const title = get(r, "title");
+    if (!title) return null;
+    const slug = get(r, "slug") || slugify(title);
+    return { title, href: `/neighbourhoods/${slug}` };
+  })
+  .filter(Boolean)
+  .slice(0, 10);
+
+/* blog – newest first by date */
+const blogRows = [...blogRowsRaw].sort((a, b) => {
+  const da = new Date(get(a, "date")).getTime() || 0;
+  const db = new Date(get(b, "date")).getTime() || 0;
+  return db - da; // newest first
+});
+
+
+const blogLinks = blogRows
+  .map((r) => {
+    const title = get(r, "title");
+    if (!title) return null;
+    const slug = get(r, "slug") || slugify(title);
+    return { title, href: `/blog/${slug}` };
+  })
+  .filter(Boolean)
+  .slice(0, 8);
+
+/* living guides – newest first by date */
+const livingSorted = [...livingRows].sort((a, b) => {
+  const da = new Date(get(a, "date")).getTime() || 0;
+  const db = new Date(get(b, "date")).getTime() || 0;
+  return db - da;
+});
+
+
+const livingRawLinks = livingSorted
+  .map((r) => {
+    const title = get(r, "title");
+    if (!title) return null;
+    const slug = get(r, "slug") || slugify(title);
+    return { title, href: `/living/${slug}` };
+  })
+  .filter(Boolean);
+
+/* cap Living so it is never longer than the 2nd longest column */
+const baseLengths = [
+  neighbourhoodLinks.length,
+  typeLinks.length,
+  blogLinks.length,
+  livingRawLinks.length,
+];
+
+const sortedLengths = [...baseLengths].sort((a, b) => b - a);
+const secondLongest =
+  sortedLengths.length > 1 ? sortedLengths[1] : livingRawLinks.length;
+
+const livingLinks = livingRawLinks.slice(0, secondLongest);
 ---
 
-<footer class="w-full border-t border-gray-200 bg-gray-50/80 backdrop-blur-sm">
-  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-    
-    <!-- Left side: Brand / Copyright -->
-    <div class="text-sm text-gray-600">
-      © {year} Chris Crump · Fernie Real Estate
+<footer class="site-footer">
+  <div class="footer-shell">
+
+    <!-- BRAND ROW: headshot – centered text – logo -->
+    <div class="footer-brand">
+      <img
+        src={headshot}
+        alt="Chris Crump"
+        class="footer-img footer-img--headshot"
+      />
+
+      <div class="footer-brand-text">
+        <p class="footer-name">Chris Crump</p>
+        <p class="footer-subtitle">Personal Real Estate Corp.</p>
+        <p class="footer-brokerage">460 Realty</p>
+
+        <p class="footer-contact">
+          <a href="tel:12506190390">250 619 0390</a> ·
+          <a href="mailto:chris@crump.ca">chris@crump.ca</a>
+        </p>
+      </div>
+
+      <img
+        src={logo}
+        alt="460 Realty"
+        class="footer-img footer-img--logo"
+      />
     </div>
 
-    <!-- Center: Links -->
-    <nav class="flex flex-wrap justify-center gap-6 text-sm text-gray-700">
-      <a href="/about" class="hover:text-blue-600 transition-colors">About</a>
-      <a href="/neighbourhoods" class="hover:text-blue-600 transition-colors">Neighbourhoods</a>
-      <a href="/blog" class="hover:text-blue-600 transition-colors">Blog</a>
-      <a href="/contact" class="hover:text-blue-600 transition-colors">Contact</a>
+    <!-- DESKTOP NAV: four centered columns -->
+    <nav class="footer-desktop" aria-label="Footer navigation">
+      <div class="footer-columns">
+
+        <!-- NEIGHBOURHOODS -->
+        <div class="footer-col">
+          <h3><a href="/neighbourhoods">Neighbourhoods</a></h3>
+          <ul>
+            {neighbourhoodLinks.map((item) => (
+              <li><a href={item.href}>{item.title}</a></li>
+            ))}
+          </ul>
+        </div>
+
+        <!-- PROPERTY TYPES -->
+        <div class="footer-col">
+          <h3><a href="/types">Property Types</a></h3>
+          <ul>
+            {typeLinks.map((item) => (
+              <li><a href={item.href}>{item.title}</a></li>
+            ))}
+          </ul>
+        </div>
+
+        <!-- BLOG -->
+        <div class="footer-col">
+          <h3><a href="/blog">Blog</a></h3>
+          <ul>
+            {blogLinks.map((item) => (
+              <li><a href={item.href}>{item.title}</a></li>
+            ))}
+          </ul>
+        </div>
+
+        <!-- LIVING -->
+        <div class="footer-col">
+          <h3><a href="/living">Living</a></h3>
+          <ul>
+            {livingLinks.map((item) => (
+              <li><a href={item.href}>{item.title}</a></li>
+            ))}
+          </ul>
+        </div>
+
+      </div>
     </nav>
 
-    <!-- Right side: Social icons -->
-    <div class="flex justify-center sm:justify-end gap-4">
-      <a href="https://www.instagram.com/" aria-label="Instagram" class="hover:text-blue-600 transition-colors">
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M7 2C4.2 2 2 4.2 2 7v10c0 2.8 2.2 5 5 5h10c2.8 0 5-2.2 5-5V7c0-2.8-2.2-5-5-5H7zm10 2c1.7 0 3 1.3 3 3v10c0 1.7-1.3 3-3 3H7c-1.7 0-3-1.3-3-3V7c0-1.7 1.3-3 3-3h10zm-5 3a5 5 0 100 10 5 5 0 000-10zm0 2a3 3 0 110 6 3 3 0 010-6zm4.5-.8a1 1 0 100 2 1 1 0 000-2z"/>
-        </svg>
-      </a>
-      <a href="https://www.facebook.com/" aria-label="Facebook" class="hover:text-blue-600 transition-colors">
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M13 3h4a1 1 0 011 1v4h-2.5a1 1 0 00-1 1V12h3l-.5 4h-2.5v7h-4v-7H8v-4h3V9a4 4 0 014-4z"/>
-        </svg>
-      </a>
+    <!-- MOBILE ACCORDION -->
+    <nav class="footer-mobile" aria-label="Footer navigation (mobile)">
+      <!-- NEIGHBOURHOODS -->
+      <details class="acc" open={section === "neighbourhoods"}>
+        <summary>Neighbourhoods</summary>
+        <div class="acc-content">
+          <ul>
+            {neighbourhoodLinks.map((item) => (
+              <li><a href={item.href}>{item.title}</a></li>
+            ))}
+          </ul>
+        </div>
+      </details>
+
+      <!-- PROPERTY TYPES -->
+      <details class="acc" open={section === "types"}>
+        <summary>Property Types</summary>
+        <div class="acc-content">
+          <ul>
+            {typeLinks.map((item) => (
+              <li><a href={item.href}>{item.title}</a></li>
+            ))}
+          </ul>
+        </div>
+      </details>
+
+      <!-- BLOG -->
+      <details class="acc" open={section === "blog"}>
+        <summary>Blog</summary>
+        <div class="acc-content">
+          <ul>
+            {blogLinks.map((item) => (
+              <li><a href={item.href}>{item.title}</a></li>
+            ))}
+          </ul>
+        </div>
+      </details>
+
+      <!-- LIVING -->
+      <details class="acc" open={section === "living"}>
+        <summary>Living</summary>
+        <div class="acc-content">
+          <ul>
+            {livingLinks.map((item) => (
+              <li><a href={item.href}>{item.title}</a></li>
+            ))}
+          </ul>
+        </div>
+      </details>
+    </nav>
+
+    <!-- COPYRIGHT -->
+    <div class="footer-bottom">
+      © {year} Chris Crump Personal Real Estate Corp., licensed with 460 Realty – East Kootenay.
+      Information is deemed reliable but not guaranteed and should be independently verified.
+      Not intended to solicit properties already listed or buyers under contract.
     </div>
+
   </div>
+
+  <!-- accordion: only one open at a time -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const groups = document.querySelectorAll(".footer-mobile .acc");
+      groups.forEach((acc) => {
+        acc.addEventListener("toggle", () => {
+          if (acc.open) {
+            groups.forEach((other) => {
+              if (other !== acc) other.open = false;
+            });
+          }
+        });
+      });
+    });
+  </script>
 </footer>
+
+<style>
+  .site-footer {
+    background: #020617;
+    color: #e5e7eb;
+    padding: 3rem 0;
+    margin-top: 4rem;
+  }
+
+  .footer-shell {
+    max-width: 1320px; /* a bit wider to help long Living titles */
+    margin: 0 auto;
+    padding: 0 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  /* BRAND ROW */
+  .footer-brand {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2.5rem;
+    flex-wrap: wrap;
+    text-align: center;
+  }
+
+  .footer-brand-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    min-width: 260px;
+  }
+
+  /* images */
+  .footer-img {
+    width: 96px;
+    height: auto;
+    border-radius: 0.25rem;
+    display: block;
+  }
+
+  .footer-img--headshot {}
+  .footer-img--logo {}
+
+  /* text styles */
+  .footer-name {
+    font-weight: 700;
+    font-size: 2.55rem;
+    color: #f9fafb;
+    margin: 0;
+  }
+
+  .footer-subtitle {
+    margin-top: -0.1rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    font-weight: 600;
+  }
+
+  .footer-brokerage {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #cbd5e1;
+    margin-top: 0.25rem;
+  }
+
+  .footer-contact {
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+  }
+
+  .footer-contact a {
+    color: #e2e8f0;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: 0.2s;
+  }
+
+  .footer-contact a:hover {
+    border-bottom-color: #94a3b8;
+  }
+
+  /* DESKTOP COLUMNS */
+  .footer-desktop {
+    display: none;
+  }
+
+  .footer-columns {
+    width: 100%;
+    max-width: 1120px; /* wider grid for long titles */
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2.5rem 3.25rem;
+  }
+
+  .footer-col h3 {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .footer-col h3 a {
+    text-decoration: none;
+    color: #f9fafb;
+    border-bottom: 1px solid transparent;
+    transition: 0.2s;
+  }
+
+  .footer-col h3 a:hover {
+    border-bottom-color: #94a3b8;
+  }
+
+  .footer-col ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .footer-col a {
+    text-decoration: none;
+    color: #cbd5f5;
+    border-bottom: 1px solid transparent;
+    transition: 0.2s;
+  }
+
+  .footer-col a:hover {
+    border-bottom-color: #64748b;
+    color: #f1f5f9;
+  }
+
+  .footer-col li + li {
+    margin-top: 0.24rem;
+  }
+
+  /* MOBILE ACCORDION – STACKED + SMOOTH SLIDE */
+  .footer-mobile {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding-top: 1rem;
+    border-top: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .acc {
+    display: block;
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid #1e293b;
+    background: #020617;
+    padding: 0.6rem 0.85rem;
+    overflow: hidden;
+    transition:
+      border-color 0.25s ease-out,
+      background-color 0.25s ease-out;
+  }
+
+  .acc-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease-out;
+  }
+
+  .acc[open] .acc-content {
+    max-height: 500px;
+  }
+
+  .acc summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #f9fafb;
+  }
+
+  .acc summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .acc summary::after {
+    content: "▾";
+    font-size: 0.9rem;
+    opacity: 0.75;
+    transition:
+      transform 0.3s ease-out,
+      opacity 0.3s ease-out;
+  }
+
+  .acc[open] summary::after {
+    transform: rotate(180deg);
+  }
+
+  .acc ul {
+    list-style: none;
+    margin: 0.45rem 0 0;
+    padding: 0;
+  }
+
+  .acc li + li {
+    margin-top: 0.25rem;
+  }
+
+  .acc a {
+    color: #cbd5f5;
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: 0.2s;
+  }
+
+  .acc a:hover {
+    border-bottom-color: #64748b;
+    color: #f1f5f9;
+  }
+
+  /* COPYRIGHT */
+  .footer-bottom {
+    text-align: center;
+    max-width: 900px;
+    margin: 0 auto;
+    padding-top: 1.2rem;
+    border-top: 1px solid #1e293b;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+
+  /* BREAKPOINT: show desktop nav, hide mobile */
+  @media (min-width: 760px) {
+    .footer-desktop {
+      display: block;
+    }
+    .footer-mobile {
+      display: none;
+    }
+  }
+</style>

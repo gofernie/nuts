@@ -1,5 +1,5 @@
 ---
-// File: src/layouts/Site.astro  (mobile nav polish + scrollbar compensation)
+// File: src/layouts/Site.astro
 const {
   title = "Fernie Real Estate",
   seo_title = title,
@@ -7,7 +7,7 @@ const {
   summary = "",
   showHeader = true,
   class: bodyClass = "",
-  wrapContent = true,
+  wrapContent = false, // default to no card wrapper
   heroPreload = null as null | {
     href: string;
     imagesrcset?: string;
@@ -15,10 +15,18 @@ const {
     as?: "image";
     type?: string;
     crossorigin?: "" | "anonymous" | "use-credentials";
-  }
+  },
+  containerMax = 1280, // allows per-page overrides if needed
 } = Astro.props;
 
+import { ViewTransitions } from "astro:transitions";
 import { getJson } from "../lib/fetchJson";
+import Footer from "../components/Footer.astro";
+import HomeMatchChatWidget from "../components/HomeMatchChatWidget.astro";
+
+import "../styles/building-detail.css"; // contains both buildings index + building detail shared rules
+// import "../styles/realtyvis.css";
+// import "../styles/realtyvis.css";
 
 /* helpers */
 const RESERVED = new Set(["index", "page", "pages", "all", "view", "list"]);
@@ -65,12 +73,6 @@ async function fetchMenuSafe(url?: string): Promise<MenuItem[]> {
   }
 }
 
-/* warm sheet endpoints — safe no-ops if missing */
-await fetchMenuSafe(import.meta.env.PUBLIC_SHEET_JSON);
-await fetchMenuSafe(import.meta.env.PUBLIC_TYPES_JSON);
-await fetchMenuSafe(import.meta.env.PUBLIC_AREAS_JSON);
-await fetchMenuSafe(import.meta.env.PUBLIC_TODO_JSON);
-
 /* Clean meta description from Sheets (may contain HTML) */
 const stripMeta = (s: string = "") =>
   s.replace(/<[^>]+>/g, " ")
@@ -78,7 +80,6 @@ const stripMeta = (s: string = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
-/* No-truncation meta description */
 const metaDescription =
   stripMeta((seo_description || summary || "").toString()) ||
   "Fernie real estate, activities, neighbourhoods, and local insights.";
@@ -90,10 +91,40 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
 
 <html lang="en">
   <head>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="alternate icon" href="/favicon.svg" />
+    <ViewTransitions />
 
-    <!-- CRITICAL PRECONNECTS: keep these first -->
+ <!-- Favicons -->
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/img/android-chrome-192.png">
+
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+
+
+    <!-- Google Analytics 4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FQ1LMJR15W"></script>
+    <script is:inline>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag("js", new Date());
+      gtag("config", "G-FQ1LMJR15W", {
+        anonymize_ip: true,
+        send_page_view: true
+      });
+    </script>
+
+    <!-- Astro page-change tracking -->
+    <script is:inline>
+      document.addEventListener("astro:page-load", () => {
+        if (typeof gtag === "function") {
+          gtag("event", "page_view", {
+            page_path: location.pathname,
+            page_title: document.title
+          });
+        }
+      });
+    </script>
+
+    <!-- CRITICAL PRECONNECTS -->
     <link rel="preconnect" href="https://chriscrump.realtyvis.page" crossorigin />
     <link rel="preconnect" href="https://app.realtyvis.com" crossorigin />
     <link rel="preconnect" href="https://cdn.realtyvis.com" crossorigin />
@@ -101,11 +132,9 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{seo_title}</title>
-
-    <!-- Always render a clean meta description -->
     <meta name="description" content={metaDescription} />
 
-    <!-- Safe perf hints (no cross-origin prefetch/preload) -->
+    <!-- dns-prefetch -->
     <link rel="dns-prefetch" href="https://cdn.realtyvis.com" />
     <link rel="dns-prefetch" href="https://api.realtyvis.com" />
     <link rel="dns-prefetch" href="https://app.realtyvis.com" />
@@ -123,6 +152,10 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       />
     )}
 
+    <!-- ✅ RealtyVis embed (loads once) -->
+    <script src="https://cdn.realtyvis.com/js/embed.js" defer></script>
+
+
     <!-- GLOBAL -->
     <style is:global>
       :root {
@@ -130,65 +163,168 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
         --edge-pad: 12px;
         --edge-pad-lg: 30px;
         --container-max: 1280px;
-        --bg: #f5f5f2;
+        --bg: #ffffff;
         --ink: #271f11;
         --ink-muted: #1f2937;
         --hover-bg: rgba(243, 244, 246, .9);
         --ease-snap: cubic-bezier(0.22, 1, 0.36, 1);
-        /* set by script: --sbw = scrollbar width */
+
+        --h1-size: 1.9rem;
+        --h1-line: 1.15;
+
+        --h2-size: 1.45rem;
+        --h2-line: 1.25;
+
+        --h3-size: 1.2rem;
+        --h3-line: 1.35;
+
+        --body-size: 1rem;
+        --body-line: 1.6;
+
+        --small-size: 0.9rem;
+        --h1-track: -0.02em;
       }
 
       *, *::before, *::after { box-sizing: border-box; }
-
-      html, body {
-        height: 100%;
-        overflow-x: clip;
-        margin: 0;
-      }
+      html, body { height: 100%; overflow-x: clip; margin: 0; }
 
       body {
         font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
         background: var(--bg);
         color: var(--ink);
+        font-size: var(--body-size);
+        line-height: var(--body-line);
       }
 
-      main { padding-top: var(--header-h); }
-
-      .container {
-        max-width: var(--container-max);
-        margin-inline: auto;
-        padding-inline: var(--edge-pad);
+      h1,
+      .page-title,
+      .hero-bleed__title {
+        font-size: var(--h1-size);
+        line-height: var(--h1-line);
+        letter-spacing: var(--h1-track);
+        font-weight: 600;
+        margin: 0 0 0.6rem;
       }
 
-      @media (min-width: 900px) {
-        .container { padding-inline: var(--edge-pad-lg); }
+      h2 {
+        font-size: var(--h2-size);
+        line-height: var(--h2-line);
+        margin-top: 2.5rem;
+        margin-bottom: -0.1rem;
+        font-weight: 500;
       }
 
-      header {
+      body.home .summary-wrap { margin-top: 0.4rem; }
+      body.home .summary-wrap h2 {
+        margin-top: 0 !important;
+        margin-bottom: 0.45rem;
+        font-size: calc(var(--h2-size) * 1.22);
+        line-height: 1.25;
+      }
+
+      h3 {
+        font-size: var(--h3-size);
+        line-height: var(--h3-line);
+        margin-top: 2rem;
+        margin-bottom: -0.1rem;
+        font-weight: 500;
+      }
+
+      h2 + p,
+      h3 + p,
+      h2 + ul,
+      h3 + ul {
+        margin-top: 0.25rem !important;
+      }
+
+      p { margin: 0 0 1rem; }
+
+      .page-subhead {
+        font-size: var(--h3-size);
+        line-height: 1.4;
+        opacity: 0.8;
+        margin: 0 0 0.4rem;
+      }
+
+      .summary-text { max-width: 52rem; }
+
+      strong {
+        font-size: 1rem;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+
+      .page-header {
+        max-width: 52rem;
+        margin: 1.1rem auto 1.8rem;
+      }
+
+      .page-header .page-title { margin-bottom: 0.35rem; }
+      .page-header .page-subhead { margin-bottom: 0.3rem; }
+      .page-header .summary-text { margin-top: 0.35rem; margin-bottom: 0.9rem; }
+
+      .below-fold > .page-header:first-child,
+      .below-fold > section:first-child,
+      .below-fold > div:first-child {
+        margin-top: 1.1rem;
+      }
+
+      .longcopy, .long-copy {
+        max-width: 52rem;
+        margin: 0 auto 2.6rem;
+      }
+      .longcopy p, .long-copy p { margin-bottom: 0.95rem; }
+
+      .longcopy ul,
+      .long-copy ul,
+      .longcopy ol,
+      .long-copy ol,
+      .long-copy blockquote,
+      .longcopy figure,
+      .long-copy figure,
+      .long-copy .cta-block,
+      .long-copy .note {
+        margin-top: 1.4rem;
+        margin-bottom: 1.4rem;
+      }
+
+      main { padding-top: calc(var(--header-h) - 20px); }
+
+      header[role="banner"] {
         position: fixed;
         top: 0; left: 0; right: 0;
         height: var(--header-h);
-        background: rgba(255, 255, 255, .92);
+        background: rgba(255, 255, 255, .96);
         backdrop-filter: blur(10px);
-        border-bottom: 1px solid #e5e7eb;
-        box-shadow: 0 1px 8px rgba(0, 0, 0, .06);
         z-index: 1000;
+        border: 0 !important;
+        border-bottom: 0 !important;
+        box-shadow: none !important;
+        transition:
+          background-color .35s ease,
+          box-shadow .35s ease,
+          backdrop-filter .35s ease;
+      }
+
+      header[role="banner"].scrolled {
+        background: rgba(255, 255, 255, .92);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, .07);
+        backdrop-filter: blur(10px);
       }
 
       .nav-inner {
-        display: flex;
+        display: grid;
+        grid-template-columns: 1fr auto;
         align-items: center;
-        justify-content: space-between;
         height: 100%;
-        padding: 0 var(--edge-pad);
-        gap: 10px;
+        padding-inline: var(--edge-pad);
       }
-
       @media (min-width: 900px) {
-        .nav-inner { padding: 0 var(--edge-pad-lg); }
+        .nav-inner { padding-inline: var(--edge-pad-lg); }
       }
 
       .brand {
+        justify-self: start;
         font-weight: 700;
         font-size: 1rem;
         color: var(--ink);
@@ -196,105 +332,85 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
         padding: 4px 6px;
         border-radius: 6px;
         white-space: nowrap;
+        transition:
+          background-color .2s ease,
+          transform .18s ease;
       }
-      .brand:hover { background: var(--hover-bg); }
+      .brand:hover {
+        background: var(--hover-bg);
+        transform: translateY(-1px);
+      }
 
       nav {
+        justify-self: end;
         display: flex;
         align-items: center;
-        gap: 15px;
-        justify-content: flex-end;
-        flex: 1 1 auto;
+        gap: 10px;
+        flex: 0 0 auto;
       }
 
       .navlink {
-        position: relative;
         color: var(--ink-muted);
         padding: 6px 8px;
         text-decoration: none;
         border-radius: 8px;
         font-weight: 500;
-        transition: color .15s ease;
+        transition:
+          color .22s ease,
+          opacity .22s ease,
+          transform .18s ease,
+          background-color .22s ease;
       }
       .navlink:hover,
-      .navlink:focus-visible { color: var(--ink); }
-      .navlink.active { color: var(--ink); }
+      .navlink:focus-visible,
+      .navlink.active {
+        color: var(--ink);
+      }
 
-      /* Desktop nav underline hover/active */
-      @media (min-width: 901px) {
+      @media (min-width: 1025px) {
         .navlink {
           position: relative;
-          padding: 8px 10px 14px; /* space for underline */
-          color: var(--ink-muted);
-          text-decoration: none;
-          border-radius: 8px;
-          font-weight: 500;
-          transition: color .15s ease;
+          padding: 8px 10px 14px;
+          opacity: 0.75;
+          white-space: nowrap;
         }
-        .navlink::after {
-          content: "";
-          position: absolute;
-          left: 10px;
-          right: 10px;
-          bottom: 6px;
-          height: 2px;
-          background: #0f172a;   /* slate-900 */
-          transform: scaleX(0);
-          transform-origin: left;
-          transition: transform .18s ease;
-          border-radius: 2px;
-          opacity: .95;
-        }
-        .navlink:hover,
-        .navlink:focus-visible { color: var(--ink); }
-        .navlink:hover::after,
-        .navlink:focus-visible::after,
-        .navlink.active::after { transform: scaleX(1); }
-        .navlink::before { content: none !important; }
       }
 
-      /* GLOBAL editorial section headings (hardened, outside media) */
-      body main h2,
-      body .page-content h2,
-      body .below-fold h2,
-      .h2 {
-        font-size: clamp(22px, 2.75vw, 30px);
-        font-weight: 500;
-        letter-spacing: -0.01em;
-        line-height: 1.25;
-        margin-top: 2.25rem;
-        margin-bottom: -7px;
-        color: var(--ink, #111827);
+      .navlink::after {
+        content: "";
+        position: absolute;
+        left: 8px;
+        right: 8px;
+        bottom: 4px;
+        height: 2px;
+        background: #0f172a;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform .18s ease;
+        border-radius: 2px;
+        opacity: .95;
       }
 
-      body main h3,
-      body .page-content h3,
-      body .below-fold h3,
-      .h3 {
-        font-size: clamp(18px, 2vw, 22px);
-        font-weight: 600;
-        letter-spacing: -0.005em;
-        line-height: 1.3;
-        margin-top: 1.75rem;
-        margin-bottom: 0.4rem;
-        color: #1f2937;
+      .navlink:hover,
+      .navlink:focus-visible {
+        opacity: 1;
+        transform: translateY(-1px);
+        background: var(--hover-bg);
       }
 
-      /* === Scrollbar compensation when mobile menu is open === */
-      body.nav-open {
-        overflow: hidden;
-        padding-right: var(--sbw, 0px); /* align non-fixed content with fixed header */
-      }
-      /* Offset fixed elements so header/menu/overlay don't jump when scrollbar disappears */
-      body.nav-open header,
-      body.nav-open .nav-overlay,
-      body.nav-open header nav {
-        right: var(--sbw, 0px);
+      .navlink.active { opacity: 1; }
+
+      .navlink:hover::after,
+      .navlink:focus-visible::after,
+      .navlink.active::after {
+        transform: scaleX(1);
       }
 
-      /* Mobile: full-width dropdown + subtle slide animation (UPDATED) */
+      body.nav-open { overflow: hidden; padding-right: var(--sbw, 0px); }
+      body.nav-open header, body.nav-open .nav-overlay, body.nav-open header nav { right: var(--sbw, 0px); }
+
       .hamburger { display: none; }
-      @media (max-width: 900px) {
+      @media (max-width:1024px) {
         .hamburger {
           display: block;
           margin-left: auto;
@@ -304,23 +420,30 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
           background: transparent;
           color: var(--ink);
           -webkit-tap-highlight-color: transparent;
+          transition:
+            background-color .2s ease,
+            transform .18s ease,
+            box-shadow .2s ease;
         }
         .hamburger:active { transform: scale(0.98); }
+        .hamburger:hover {
+          background: var(--hover-bg);
+          box-shadow: 0 2px 6px rgba(0,0,0,.08);
+        }
         .hamburger:focus-visible {
           outline: none;
           border-color: #e5e7eb;
           background: var(--hover-bg);
         }
 
-        /* prevent desktop underline/dots on mobile */
-        .navlink::before, .navlink::after { content: none !important; }
+        .navlink::before,
+        .navlink::after { content: none !important; }
 
         header nav {
           position: fixed;
           top: var(--header-h);
           left: 0;
-          right: 0;                 /* use insets, not vw */
-          min-width: 0;
+          right: 0;
           background: rgba(255,255,255,.98);
           -webkit-backdrop-filter: blur(10px);
           backdrop-filter: blur(10px);
@@ -331,13 +454,9 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
             max(var(--edge-pad), env(safe-area-inset-right))
             max(10px, env(safe-area-inset-bottom))
             max(var(--edge-pad), env(safe-area-inset-left));
-          border: 0;
           border-top: 1px solid #e5e7eb;
-          border-radius: 0;
           box-shadow: 0 6px 18px rgba(0,0,0,.08);
           z-index: 1001;
-
-          /* animation defaults (closed state) */
           transform: translateY(-6px);
           opacity: 0;
           visibility: hidden;
@@ -345,8 +464,7 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
           transition:
             transform 180ms var(--ease-snap),
             opacity 180ms var(--ease-snap),
-            visibility 0s linear 120ms; /* delay hiding to allow fade */
-          will-change: transform, opacity;
+            visibility 0s linear 120ms;
         }
         header nav.open {
           transform: translateY(0);
@@ -356,77 +474,52 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
           transition:
             transform 120ms var(--ease-snap),
             opacity 120ms var(--ease-snap),
-            visibility 0s; /* visible immediately */
+            visibility 0s;
         }
 
-        /* Apple-y: bigger type, centered, crisp separators, comfy touch target */
         header nav a.navlink {
-          display: block;
-          width: 100%;
-          text-align: center;
-          padding: 16px 8px;               /* ~48px touch area */
-          font-size: 1.0625rem;            /* ~17px */
-          line-height: 1.35;
-          font-weight: 600;
-          letter-spacing: 0.2px;
-          color: var(--ink);
-          text-decoration: none;
-          border-radius: 0;                 /* full-width list look */
-          position: relative;
+          display:block;
+          width:100%;
+          text-align:center;
+          padding:16px 8px;
+          font-size:1.0625rem;
+          line-height:1.35;
+          font-weight:600;
+          letter-spacing:.2px;
+          color:var(--ink);
+          border-radius:0;
+          opacity: 1;
+          background: transparent;
         }
-        /* hairline separators */
-        header nav a.navlink + a.navlink {
-          border-top: 1px solid #eef2f7;   /* subtle separator */
-        }
-
-        /* active & press states, very subtle */
+        header nav a.navlink + a.navlink { border-top: 1px solid #eef2f7; }
         header nav a.navlink.active { background: #f8fafc; }
         header nav a.navlink:active { background: #f3f4f6; }
 
-        /* Gentle section padding top/bottom to breathe */
-        header nav.open { padding-top: 8px; padding-bottom: 12px; }
-
-        /* backdrop behind the menu (click to close) */
         .nav-overlay {
           position: fixed;
           top: var(--header-h);
-          left: 0; right: 0; bottom: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
           background: rgba(0,0,0,.24);
           -webkit-tap-highlight-color: transparent;
           z-index: 1000;
         }
         body:not(.nav-open) .nav-overlay { display: none; }
 
-        /* Make header brand slightly larger to match nav scale */
         .brand { font-size: 1.0625rem; }
       }
 
-      /* Respect reduced motion */
       @media (prefers-reduced-motion: reduce) {
-        header nav, header nav.open { transition: none !important; }
+        header nav,
+        header nav.open {
+          transition: none !important;
+        }
         .hamburger:active { transform: none; }
       }
 
-      footer.site-footer {
-        width: 100%;
-        background: rgba(255, 255, 255, 0.9);
-        backdrop-filter: blur(6px);
-        border-top: 1px solid #e5e7eb;
-        padding: 1rem 0;
-        margin-top: 3rem;
-        text-align: center;
-        font-size: .875rem;
-        color: #4b5563;
-      }
-
-      .hero-edge {
-        max-width: var(--container-max);
-        margin-inline: auto;
-        padding-inline: var(--edge-pad);
-      }
-      @media (min-width: 900px) {
-        .hero-edge { padding-inline: var(--edge-pad-lg); }
-      }
+      .pad-x { padding-inline: clamp(var(--edge-pad), 4vw, var(--edge-pad-lg)); }
+      .wrap-1280 { max-width: var(--container-max); margin-inline: auto; }
 
       .page-content {
         max-width: var(--container-max);
@@ -459,150 +552,326 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
         }
         .page-content > *:first-child { margin-top: 0 !important; }
         .page-content > *:last-child { margin-bottom: 0 !important; }
-        .hero-edge { padding-inline: 0; }
         .below-fold { margin-top: 0; }
         footer.site-footer { margin-top: 1.25rem; }
       }
 
-      .page-content .container {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
+      figure img,
+      article img {
+        display: block;
+        max-width: 100%;
+        height: auto;
+        object-fit: contain;
+        border-radius: 8px;
+        margin: 1rem auto;
+      }
+      figure { margin: 1.5rem 0; text-align: center; overflow: hidden; }
+      figcaption {
+        font-size: 0.9rem;
+        color: var(--text-muted, #666);
+        margin-top: 0.5rem;
+        line-height: 1.4;
       }
 
-      .align-hero-left { margin-left: calc(-1 * var(--edge-pad)); }
+      hr {
+        margin: 2.4rem 0;
+        border: 0;
+        border-top: 1px solid #e5e7eb;
+      }
+
+      @media (min-width: 600px) {
+        :root { --h1-size: 2.2rem; --h2-size: 1.6rem; --h3-size: 1.25rem; }
+      }
+
       @media (min-width: 900px) {
-        .align-hero-left { margin-left: calc(-1 * var(--edge-pad-lg)); }
+        :root { --h1-size: 2.6rem; --h2-size: 1.8rem; --h3-size: 1.35rem; --body-size: 1.05rem; }
       }
 
-      /* SAFER skeleton suppression only on RV skeleton hooks */
-      .rv-host [data-skeleton],
-      .rv-host .rv-skeleton {
-        opacity: 0 !important;
-        pointer-events: none !important;
-        animation: none !important;
-        background: none !important;
-        box-shadow: none !important;
+      @media (max-width: 599px) {
+        .page-header { margin-top: 0.9rem; margin-bottom: 1.4rem; }
+        .longcopy, .long-copy { margin-bottom: 2.2rem; }
+        .below-fold > .page-header:first-child,
+        .below-fold > section:first-child,
+        .below-fold > div:first-child { margin-top: 0.9rem; }
       }
-      .rv-host .rv-root,
-      .rv-host .rv-container,
-      .rv-host .rv-shell {
-        max-width: var(--container-max);
-        margin-inline: auto;
+
+      main h1 {
+        font-size: var(--h1-size) !important;
+        line-height: var(--h1-line) !important;
+        letter-spacing: var(--h1-track) !important;
+        font-weight: 600 !important;
+        margin: 0 0 0.6rem !important;
       }
+
+      .skip-link { position: absolute; top: -200px; }
+
+      .map-embed { margin: 1rem 0 1.5rem; }
+      .map-embed__frame {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        height: auto;
+        display: block;
+        border: 0;
+        border-radius: 18px;
+        box-shadow: 0 10px 28px rgba(0,0,0,.10);
+        overflow: hidden;
+        background: rgba(0,0,0,.04);
+      }
+      .map-embed--slim .map-embed__frame { aspect-ratio: 21 / 9; border-radius: 16px; }
+      @media (max-width: 640px) {
+        .map-embed__frame { aspect-ratio: 4 / 5; border-radius: 16px; }
+      }
+      .map-embed__caption { margin-top: 0.5rem; font-size: 0.95rem; opacity: 0.8; }
+
+      html.is-swapping body { cursor: progress; }
     </style>
 
-    <!-- Nav JS: binds click/escape/resize/click-outside; no TS casts; no inline handlers -->
+    <!-- ✅ ONE Site UI binder (works with ViewTransitions) -->
     <script is:inline>
       (function () {
-        function bindNav() {
-          var btn = document.querySelector(".hamburger");
-          var nav = document.querySelector("header nav");
-          var overlay = document.querySelector(".nav-overlay");
-          var body = document.body;
-          if (!btn || !nav) return;
+        function rebindSiteUI() {
+          try { window.__siteAbort?.abort?.(); } catch {}
+          var ac = new AbortController();
+          window.__siteAbort = ac;
+          var signal = ac.signal;
 
-          // Link button to nav for a11y
-          var navId = nav.getAttribute("id") || "primary-nav";
-          nav.setAttribute("id", navId);
-          btn.setAttribute("aria-controls", navId);
+          // -------- Nav bind --------
+          (function bindNav() {
+            var btn = document.querySelector(".hamburger");
+            var nav = document.querySelector("header nav");
+            var overlay = document.querySelector(".nav-overlay");
+            var body = document.body;
+            if (!btn || !nav) return;
 
-          function openNav(open) {
-            if (open) {
-              nav.classList.add("open");
-              body.classList.add("nav-open"); // scroll lock
-              btn.setAttribute("aria-expanded", "true");
-              btn.setAttribute("aria-label", "Close menu");
-              if (overlay) overlay.hidden = false;
-            } else {
-              nav.classList.remove("open");
-              body.classList.remove("nav-open");
-              btn.setAttribute("aria-expanded", "false");
-              btn.setAttribute("aria-label", "Open menu");
-              if (overlay) overlay.hidden = true;
+            var navId = nav.getAttribute("id") || "primary-nav";
+            nav.setAttribute("id", navId);
+            btn.setAttribute("aria-controls", navId);
+
+            function openNav(open) {
+              if (open) {
+                nav.classList.add("open");
+                body.classList.add("nav-open");
+                btn.setAttribute("aria-expanded", "true");
+                btn.setAttribute("aria-label", "Close menu");
+                if (overlay) overlay.hidden = false;
+              } else {
+                nav.classList.remove("open");
+                body.classList.remove("nav-open");
+                btn.setAttribute("aria-expanded", "false");
+                btn.setAttribute("aria-label", "Open menu");
+                if (overlay) overlay.hidden = true;
+              }
             }
-          }
+            function toggle() { openNav(!nav.classList.contains("open")); }
 
-          function toggle() { openNav(!nav.classList.contains("open")); }
+            btn.addEventListener("click", toggle, { signal });
 
-          // Button click
-          btn.addEventListener("click", toggle);
+            nav.addEventListener("click", function (e) {
+              var a = e.target && e.target.closest ? e.target.closest("a") : null;
+              if (a) openNav(false);
+            }, { passive: true, signal });
 
-          // Close when clicking a link in the menu
-          nav.addEventListener("click", function (e) {
-            var t = e.target;
-            var a = t && t.closest ? t.closest("a") : null;
-            if (a) openNav(false);
-          }, { passive: true });
+            if (overlay) overlay.addEventListener("click", function () { openNav(false); }, { passive: true, signal });
 
-          // Click outside via backdrop overlay
-          if (overlay) overlay.addEventListener("click", function(){ openNav(false); }, { passive: true });
+            document.addEventListener("keydown", function (e) {
+              if (e.key === "Escape") openNav(false);
+            }, { signal });
 
-          // Close on Escape
-          document.addEventListener("keydown", function (e) {
-            if (e.key === "Escape") openNav(false);
-          });
+            window.addEventListener("resize", function () {
+              if (window.matchMedia("(min-width: 1025px)").matches) openNav(false);
+            }, { passive: true, signal });
 
-          // Close if resizing to desktop
-          window.addEventListener("resize", function () {
-            if (window.matchMedia("(min-width: 901px)").matches) openNav(false);
-          }, { passive: true });
+            openNav(false);
+          })();
 
-          // start closed
-          openNav(false);
+          // -------- Header scroll "glass" toggle --------
+          (function bindHeaderScroll() {
+            function updateHeader() {
+              var h = document.querySelector("header[role='banner']");
+              if (!h) return;
+              if (window.scrollY > 10) h.classList.add("scrolled");
+              else h.classList.remove("scrolled");
+            }
+            updateHeader();
+            window.addEventListener("scroll", updateHeader, { passive: true, signal });
+          })();
+
+          // -------- Scrollbar width measurer --------
+          (function bindSBW() {
+            var root = document.documentElement;
+            function setSBW() {
+              var sbw = Math.max(0, window.innerWidth - root.clientWidth);
+              root.style.setProperty("--sbw", sbw + "px");
+            }
+            setSBW();
+            window.addEventListener("resize", setSBW, { passive: true, signal });
+            document.addEventListener("visibilitychange", setSBW, { signal });
+          })();
+
+          // -------- Prefetch on hover/touch for internal links --------
+          (function bindPrefetch() {
+            var prefetched = new Set();
+            function prefetch(href) {
+              if (!href || prefetched.has(href)) return;
+              prefetched.add(href);
+              var l = document.createElement("link");
+              l.rel = "prefetch";
+              l.as = "document";
+              l.href = href;
+              document.head.appendChild(l);
+            }
+
+            function handle(e) {
+              var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+              if (!a) return;
+              if (a.target === "_blank" || a.hasAttribute("download")) return;
+
+              var url;
+              try { url = new URL(a.href, location.href); } catch { return; }
+              if (url.origin !== location.origin) return;
+              if (url.pathname === location.pathname && url.hash) return;
+
+              prefetch(url.pathname + url.search);
+            }
+
+            document.addEventListener("mouseover", handle, { passive: true, signal });
+            document.addEventListener("touchstart", handle, { passive: true, signal });
+          })();
+
+          // -------- Hard reload on RV pages (and fix back button blank RV) --------
+          (function bindHardNav() {
+            var RV_PATH = [
+              /^\/$/i,
+              /^\/browse\/?$/i,
+
+              // Neighbourhoods
+              
+              /^\/neighbourhoods\/[^\/]+(?:\/.*)?$/i,
+
+              // Neighbourhood types
+              /^\/neighbourhood_type\/[^\/]+\/?$/i,
+
+              // Types + Areas
+              /^\/types\/[^\/]+\/?$/i,
+              /^\/areas\/[^\/]+\/?$/i,
+
+              // Living (index + all subpages)
+              /^\/living\/?$/i,
+              /^\/living\/[^\/]+(?:\/.*)?$/i,
+
+              // To-do (both slug styles, index + subpages)
+              /^\/to-do\/?$/i,
+              /^\/to-do\/[^\/]+\/?$/i,
+              /^\/to_do\/?$/i,
+              /^\/to_do\/[^\/]+\/?$/i,
+            ];
+
+            function shouldHardNav(pathname) {
+              return RV_PATH.some(function (re) { return re.test(pathname); });
+            }
+
+            // If RV embed exists but cards are missing, treat as "blank"
+            function rvLooksEmpty() {
+              var hasRvMarker =
+                !!document.querySelector("[data-rv-insert-root]") ||
+                !!document.querySelector(".rv-host") ||
+                !!document.querySelector(".rv-block");
+
+              // If there's no RV marker on this page, don't force reload
+              if (!hasRvMarker) return false;
+
+              var hasCards =
+                !!document.querySelector(".rv-listingCard") ||
+                !!document.querySelector(".rv-block .rv-listingCard") ||
+                !!document.querySelector(".rv-block a.rv-listingCard");
+
+              return !hasCards;
+            }
+
+            // Reload once per URL (prevents loops) - but give RV time to rehydrate
+            function reloadOnceIfStillBlank(reason) {
+              if (!shouldHardNav(location.pathname)) return;
+
+              var key = "rv-blank-reload:" + location.pathname + location.search;
+              var last = +sessionStorage.getItem(key) || 0;
+              if (Date.now() - last < 15000) return; // 15s cooldown
+              sessionStorage.setItem(key, String(Date.now()));
+
+              var tries = 0;
+              var maxTries = 8;   // ~ 8 * 300ms = 2.4s
+              var interval = 300;
+
+              var t = setInterval(function () {
+                tries++;
+
+                // If RV recovered, stop checking
+                if (!rvLooksEmpty()) {
+                  clearInterval(t);
+                  return;
+                }
+
+                // Still blank after several tries -> reload once
+                if (tries >= maxTries) {
+                  clearInterval(t);
+                  console.warn("[RV] Still blank after " + reason + " - reloading");
+                  location.reload();
+                }
+              }, interval);
+            }
+
+         
+
+            // Force hard navigation whenever leaving OR entering an RV-ish page
+            document.addEventListener("click", function (e) {
+              var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+              if (!a) return;
+
+              if (e.defaultPrevented) return;
+              if (e.button !== 0) return;
+              if (a.target === "_blank") return;
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+              var u;
+              try { u = new URL(a.href, location.href); } catch { return; }
+              if (u.origin !== location.origin) return;
+
+              var fromIsRv = shouldHardNav(location.pathname);
+              var toIsRv = shouldHardNav(u.pathname);
+
+              if (fromIsRv || toIsRv) {
+                e.preventDefault();
+                location.assign(u.href);
+              }
+            }, { capture: true, signal: signal });
+          })();
         }
 
-        if (document.readyState === "loading") {
-          document.addEventListener("DOMContentLoaded", bindNav);
-        } else {
-          bindNav();
-        }
+        // run now + after every ViewTransition swap
+        rebindSiteUI();
+        document.addEventListener("astro:page-load", rebindSiteUI);
       })();
     </script>
 
-    <!-- Scrollbar width measurer for compensation -->
-    <script is:inline>
-      (function () {
-        var root = document.documentElement;
-        function setSBW() {
-          // innerWidth includes scrollbar; clientWidth does not
-          var sbw = Math.max(0, window.innerWidth - root.clientWidth);
-          root.style.setProperty('--sbw', sbw + 'px');
-        }
-        setSBW();
-        window.addEventListener('resize', setSBW, { passive: true });
-        document.addEventListener('visibilitychange', setSBW);
-      })();
-    </script>
-
-    <!-- Non-blocking local script -->
     <script src="/js/smooth-anchors.js?v=5" defer></script>
 
-    <!-- RealtyVis: load unconditionally after parse so listings always render -->
-    <script src="https://cdn.realtyvis.com/js/embed.js" defer></script>
-
-    <!-- tiny debug helper: run __rv_dbg() in console (pure JS) -->
-    <script is:inline>
-      window.__rv_dbg = () => {
-        console.log("RV present?", !!window.RV);
-        console.log(
-          "containers:",
-          document.querySelectorAll(
-            "[data-rv],[data-rv-id],[data-rv-block],[data-rv-block-id],.rv-embed,.rv-container"
-          )
-        );
-      };
-    </script>
+    <style is:inline>
+      .page-shell{max-width:1280px;margin-inline:auto;margin-top:14px;margin-bottom:40px}
+      .page-intro{max-width:var(--container-max);margin:0 auto 10px;padding-top:28px}
+      .kicker{margin:0;font-size:.85rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75}
+      .page-title{margin:0;font-size:clamp(2.4rem,3.8vw,3.05rem);line-height:1.08;font-weight:750;letter-spacing:-.015em;color:#111827}
+      .mountain-strip{margin:10px auto 22px;height:48px;border-radius:6px;overflow:hidden}
+    </style>
   </head>
 
-  <body class={bodyClass}>
+  <body class={bodyClass} style={`--container-max:${containerMax}px`}>
     <a class="skip-link" href="#main">Skip to main content</a>
 
     {showHeader && (
       <header role="banner">
-        <div class="nav-inner container">
-          <a class="brand" href="/" data-astro-prefetch>Fernie.Homes</a>
+        <div class="nav-inner">
+          {/* ✅ CHANGED: force hard reload on the brand/home click */}
+          <a class="brand" href="/" data-astro-reload>Fernie.Homes</a>
 
-          <!-- Updated hamburger with SVG icon -->
           <button class="hamburger" type="button" aria-label="Open menu" aria-expanded="false">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -610,24 +879,34 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
           </button>
 
           <nav aria-label="Primary">
+            <a href="/browse" class={`navlink ${isActive("/browse") ? "active" : ""}`}>Browse Listings</a>
             <a href="/neighbourhoods" class={`navlink ${isActive("/neighbourhoods") ? "active" : ""}`}>Neighbourhoods</a>
             <a href="/types" class={`navlink ${isActive("/types") ? "active" : ""}`}>Property Types</a>
-            <a href="/living" class={`navlink ${isActive("/living") ? "active" : ""}`}>Living</a>
             <a href="/areas" class={`navlink ${isActive("/areas") ? "active" : ""}`}>Areas</a>
-            <a href="/to_do" class={`navlink ${isActive("/to_do") ? "active" : ""}`}>To Do</a>
-            <a href="/stay" class={`navlink ${isActive("/stay") ? "active" : ""}`}>Stay</a>
+            <a
+              href="/living-in-fernie"
+              class={`navlink ${
+                isActive("/living-in-fernie") ||
+                pathname.startsWith("/living/") ||
+                pathname.startsWith("/to_do") ||
+                pathname.startsWith("/stay")
+                  ? "active"
+                  : ""
+              }`}
+            >
+              Living in Fernie
+            </a>
             <a href="/blog" class={`navlink ${isActive("/blog") ? "active" : ""}`}>Blog</a>
             <a href="/contact" class={`navlink ${isActive("/contact") ? "active" : ""}`}>Contact</a>
           </nav>
 
-          <!-- mobile backdrop overlay (click to close) -->
           <div class="nav-overlay" hidden></div>
         </div>
       </header>
     )}
 
     <main id="main" role="main">
-      <div class="hero-edge">
+      <div class="hero-full">
         <slot name="hero" />
       </div>
 
@@ -642,13 +921,38 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       </div>
     </main>
 
-    <footer class="site-footer" role="contentinfo">
-      <div class="container">
-        <p>&copy; {new Date().getFullYear()} Fernie Real Estate. All rights reserved.</p>
-        <div class="footer-links">
-          <a href="/privacy" data-astro-prefetch>Privacy Policy</a>
-        </div>
-      </div>
-    </footer>
+        <Footer />
+    {false && <HomeMatchChatWidget />}
+
+    <script src="/js/home-match-chat-widget.js" defer></script>
+  <script>
+(() => {
+  const form = document.getElementById("hoodForm");
+  const thanks = document.getElementById("hoodThanks");
+
+  if (!form || !thanks) return;
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const data = new FormData(form);
+
+    const res = await fetch(form.action, {
+      method: "POST",
+      body: data,
+      headers: { Accept: "application/json" },
+    });
+
+    if (res.ok) {
+      form.style.display = "none";
+      thanks.hidden = false;
+    } else {
+      alert("Something went wrong. Please try again.");
+    }
+  });
+})();
+</script>
+
   </body>
 </html>
+

@@ -1,0 +1,518 @@
+---
+// File: src/pages/neighbourhoods/[parent]/buildings/index.astro
+export const prerender = true;
+
+import Site from "../../../../layouts/Site.astro";
+import { getJson } from "../../../../lib/fetchJson";
+import { heroPath } from "../../../../lib/paths";
+import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../../../../lib/categoryColours";
+
+/* ✅ add this */
+import MountainStrip from "../../../../components/MountainStrip.astro";
+
+const PATH_BASE = "/neighbourhoods";
+
+/* ---------------- helpers ---------------- */
+const RESERVED = new Set(["index", "page", "pages", "all", "view", "list"]);
+
+function get(r: any, k: string) {
+  if (!r) return "";
+  if (r[k] != null) return String(r[k]).trim();
+  const lk = String(k).toLowerCase();
+  if (r[lk] != null) return String(r[lk]).trim();
+  const uk = String(k).toUpperCase();
+  if (r[uk] != null) return String(r[uk]).trim();
+  return "";
+}
+
+function slugify(v: any) {
+  return String(v ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+// Normalize to compare "skihill" == "ski-hill" == "ski hill"
+function normKey(v: any) {
+  return String(v ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function titleCase(s: string) {
+  return (s ?? "").replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+function stripTags(s: string = "") {
+  return s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function excerpt(s: string, n = 240) {
+  const t = stripTags(s);
+  return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
+}
+
+function isAbs(s: string = "") {
+  return /^https?:\/\//i.test(s);
+}
+
+function pick(...vals: string[]) {
+  for (const v of vals) if (v && String(v).length > 0) return String(v);
+  return "";
+}
+
+function normalizeRows(raw: any) {
+  if (Array.isArray(raw)) return raw;
+  if (raw && Array.isArray(raw.data)) return raw.data;
+  if (raw && Array.isArray(raw.rows)) return raw.rows;
+  return [];
+}
+
+function visible(r: any) {
+  const status = String(get(r, "status")).trim().toLowerCase();
+  const rawSlug = slugify(get(r, "slug") || get(r, "name") || get(r, "Name"));
+  return status !== "hidden" && status !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
+}
+
+function clip(s: string, max = 44) {
+  const t = String(s ?? "").trim();
+  if (!t) return "";
+  if (t.length <= max) return t;
+  // chop on a word boundary
+  const cut = t.slice(0, max);
+  return cut.replace(/\s+\S*$/, "").trimEnd() + "…";
+}
+
+function suits3(r: any) {
+  return [
+    get(r, "suits_1"),
+    get(r, "suits_2"),
+    get(r, "suits_3"),
+    get(r, "suits_4"),
+    get(r, "suits_5"),
+  ]
+    .map((s) => clip(String(s ?? "").trim(), 44))
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+type Item = {
+  parent: string;
+  slug: string;
+  name: string;
+  positioning: string;
+  short: string;
+  order: number;
+  img: string;
+  bestFor: string[];
+};
+
+/* ---------------- static paths ----------------
+   Build shells from NEIGHBOURHOODS rows so URLs always exist
+-------------------------------------------------*/
+export async function getStaticPaths() {
+  const neighbourhoodsUrl = import.meta.env.PUBLIC_SHEET_JSON || "";
+
+  // ✅ Local slugify to avoid hoist / scope weirdness in Astro getStaticPaths
+  const slugifyLocal = (v: any) =>
+    String(v ?? "")
+      .toLowerCase()
+      .trim()
+      .replace(/&/g, "-and-")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  function makeFromParents(parents: string[]) {
+    const uniq = Array.from(new Set(parents.map((p) => slugifyLocal(p)).filter(Boolean)));
+    return uniq.map((parent) => ({
+      params: { parent },
+      props: { parent },
+    }));
+  }
+
+  // ✅ Always include these hub pages even if data is missing/empty
+  const FORCED_HUBS = ["skihill", "downtown", "west-fernie"];
+
+  if (neighbourhoodsUrl) {
+    try {
+      const raw = await getJson<any>(neighbourhoodsUrl);
+      const rows = normalizeRows(raw);
+
+      // ✅ IMPORTANT: Only take rows that are actually neighbourhoods
+      // Your PUBLIC_SHEET_JSON often includes lots of other page types.
+      const neighbourhoodRows = rows.filter((r: any) => {
+        const status = String(get(r, "status")).trim().toLowerCase();
+        if (status === "hidden" || status === "inactive") return false;
+
+        const cat =
+          String(get(r, "category") || get(r, "Category") || "")
+            .trim()
+            .toLowerCase();
+
+        // allow blank category if it still looks like a neighbourhood row,
+        // but prefer explicit "neighbourhoods"
+        return cat === "neighbourhoods" || cat === "neighborhoods" || cat === "";
+      });
+
+      const parents = neighbourhoodRows
+        .map((r: any) =>
+          slugifyLocal(
+            get(r, "slug") ||
+              get(r, "Slug") ||
+              get(r, "neighbourhood_slug") ||
+              get(r, "Neighbourhood Slug") ||
+              get(r, "area_slug") ||
+              get(r, "Area Slug") ||
+              get(r, "neighbourhood") ||
+              get(r, "Neighbourhood") ||
+              get(r, "title") ||
+              get(r, "Title") ||
+              get(r, "name") ||
+              get(r, "Name")
+          )
+        )
+        .filter(Boolean);
+
+      // ✅ Always include key hubs
+      parents.push(...FORCED_HUBS);
+
+      return makeFromParents(parents);
+    } catch (e) {
+      console.log("[buildings] PUBLIC_SHEET_JSON failed:", e);
+    }
+  }
+
+  // fallback
+  return makeFromParents(FORCED_HUBS);
+}
+
+/* ---------------- page data load ---------------- */
+const parent = String((Astro.props as any)?.parent ?? "");
+const parentSlug = slugify(parent);
+const parentKey = normKey(parentSlug);
+
+const buildingsUrl = import.meta.env.PUBLIC_BUILDINGS_JSON || "";
+
+let items: Item[] = [];
+let debug = {
+  parentSlug,
+  buildingsUrl: buildingsUrl || "(missing)",
+  buildingsRows: 0,
+  parentsFound: [] as string[],
+  matchedParent: "" as string,
+};
+
+if (buildingsUrl) {
+  try {
+    const raw = await getJson<any>(buildingsUrl);
+    const rows = normalizeRows(raw);
+    debug.buildingsRows = rows.length;
+
+    const allItems: Item[] = rows
+      .filter((r: any) => visible(r))
+      .map((r: any) => {
+        const parentVal =
+          get(r, "parent_area_slug") ||
+          get(r, "parent_slug") ||
+          get(r, "parent") ||
+          get(r, "area_slug") ||
+          get(r, "neighbourhood_slug") ||
+          get(r, "neighbourhood") ||
+          get(r, "Neighborhood") ||
+          get(r, "Parent");
+
+        const parentOut = slugify(parentVal);
+
+        const slugVal = get(r, "slug") || get(r, "building_slug") || get(r, "name") || get(r, "Name");
+        const slugOut = slugify(slugVal);
+
+        const name =
+          get(r, "name") ||
+          get(r, "Name") ||
+          get(r, "building_name") ||
+          get(r, "Building Name") ||
+          slugOut;
+
+        const positioning = get(r, "positioning_line") || get(r, "positioning") || get(r, "Positioning");
+        const short = get(r, "short_summary") || get(r, "summary") || get(r, "Short Summary");
+
+        const order = Number(get(r, "order") || get(r, "sort") || get(r, "Sort")) || Number.MAX_SAFE_INTEGER;
+
+        const rawImg = pick(get(r, "card_image"), get(r, "hero_image"), get(r, "image"), get(r, "Image"));
+        const img = rawImg ? (isAbs(rawImg) ? rawImg : heroPath(rawImg)) : "";
+
+        const bestFor = suits3(r);
+
+        return { parent: parentOut, slug: slugOut, name, positioning, short, order, img, bestFor };
+      })
+      .filter((it) => it.parent && it.slug && it.name);
+
+    debug.parentsFound = Array.from(new Set(allItems.map((x) => x.parent))).slice(0, 60);
+
+    const matched = allItems.filter((it) => normKey(it.parent) === parentKey);
+    debug.matchedParent = matched[0]?.parent || "";
+
+    items = matched.sort((a, b) => Number(a.order) - Number(b.order) || a.name.localeCompare(b.name));
+  } catch (e) {
+    console.log("[buildings] PUBLIC_BUILDINGS_JSON failed:", e);
+  }
+}
+
+const parentLabel = titleCase(parentSlug.replace(/-/g, " "));
+const pageTitle = `${parentLabel} Buildings`;
+const pageSubhead = `Building guides for ${parentLabel} - layouts, access, ownership, and rental fit.`;
+
+const seoTitle = pageTitle;
+const seoDesc = stripTags(pageSubhead);
+
+const headerAccent = (CATEGORY_COLOURS as any).neighbourhoods ?? DEFAULT_ACCENT;
+---
+
+<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} wrapContent={false}>
+  <div class="page-shell pad-x">
+    <section class="page-intro" style={`--accent:${headerAccent};`}>
+      <nav class="types-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <a href={PATH_BASE}>Neighbourhoods</a>
+        <span>/</span>
+        <a href={`${PATH_BASE}/${parentSlug}`}>{parentLabel}</a>
+        <span>/</span>
+        <span class="types-breadcrumb-current">Buildings</span>
+      </nav>
+
+      <div class="types-title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
+
+        <div class="title-row">
+          <h1 class="page-title">{pageTitle}</h1>
+        </div>
+
+        <p class="page-subhead">{pageSubhead}</p>
+      </div>
+    </section>
+
+    {/* ✅ swap inline SVG strip for component */}
+    <MountainStrip preset="default" />
+
+    <section class="summary-wrap">
+      <p class="lead">{pageSubhead}</p>
+    </section>
+
+    <section class="posts-grid">
+      {items.length ? (
+        items.map((it) => {
+          const href = `${PATH_BASE}/${parentSlug}/buildings/${it.slug}`;
+          return (
+            <a
+              class="post-card"
+              href={href}
+              data-astro-prefetch="hover"
+              aria-label={it.name}
+              style={`--accent:${headerAccent};`}
+            >
+              {it.img && (
+                <div class="pc-media">
+                  <img src={it.img} alt={it.name} loading="lazy" decoding="async" />
+                </div>
+              )}
+
+              <div class="pc-body">
+                <h3 class="pc-title">{it.name}</h3>
+
+                {it.bestFor.length > 0 && (
+                  <div class="bf">
+                    <div class="bf-kicker">Best for</div>
+                    <ul class="bf-list">
+                      {it.bestFor.map((s) => (
+                        <li title={s}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <p class="pc-excerpt">{excerpt(it.positioning || it.short || "", 240)}</p>
+
+                <span class="pc-cta">
+                  Explore {titleCase(it.name || "Building")} <span aria-hidden="true">→</span>
+                </span>
+              </div>
+            </a>
+          );
+        })
+      ) : (
+        <div class="err">
+          <p style="margin:0 0 10px;">No buildings found for this neighbourhood.</p>
+          <details>
+            <summary>Debug details</summary>
+            <pre style="white-space:pre-wrap; margin-top:10px;">{JSON.stringify(debug, null, 2)}</pre>
+          </details>
+        </div>
+      )}
+    </section>
+  </div>
+
+  <style is:global>
+    .page-shell { max-width: 1280px; margin-inline: auto; margin-top: 14px; margin-bottom: 40px; }
+    .pad-x { padding-inline: var(--edge-pad) !important; }
+    @media (min-width: 900px){ .pad-x { padding-inline: var(--edge-pad-lg) !important; } }
+
+    .page-intro { max-width: var(--container-max); margin: 0 auto 10px; padding-top: 28px; }
+    .types-breadcrumb{ font-size: 0.8rem; opacity: 0.8; margin-bottom: 0.75rem; display:flex; flex-wrap:wrap; gap:0.35rem; }
+    .types-breadcrumb a{ text-decoration:none; border-bottom:1px solid transparent; color: inherit; }
+    .types-breadcrumb a:hover{ border-bottom-color: var(--accent); }
+    .types-breadcrumb-current{ opacity: 0.7; }
+
+    .types-title-block{ max-width: 48rem; }
+    .accent-bars{ display:flex; gap:0.25rem; margin-bottom:0.75rem; }
+    .accent-bar{ height:4px; border-radius:999px; background:var(--accent); }
+    .accent-bar.primary{ width:80px; opacity:0.9; }
+    .accent-bar.secondary{ width:40px; opacity:0.45; }
+    .title-row{ display:flex; align-items:flex-start; gap:0.75rem; }
+    .page-title{ margin:0 0 6px; font-size:clamp(2.4rem,3.8vw,3.05rem); line-height:1.08; font-weight:750; letter-spacing:-0.015em; color:#111827; }
+    .page-subhead{ margin:6px 0 8px; font-size:0.9rem; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--accent); }
+
+    /* ✅ REMOVED old .mountain-strip rules (MountainStrip.astro owns its styling now) */
+
+    .summary-wrap{ padding-top:12px; padding-bottom:25px; border-bottom:1px solid #e5e7eb; margin-bottom:24px; }
+    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
+
+    .err{ color:#111827; background:#fee2e2; border:1px solid #fecaca; padding:1rem; border-radius:1rem; }
+    .err summary{ cursor:pointer; font-weight:750; }
+    .err pre{ background:#fff; padding:.75rem; border-radius:.75rem; border:1px solid #fecaca; }
+
+    .posts-grid{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:18px;
+      margin-top:18px;
+      margin-bottom:52px;
+    }
+    @media(max-width:900px){ .posts-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media(max-width:560px){ .posts-grid{ grid-template-columns:1fr; } }
+
+    .posts-grid .post-card,
+    .posts-grid .post-card:visited,
+    .posts-grid .post-card:hover,
+    .posts-grid .post-card:active{
+      color: inherit !important;
+      text-decoration: none !important;
+    }
+    .posts-grid .post-card *{ text-decoration: none !important; }
+
+    .post-card{
+      --accent:#4b5563;
+      position:relative;
+      display:flex;
+      flex-direction:column;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:18px;
+      overflow:hidden;
+      box-shadow:0 8px 22px rgba(0,0,0,.07);
+      transition:transform .14s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+    .post-card:hover{
+      transform:translateY(-3px);
+      box-shadow:0 14px 34px rgba(0,0,0,.12);
+      border-color:var(--accent);
+    }
+    .post-card:focus-visible{ outline:2px solid var(--accent); outline-offset:3px; }
+
+    .pc-media{ position:relative; width:100%; aspect-ratio:16/9; border-bottom:1px solid #eef0f3; }
+    .pc-media > img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+
+    .pc-body{ padding:14px 14px 16px; }
+    .pc-title{
+      margin:2px 0 8px;
+      font-size:1.2rem;
+      line-height:1.25;
+      font-weight:750;
+      color:#111827 !important;
+    }
+
+    /* Best for (pills) */
+    .bf{ margin: 6px 0 10px; }
+    .bf-kicker{
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      opacity: .65;
+      margin-bottom: 8px;
+    }
+    .bf-list{
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .bf-list li{
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,.10);
+      background: rgba(255,255,255,.9);
+      color: #374151;
+      font-size: .9rem;
+      line-height: 1.25;
+
+      max-width: 100%;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .bf-list li::after{
+      content:"";
+      position:absolute;
+      right:0; top:0; bottom:0;
+      width: 22px;
+      background: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,1));
+      pointer-events:none;
+    }
+
+    .pc-excerpt{
+      margin:0 0 12px;
+      color:#4b5563 !important;
+      line-height:1.45;
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      min-height:calc(2 * 1.45em);
+    }
+
+    .pc-cta{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-size:0.95rem;
+      font-weight:750;
+      color:#111827 !important;
+    }
+    .pc-cta span[aria-hidden="true"]{ transition:transform .14s ease; }
+    .post-card:hover .pc-cta{
+      color:var(--accent) !important;
+      text-decoration:underline !important;
+      text-underline-offset:.18em;
+    }
+    .post-card:hover .pc-cta span[aria-hidden="true"]{ transform:translateX(2px); }
+  </style>
+</Site>

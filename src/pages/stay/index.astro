@@ -5,8 +5,8 @@ export const prerender = true;
 import Site from "../../layouts/Site.astro";
 import HeroBleed from "../../components/HeroBleed.astro";
 import { getJson } from "../../lib/fetchJson";
-import { heroPath } from "../../lib/paths"; // ⟵ keep only heroPath
-import ListingsAccordion from "../../components/ListingsAccordion.astro"; // ✅ NEW
+import { heroPath } from "../../lib/paths";
+import ListingsAccordion from "../../components/ListingsAccordion.astro";
 
 const PATH_BASE = "/stay";
 
@@ -14,6 +14,7 @@ const PATH_BASE = "/stay";
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
 const get = (r:any,k:string)=>
   (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "").toString().trim();
+
 const slugify = (v:string) =>
   (v ?? "").toLowerCase().trim()
     .replace(/&/g,"-and-")
@@ -26,13 +27,30 @@ const visible = (r:any) => {
   return s !== "hidden" && s !== "inactive" && rawSlug !== "index" && !RESERVED.has(rawSlug);
 };
 
-const stripMeta = (s:string="") =>
-  s.replace(/<[^>]*>/g," ").replace(/&[^;\s]+;/g," ").replace(/\s+/g," ").trim();
+const stripMeta = (s:string = "") =>
+  s
+    // use RegExp constructor so Astro doesn’t confuse this with JSX
+    .replace(new RegExp("<[^>]*>", "g"), " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /* html safe + excerpt */
-const stripScripts=(html:string)=>html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,"");
-const stripTags=(s:string="")=>s.replace(/<[^>]*>/g," ").replace(/&[^;\s]+;/g," ").replace(/\s+/g," ").trim();
-const excerpt=(s:string,n=140)=>{ const t=stripTags(s); return t.length>n?t.slice(0,n-1).trimEnd()+"…":t;}
+const stripScripts = (html:string = "") =>
+  html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+
+const stripTags = (s:string = "") =>
+  s
+    .replace(new RegExp("<[^>]*>", "g"), " ")
+    .replace(/&[^;\s]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+
+const excerpt = (s:string,n=140)=>{
+  const t = stripTags(s);
+  return t.length>n ? t.slice(0,n-1).trimEnd()+"…" : t;
+};
 
 /** Accept any of these sheet keys for the card image */
 const pickCardImg = (r:any) =>
@@ -45,6 +63,26 @@ const resolveCard = (v:string) => {
   if (/^https?:\/\//i.test(s)) return s;
   if (s.startsWith("/")) return s;
   return heroPath(s);
+};
+
+/* accent palette + stable hash based on title/slug */
+const accentPalette = [
+  "#0ea5e9", // sky blue
+  "#22c55e", // green
+  "#6366f1", // indigo
+  "#f97316", // orange
+  "#eab308", // amber
+  "#0f766e", // teal
+  "#14b8a6"  // aqua
+];
+
+const accentForStay = (key:string = "") => {
+  const s = (key || "stay").toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = (hash + s.charCodeAt(i)) % accentPalette.length;
+  }
+  return accentPalette[hash];
 };
 
 /** Types */
@@ -61,27 +99,40 @@ type Row={
   sort?:number|string;
 };
 
-let items:Row[]=[]; let header:Row|null=null; let error:string|null=null;
+let items:Row[] = [];
+let header:Row|null = null;
+let error:string|null = null;
 
-try{
-  const url=import.meta.env.PUBLIC_STAY_JSON;
-  if(!url) throw new Error("Missing PUBLIC_STAY_JSON");
+try {
+  const url = import.meta.env.PUBLIC_STAY_JSON;
+  if (!url) throw new Error("Missing PUBLIC_STAY_JSON");
 
-  const raw=await getJson<any>(url);
-  const rows:any[]=Array.isArray(raw)?raw:Array.isArray(raw?.data)?raw.data:Array.isArray(raw?.rows)?raw.rows:[];
-  const headerCandidates=rows.filter(r=>{
-    const slug=get(r,"slug").toLowerCase();
-    const status=get(r,"status").toLowerCase();
-    const has=!!get(r,"summary")||!!get(r,"long_copy")||!!get(r,"seo_description")||!!get(r,"description");
-    return slug==="index"||status==="header"||has;
+  const raw = await getJson<any>(url);
+  const rows:any[] =
+    Array.isArray(raw) ? raw :
+    Array.isArray(raw?.data) ? raw.data :
+    Array.isArray(raw?.rows) ? raw.rows : [];
+
+  const headerCandidates = rows.filter(r => {
+    const slug = get(r,"slug").toLowerCase();
+    const status = get(r,"status").toLowerCase();
+    const has =
+      !!get(r,"summary") ||
+      !!get(r,"long_copy") ||
+      !!get(r,"seo_description") ||
+      !!get(r,"description") ||
+      !!get(r,"subhead");
+    return slug==="index" || status==="header" || has;
   });
-  header=headerCandidates.find(r=>get(r,"slug").toLowerCase()==="index")
-    ?? headerCandidates.find(r=>get(r,"status").toLowerCase()==="header")
-    ?? headerCandidates[0] ?? null;
 
-  items=rows
-    .filter(r=>visible(r))
-    .map(r=>({
+  header =
+    headerCandidates.find(r => get(r,"slug").toLowerCase()==="index") ??
+    headerCandidates.find(r => get(r,"status").toLowerCase()==="header") ??
+    headerCandidates[0] ?? null;
+
+  items = rows
+    .filter(r => visible(r))
+    .map(r => ({
       slug: get(r,"slug") || slugify(get(r,"title")),
       title: get(r,"title"),
       summary: get(r,"summary"),
@@ -91,112 +142,251 @@ try{
       seo_title: get(r,"seo_title"),
       seo_description: get(r,"seo_description"),
     }))
-    .filter(r=>r.slug && r.title)
-    .sort((a,b)=>(Number(a.sort)-Number(b.sort))||a.title!.localeCompare(b.title!));
-}catch(e:any){ error=e?.message||"Failed to load data."; }
+    .filter(r => r.slug && r.title)
+    .sort((a,b) => (Number(a.sort) - Number(b.sort)) || a.title!.localeCompare(b.title!));
 
-const pageTitle=get(header,"title")||"Where to Stay in Fernie";
-const pageSummary=get(header,"summary")||get(header,"long_copy")||get(header,"seo_description")||get(header,"description")||"";
-const heroImg=get(header,"hero_img");
-const seoTitle=get(header,"seo_title")||pageTitle;
-const rawSeoDesc=get(header,"seo_description")||pageSummary||"";
-const seoDesc=stripMeta(rawSeoDesc);
+} catch (e:any) {
+  error = e?.message || "Failed to load data.";
+}
+
+const pageTitle   = get(header,"title") || "Where to Stay in Fernie";
+const pageSubhead =
+  get(header,"subhead") ||
+  "Stay in Fernie offers lodging options for every budget, style, and season.";
+const pageSummary =
+  get(header,"summary") ||
+  get(header,"long_copy") ||
+  get(header,"seo_description") ||
+  get(header,"description") ||
+  "";
+
+const heroImg     = get(header,"hero_img");
+const seoTitle    = get(header,"seo_title") || pageTitle;
+const rawSeoDesc  = get(header,"seo_description") || pageSummary || "";
+const seoDesc     = stripMeta(rawSeoDesc);
 
 /* render summary as HTML */
-const SUMMARY_IS_HTML = true;
 const summaryHtml = stripScripts(pageSummary);
 
-/* 🔗 Pull accordion inputs from header row (like other sections) */
+/* hero src + preload with fallback */
+const heroSrc = heroImg ? heroPath(heroImg) : heroPath("fallback-hero.jpg");
+
+/* listings accordion inputs (from header row) */
 const listingsLabel = "Explore Fernie real estate listings";
-const listingsSub   = "(for people considering the lifestyle shift)"; // you can keep generic here if you prefer
+const listingsSub   = "(for people considering the lifestyle shift)";
 const headerCTA1    = get(header,"cta1") || get(header,"CTA1");
 const headerBlock   = get(header,"rv_block_id") || get(header,"rv_block");
 ---
 
-<Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc}>
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  wrapContent={false}
+  heroPreload={{ href: heroSrc, imagesizes: "100vw" }}
+>
+  {/* FULL-BLEED HERO – IMAGE ONLY (no overlay title) */}
   <HeroBleed
-    src={heroImg ? heroPath(heroImg) : ""}
-    title={pageTitle}
+    slot="hero"
+    src={heroSrc}
+    alt={pageTitle}
+    aspect="21:9"
+    flush={true}
     containerMax={1200}
-    flush={false}
     containerPad={12}
-    kicker="Stay in Fernie offers lodging options for every budget, style, and season."
+    position="bottom-left"
   />
 
-  {pageSummary && (
-    <div class="container summary-wrap">
-      <div class="lead" set:html={summaryHtml}></div>
-    </div>
-  )}
+  <div class="page-shell pad-x">
+    {/* PAGE INTRO: H1 + subhead, aligned with rail */}
+    <section class="page-intro">
+      {pageTitle && <h1 class="page-title">{pageTitle}</h1>}
+      {pageSubhead && <p class="page-subhead">{pageSubhead}</p>}
+    </section>
 
-  <div class="container">
-    {error && <p class="err">{error}</p>}
-    {!error && (
-      <div class="grid">
-        {items.map(it=>{
-          const cardSrc = resolveCard(it.card_img || "") || (it.hero_img ? heroPath(it.hero_img) : "");
-          return (
-            <a class="card" href={`${PATH_BASE}/${it.slug}`} data-astro-prefetch="hover" aria-label={it.title}>
-              {cardSrc && (
-                <img
-                  src={cardSrc}
-                  alt={it.title}
-                  loading="lazy"
-                  decoding="async"
-                />
-              )}
-              <div class="body">
-                <h2>{it.title}</h2>
-                {it.summary && <p>{excerpt(it.summary,140)}</p>}
-              </div>
-            </a>
-          );
-        })}
+    {pageSummary && (
+      <div class="summary-wrap">
+        <div class="lead" set:html={summaryHtml}></div>
       </div>
+    )}
+
+    {error && <p class="err">{error}</p>}
+
+    {!error && (
+      <>
+        <div class="grid">
+          {items.map(it => {
+            const cardSrc =
+              resolveCard(it.card_img || "") ||
+              (it.hero_img ? heroPath(it.hero_img) : "");
+
+            const key = it.slug || it.title || "";
+            const accent = accentForStay(key);
+
+            return (
+              <a
+                class="card"
+                href={`${PATH_BASE}/${it.slug}`}
+                data-astro-prefetch="hover"
+                aria-label={it.title}
+                style={`--accent:${accent};`}
+              >
+                {cardSrc && (
+                  <img
+                    src={cardSrc}
+                    alt={it.title}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                )}
+                <div class="body">
+                  <h2>{it.title}</h2>
+                  {it.summary && <p>{excerpt(it.summary,140)}</p>}
+                </div>
+              </a>
+            );
+          })}
+        </div>
+
+        <ListingsAccordion
+          label={listingsLabel}
+          subline={listingsSub}
+          cta1={headerCTA1}
+          block={headerBlock}
+        />
+      </>
     )}
   </div>
 
-  {/* ✅ NEW: shared listings accordion after grid */}
-  <ListingsAccordion
-    label={listingsLabel}
-    subline={listingsSub}
-    cta1={headerCTA1}
-    block={headerBlock}
-  />
-
   <style>
-    .container{max-width:1200px;margin-inline:auto;padding-inline:12px;}
-    .summary-wrap{
-      padding-top:10px;
-      padding-bottom:10px;
-      border-bottom:1px solid #e5e7eb;
-      margin-bottom:35px;
+    /* same containment + padding as Living/Blog */
+    .page-shell {
+      max-width: 1280px;
+      margin-inline: auto;
+      margin-top: 14px;
+      margin-bottom: 40px;
     }
-    .lead{ margin:0; font-size:1.075rem; line-height:1.6; color:#111827; }
-    .err{color:#b91c1c;background:#fee2e2;padding:.75rem 1rem;border-radius:.5rem;margin-top:12px;}
+    .pad-x {
+      padding-inline: var(--edge-pad) !important;
+    }
+    @media (min-width: 900px){
+      .pad-x { padding-inline: var(--edge-pad-lg) !important; }
+    }
+
+    /* INTRO – match browse.astro & living index */
+    .page-intro {
+      max-width: var(--container-max);
+      margin: 0 auto 10px;
+      padding-top: 14px;
+    }
+    .page-title {
+      margin: 0 0 6px;
+      font-size: clamp(2.4rem, 3.8vw, 3.05rem);
+      line-height: 1.08;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #111827;
+    }
+    .page-subhead {
+      margin: 0 0 18px;
+      font-size: 1.06rem;
+      line-height: 1.4;
+      font-weight: 600;
+      color: var(--ink-muted, #6b7280);
+      max-width: 52rem;
+      text-transform: none;
+    }
+
+    .summary-wrap{
+      padding-top: 12px;
+      padding-bottom: 25px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 35px;
+    }
+    .lead{
+      margin:0;
+      font-size:1.075rem;
+      line-height:1.6;
+      color:#111827;
+    }
+
+    .err{
+      color:#b91c1c;
+      background:#fee2e2;
+      padding:.75rem 1rem;
+      border-radius:.5rem;
+      margin-top:12px;
+    }
 
     .grid{
-      display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;
-      margin-top:18px; margin-bottom:52px; /* ⟵ space before accordion */
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:16px;
+      margin-top:18px;
+      margin-bottom:52px;
     }
-    @media(max-width:1200px){.grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
-    @media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-    @media(max-width:560px){.grid{grid-template-columns:1fr;}}
+    @media(max-width:1200px){ .grid{grid-template-columns:repeat(3,minmax(0,1fr));} }
+    @media(max-width:900px){ .grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+    @media(max-width:560px){ .grid{grid-template-columns:1fr;} }
 
     .card{
-      display:flex;flex-direction:column;background:#fff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;
-      text-decoration:none;color:inherit;
-      transition:transform .08s ease,box-shadow .12s ease,border-color .12s ease;
+      --accent:#4b5563; /* safety default if style attr missing */
+      display:flex;
+      flex-direction:column;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:14px;
+      overflow:hidden;
+      text-decoration:none;
+      color:inherit;
+      transition:
+        transform .08s ease,
+        box-shadow .12s ease,
+        border-color .12s ease,
+        background-color .12s ease;
+      box-shadow:0 4px 12px rgba(0,0,0,.04);
     }
-    .card:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(0,0,0,.08);border-color:#d1d5db;}
-    .card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;}
-    .card .body{padding:12px;}
-    .card .body h2{margin:0 0 6px;font-size:1.05rem;line-height:1.3;}
 
-    /* 2 line clamp excerpt */
+    .card:hover{
+      transform:translateY(-2px);
+      box-shadow:0 8px 18px rgba(0,0,0,.10);
+      border-color:var(--accent);
+      background:color-mix(in srgb, #ffffff 96%, var(--accent) 4%);
+    }
+
+    .card img{
+      width:100%;
+      aspect-ratio:16/9;
+      object-fit:cover;
+      display:block;
+      border-bottom:1px solid color-mix(in srgb, #e5e7eb 70%, var(--accent) 30%);
+    }
+
+    .card .body{
+      padding:12px;
+    }
+    .card .body h2{
+      margin:0 0 6px;
+      font-size:1.05rem;
+      line-height:1.3;
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      min-height:calc(2 * 1.3em);
+    }
+
     .card .body p{
-      margin:0;color:#374151;line-height:1.35;
-      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis;
+      margin:0;
+      color:#374151;
+      line-height:1.35;
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      min-height:calc(2 * 1.35em);
     }
   </style>
 </Site>
