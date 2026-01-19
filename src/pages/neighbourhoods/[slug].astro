@@ -7,6 +7,8 @@ import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../../lib/categoryColours";
 import RVEmbed from "../../components/RVEmbed.astro";
+import NeighbourhoodTypeCards from "../../components/NeighbourhoodTypeCards.astro";
+
 
 const PATH_BASE = "/neighbourhoods";
 
@@ -1315,28 +1317,39 @@ const tradeoffs = row ? stripScripts(get(row, "tradeoffs") || "") : "";
           </section>
         )}
 
-        {/* Listings (BLOCKS ONLY) */}
-        <section class="sec" id="listings">
-          <h2 class="sec-h">Listings</h2>
+       {/* Listings (BLOCKS ONLY) */}
+<section class="sec" id="listings">
+  <h2 class="sec-h">Listings</h2>
 
-          {hasValidBlock ? (
-            <div class="rv-host">
-              <RVEmbed block={rvBlockId} minHeight="580px" showSkeleton={false} />
-            </div>
-          ) : (
-            <div class="rv-fallback">
-              <p><strong>Listings:</strong> This page isn’t wired to a RealtyVis block yet.</p>
-              {listingsUrlIsHttp ? (
-                <p><a href={listingsUrl} target="_blank" rel="noopener">View all results →</a></p>
-              ) : (
-                <p><a href="/search">Browse all Fernie listings</a></p>
-              )}
-              <p style="opacity:.85;margin-top:.25rem;">
-                (Tip: create a RealtyVis <strong>block</strong> and paste its 8-8 ID into <code>rv_block</code>.)
-              </p>
-            </div>
-          )}
-        </section>
+  <div class="nt-cards--no-accent">
+    <NeighbourhoodTypeCards
+      neighbourhoodSlug={paramsSlug}
+      neighbourhoodTitle={title}
+      accent={headerAccent}
+      heading=""
+      lead=""
+    />
+  </div>
+
+  {hasValidBlock ? (
+    <div class="rv-host">
+      <RVEmbed block={rvBlockId} minHeight="580px" showSkeleton={false} />
+    </div>
+  ) : (
+    <div class="rv-fallback">
+      <p><strong>Listings:</strong> This page isn’t wired to a RealtyVis block yet.</p>
+      {listingsUrlIsHttp ? (
+        <p><a href={listingsUrl} target="_blank" rel="noopener">View all results →</a></p>
+      ) : (
+        <p><a href="/search">Browse all Fernie listings</a></p>
+      )}
+      <p style="opacity:.85;margin-top:.25rem;">
+        (Tip: create a RealtyVis <strong>block</strong> and paste its 8-8 ID into <code>rv_block</code>.)
+      </p>
+    </div>
+  )}
+</section>
+
 
         {/* Neighbourhood CTA */}
         <section class="sec" id="hood-cta">
@@ -2494,5 +2507,46 @@ const tradeoffs = row ? stripScripts(get(row, "tradeoffs") || "") : "";
       background: color-mix(in srgb, var(--accent) 35%, transparent);
       transform: translateY(-50%);
     }
+
+    /* Remove accent strip ONLY for the cards under Listings */
+.nt-cards--no-accent .nt-card::before,
+.nt-cards--no-accent .nt-card::after {
+  display: none !important;
+}/* ALSO remove left accent if it’s a border or background */
+.nt-cards--no-accent .nt-card{
+  border-left: 1px solid rgba(17,24,39,.12) !important; /* normal border */
+  box-shadow: 0 12px 28px rgba(0,0,0,.06) !important;   /* keep your shadow */
+}
+
+/* If the accent is a vertical pseudo element */
+.nt-cards--no-accent .nt-card::before,
+.nt-cards--no-accent .nt-card::after{
+  content: none !important;
+  display: none !important;
+}
+/* Listings-only: kill the left accent strip on the type cards */
+.nt-cards--no-accent :where(a, article, div)[class*="card"]{
+  border-left: 0 !important;
+  /* also kills common "accent as inset shadow" patterns */
+  box-shadow: 0 12px 28px rgba(0,0,0,.06) !important;
+}
+
+.nt-cards--no-accent :where(a, article, div)[class*="card"]::before,
+.nt-cards--no-accent :where(a, article, div)[class*="card"]::after{
+  content: none !important;
+  display: none !important;
+}
+/* absolute fallback - remove any left accent effect inside the wrapper */
+.nt-cards--no-accent *{
+  border-left-color: transparent !important;
+}
+
+.nt-cards--no-accent *::before,
+.nt-cards--no-accent *::after{
+  /* only affects elements that actually use pseudo accents */
+  content: none !important;
+}
+
+
   </style>
 </Site>

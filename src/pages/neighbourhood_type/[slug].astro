@@ -7,6 +7,10 @@ import { getJson } from "../../lib/fetchJson";
 import { heroPath } from "../../lib/paths";
 import RVEmbed from "../../components/RVEmbed.astro";
 
+/* ✅ match Browse hero + default accent */
+import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../../lib/categoryColours";
+import MountainStrip from "../../components/MountainStrip.astro";
+
 /* ---------- utils ---------- */
 const slugify = (v: string) =>
   (v ?? "")
@@ -232,9 +236,7 @@ function isTypeLabel(label: string) {
 
 const typePills = buttons
   .filter((p) => isTypeLabel(p.label))
-  .sort(
-    (a, b) => TYPE_ORDER.indexOf(normLabel(a.label)) - TYPE_ORDER.indexOf(normLabel(b.label))
-  );
+  .sort((a, b) => TYPE_ORDER.indexOf(normLabel(a.label)) - TYPE_ORDER.indexOf(normLabel(b.label)));
 
 const otherPills = buttons.filter((p) => !isTypeLabel(p.label));
 
@@ -254,8 +256,9 @@ function extractRvId(html: string) {
 const rvBlockId = ID_RE.test(rawCta) ? rawCta : extractRvId(rawCta);
 const hasValidBlock = ID_RE.test(rvBlockId);
 
-/* hero preload */
+/* ✅ hero preload + src */
 const heroPreload = heroImg ? { href: heroPath(heroImg), imagesizes: "100vw" } : null;
+const heroSrc = heroImg ? heroPath(heroImg) : "";
 
 /* summary/body HTML flags */
 const SUMMARY_IS_HTML = true;
@@ -263,24 +266,17 @@ const BODY_IS_HTML = true;
 const summaryHtml = SUMMARY_IS_HTML ? stripScripts(summary) : "";
 const bodyHtml = BODY_IS_HTML ? stripScripts(body) : "";
 
-/* accent colour hashing */
-const accentPalette = ["#0ea5e9", "#22c55e", "#6366f1", "#f97316", "#eab308", "#0f766e", "#14b8a6"];
-const accentForNeighbourhoodType = (key: string = "") => {
-  const s = (key || "neighbourhood-type").toLowerCase();
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) hash = (hash + s.charCodeAt(i)) % accentPalette.length;
-  return accentPalette[hash];
-};
-
-const currentSlug = (Astro.params?.slug ?? "").toString().trim();
-const headerAccent = accentForNeighbourhoodType(currentSlug || title || "neighbourhood-type");
+/* ✅ default accent matches Browse */
+const headerAccent = CATEGORY_COLOURS.browse ?? DEFAULT_ACCENT;
 
 /* ✅ Ski Hill buildings card on neighbourhood_type pages */
+const currentSlug = (Astro.params?.slug ?? "").toString().trim();
 const isSkiHillType = /ski[-\s]?hill/i.test(currentSlug) || /ski[-\s]?hill/i.test(title);
 const buildingsHref = "/neighbourhoods/skihill/buildings/";
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} wrapContent={false} heroPreload={heroPreload}>
+  {/* ✅ IMPORTANT: set --accent on the wrapper so BOTH cards inherit it */}
   <div class="page-shell pad-x" style={`--accent:${headerAccent};`}>
     <section class="page-intro">
       <nav class="nt-breadcrumb">
@@ -305,38 +301,15 @@ const buildingsHref = "/neighbourhoods/skihill/buildings/";
       </div>
     </section>
 
-    <div class="mountain-strip" aria-hidden="true">
-      <svg viewBox="0 0 100 20" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="mountainFadeNeighbourhoodType" x1="0" x2="0" y1="1" y2="0">
-            <stop offset="0" stop-color="rgba(0,0,0,0.06)" />
-            <stop offset="1" stop-color="rgba(0,0,0,0)" />
-          </linearGradient>
-        </defs>
-        <path
-          d="
-            M0 18
-            L5 8
-            L11 14
-            L18 5
-            L25 13
-            L32 4
-            L40 12
-            L48 3
-            L56 11
-            L64 4
-            L72 13
-            L80 6
-            L90 15
-            L100 7
-            L100 20
-            L0 20
-            Z
-          "
-          fill="url(#mountainFadeNeighbourhoodType)"
-        />
-      </svg>
-    </div>
+    {/* ✅ same strip component as Browse */}
+    <MountainStrip preset="default" opacity={0.11} />
+
+    {/* ✅ main hero image (same treatment as Browse) */}
+    {heroSrc && (
+      <div class="nt-photo">
+        <img src={heroSrc} alt={title} loading="eager" decoding="async" />
+      </div>
+    )}
 
     {summary && (
       <section class="summary-wrap">
@@ -357,14 +330,18 @@ const buildingsHref = "/neighbourhoods/skihill/buildings/";
             <nav class="type-pills" aria-label="Property type links">
               <ul class="type-pills__list">
                 {typePills.map((b) => {
-                  const active = isActiveHref(b.href, b.label);
+                  const isAll = normLabel(b.label) === "all";
+                  const href = isAll ? "/neighbourhoods/skihill#listings" : b.href;
+
+                  // active detection should use the final href
+                  const active = isActiveHref(href, b.label);
                   const key = normLabel(b.label) === "town homes" ? "townhomes" : normLabel(b.label);
 
                   return (
                     <li>
                       <a
                         class={`type-pill${active ? " is-active" : ""}`}
-                        href={b.href}
+                        href={href}
                         aria-current={active ? "page" : undefined}
                         data-rv-filter={key}
                         data-astro-prefetch="hover"
@@ -376,10 +353,6 @@ const buildingsHref = "/neighbourhoods/skihill/buildings/";
                 })}
               </ul>
             </nav>
-
-            <a class="choice-jump" href="#listings">
-              Jump to listings
-            </a>
           </article>
         )}
 
@@ -394,9 +367,6 @@ const buildingsHref = "/neighbourhoods/skihill/buildings/";
             <div class="choice-actions">
               <a class="choice-btn" href={buildingsHref}>
                 View Ski Hill buildings
-              </a>
-              <a class="choice-link" href="#listings">
-                Listings
               </a>
             </div>
           </article>
@@ -487,7 +457,12 @@ const buildingsHref = "/neighbourhoods/skihill/buildings/";
     {/* spare_3 image moved under listings */}
     {spare3Img && (
       <section class="hero-under-listings">
-        <img src={spare3Img} alt={spare3Cap || `${title} in Fernie`} loading="lazy" decoding="async" />
+        <img
+          src={spare3Img}
+          alt={spare3Cap || `${title} in Fernie`}
+          loading="lazy"
+          decoding="async"
+        />
         {spare3Cap && <p class="hero-under-caption">{spare3Cap}</p>}
       </section>
     )}
@@ -538,7 +513,7 @@ const buildingsHref = "/neighbourhoods/skihill/buildings/";
       flex-wrap: wrap;
       gap: 0.35rem;
     }
-    .nt-breadcrumb a{ text-decoration: none; border-bottom: 1px solid transparent; }
+    .nt-breadcrumb a{ text-decoration: none; border-bottom: 1px solid transparent; color: inherit; }
     .nt-breadcrumb a:hover{ border-bottom-color: var(--accent); }
     .nt-breadcrumb-current{ opacity: 0.7; }
 
@@ -569,15 +544,20 @@ const buildingsHref = "/neighbourhoods/skihill/buildings/";
       color: var(--accent);
     }
 
-    .mountain-strip{
-      margin: 8px auto 24px;
-      height: 48px;
-      max-height: 60px;
-      border-radius: 6px;
+    /* MAIN HERO IMAGE (Browse treatment) */
+    .nt-photo{
+      margin: 12px 0 28px;
+      border-radius: 16px;
       overflow: hidden;
-      background: linear-gradient(to top, rgba(0,0,0,0.02), transparent);
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 18px 46px rgba(0,0,0,0.14);
     }
-    .mountain-strip svg{ width: 100%; height: 100%; opacity: 0.9; mix-blend-mode: multiply; }
+    .nt-photo img{
+      width: 100%;
+      aspect-ratio: 21 / 9;
+      object-fit: cover;
+      display: block;
+    }
 
     .summary-wrap{
       padding-top: 12px;
@@ -679,19 +659,11 @@ const buildingsHref = "/neighbourhoods/skihill/buildings/";
       border-color: rgba(17,24,39,.22);
     }
     .type-pill.is-active{
-      background: var(--accent);
-      color: #fff;
-      border-color: transparent;
+      background: #fff;
+      color: var(--accent);
+      border: 2px solid var(--accent);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.12);
     }
-
-    .choice-jump{
-      display: inline-block;
-      margin-top: 10px;
-      font-weight: 650;
-      opacity: .82;
-      text-decoration: none;
-    }
-    .choice-jump:hover{ text-decoration: underline; }
 
     .choice-actions{
       display: flex;
@@ -699,6 +671,8 @@ const buildingsHref = "/neighbourhoods/skihill/buildings/";
       align-items: center;
       flex-wrap: wrap;
     }
+
+    /* ✅ single shared button style (works for BOTH cards now that --accent is on wrapper) */
     .choice-btn{
       display: inline-flex;
       align-items: center;
@@ -706,23 +680,19 @@ const buildingsHref = "/neighbourhoods/skihill/buildings/";
       padding: 8px 16px;
       border-radius: 999px;
       background: var(--accent);
-      color: #fff;
+      color: #ffffff;
       text-decoration: none;
       font-weight: 650;
       font-size: 0.9rem;
-      box-shadow: 0 6px 14px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.25);
+      line-height: 1;
+      border: none;
+      box-shadow: 0 6px 14px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.25);
       transition: transform .12s ease, box-shadow .12s ease;
     }
     .choice-btn:hover{
       transform: translateY(-1px);
       box-shadow: 0 10px 20px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.3);
     }
-    .choice-link{
-      font-weight: 650;
-      opacity: .82;
-      text-decoration: none;
-    }
-    .choice-link:hover{ text-decoration: underline; }
 
     /* Gallery */
     .gallery-wrap{ padding-top: 8px; padding-bottom: 8px; margin-bottom: 16px; }

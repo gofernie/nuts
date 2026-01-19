@@ -1,0 +1,234 @@
+---
+import { getJson } from "../lib/fetchJson";
+
+type Props = {
+  neighbourhoodSlug: string;          // your page slug (paramsSlug)
+  neighbourhoodTitle?: string;        // your neighbourhood title (title)
+  city?: string;                      // optional if you want to filter by city later
+  accent?: string;                    // pass headerAccent
+  heading?: string;
+  lead?: string;
+};
+
+const {
+  neighbourhoodSlug,
+  neighbourhoodTitle = "",
+  city = "",
+  accent = "",
+  heading = "Browse by type",
+  lead = "Shortcuts to the most useful listing slices for this neighbourhood.",
+} = Astro.props as Props;
+
+/* helpers (match your style) */
+const get = (r: any, k: string) =>
+  (r?.[k] ?? r?.[k?.toLowerCase?.()] ?? r?.[k?.toUpperCase?.()] ?? "")
+    .toString()
+    .trim();
+
+const slugify = (v: string) =>
+  (v ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "-and-")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+/* row normalize */
+const toRows = (raw: any): any[] =>
+  Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.data)
+      ? raw.data
+      : Array.isArray(raw?.rows)
+        ? raw.rows
+        : [];
+
+/* url helper */
+const isAbs = (s: string = "") => /^https?:\/\//i.test(s);
+
+const nhSlug = slugify(neighbourhoodSlug);
+const nhTitleSlug = slugify(neighbourhoodTitle);
+
+/* label helper */
+const hoodShort = (neighbourhoodTitle || "").replace(/^Fernie\s+/i, "").trim();
+
+const exploreLabel = (hood: string, type: string) => {
+  const h = (hood || "").trim();
+  const t = (type || "").trim();
+  if (h && t) return `Explore ${h} ${t}`;
+  if (h) return `Explore ${h}`;
+  return "Explore";
+};
+
+const TYPES_URL =
+  import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPE_JSON ||
+  import.meta.env.PUBLIC_SHEET_NEIGHBOURHOOD_TYPE_JSON ||
+  import.meta.env.PUBLIC_NEIGHBOURHOOD_TYPES_JSON ||
+  "";
+
+/**
+ * Matching logic:
+ * - preferred: neighbourhood_slug on the neighbourhood_type row equals this neighbourhood slug
+ * - fallback: slugify(neighbourhood) equals this neighbourhood slug
+ * - fallback: slugify(neighbourhood) equals slugify(neighbourhoodTitle)
+ */
+let cards: {
+  slug: string;
+  title: string;
+  type: string;
+  pageHref: string;
+  listingsHref: string;
+}[] = [];
+
+if (TYPES_URL && nhSlug) {
+  const raw = await getJson<any>(TYPES_URL);
+  const rows = toRows(raw);
+
+  cards = rows
+    .filter((r) => {
+      const s = slugify(get(r, "slug"));
+      if (!s || s === "index") return false;
+
+      const status = get(r, "status").toLowerCase();
+      if (status === "hidden" || status === "inactive") return false;
+
+      const rowCity = get(r, "city");
+      if (city && rowCity && slugify(rowCity) !== slugify(city)) {
+        // permissive for now
+      }
+
+      const joinSlug = slugify(get(r, "neighbourhood_slug"));
+      if (joinSlug) return joinSlug === nhSlug;
+
+      const hood = slugify(get(r, "neighbourhood"));
+      if (hood && hood === nhSlug) return true;
+      if (hood && nhTitleSlug && hood === nhTitleSlug) return true;
+
+      return false;
+    })
+    .map((r) => {
+      const slug = slugify(get(r, "slug"));
+      const title = get(r, "title") || slug;
+      const type = get(r, "type");
+      const listings = get(r, "url");
+
+      return {
+        slug,
+        title,
+        type,
+        pageHref: `/neighbourhood_type/${slug}`,
+        listingsHref:
+          listings && (isAbs(listings) || listings.startsWith("/")) ? listings : "",
+      };
+    });
+}
+---
+
+{cards.length > 0 && (
+  <section class="nt-wrap" style={accent ? `--accent:${accent};` : undefined}>
+    <h2 class="sec-h">{heading}</h2>
+    {lead && <p class="nt-lead">{lead}</p>}
+
+    <div class="nt-grid">
+      {cards.map((t) => (
+       <a
+  class="nt-card nt-card-link"
+  href={t.pageHref}
+  data-astro-prefetch="hover"
+>
+  <div class="nt-main">
+    <div class="nt-title">{t.title}</div>
+    {t.type && <div class="nt-meta">{t.type}</div>}
+  </div>
+</a>
+
+      ))}
+    </div>
+  </section>
+)}
+
+<style>
+  .nt-wrap{ margin-top: 18px; }
+
+  .nt-lead{
+    margin: -6px 0 12px;
+    color: #475569;
+    font-weight: 650;
+    line-height: 1.45;
+    max-width: 62ch;
+  }
+
+  .nt-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+  }
+
+  .nt-card{
+    border: 1px solid #e8eaee;
+    border-radius: 16px;
+    padding: 12px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(0,0,0,.06);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .nt-card:before{
+    content:"";
+    position:absolute;
+    left:0;
+    top:0;
+    bottom:0;
+    width:6px;
+    background: linear-gradient(180deg, var(--accent), rgba(0,0,0,0));
+    opacity: .95;
+  }
+
+  .nt-main{
+    display:block;
+    text-decoration:none;
+    color: inherit;
+    padding-left: 6px;
+  }
+
+  .nt-title{
+    font-weight: 950;
+    letter-spacing: -0.01em;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+
+  .nt-meta{
+    margin-top: 6px;
+    font-size: .72rem;
+    font-weight: 900;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+
+  .nt-actions{
+    display:flex;
+    gap: 10px;
+    align-items:center;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding-left: 6px;
+  }
+
+  .nt-btn{
+    display:inline-flex;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: #0f172a;
+    color: #fff;
+    text-decoration:none;
+    font-weight: 950;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    font-size: .72rem;
+    border: 1px solid rgba(0,0,0,0.12);
+    box-shadow: 0 14px 34px rgba(0,0,0,.16);
+  }
+</style>
