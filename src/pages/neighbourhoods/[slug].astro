@@ -2547,6 +2547,171 @@ const tradeoffs = row ? stripScripts(get(row, "tradeoffs") || "") : "";
   content: none !important;
 }
 
+/* =========================================
+   STICKY QUICK LINKS (Listings / Buildings / Market)
+   Targets: .quick-cards-wrap
+========================================= */
+
+.quick-cards-wrap{
+  position: sticky;
+  top: 64px;              /* adjust if your header is taller */
+  z-index: 50;
+
+  /* keep it readable on scroll */
+  padding-top: 10px;
+  padding-bottom: 10px;
+
+  background: rgba(255,255,255,.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  border-bottom: 1px solid rgba(226,232,240,.85);
+}
+
+/* optional: tighten spacing so it feels like a “toolbar” */
+.quick-cards{
+  max-width: 56rem;
+}
+
+/* optional: add subtle edge fade so it looks intentional */
+.quick-cards-wrap::before{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  top:-12px;
+  height: 12px;
+  background: linear-gradient(to bottom, rgba(255,255,255,.0), rgba(255,255,255,.86));
+  pointer-events:none;
+}
+
+.quick-cards-wrap::after{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  bottom:-12px;
+  height: 12px;
+  background: linear-gradient(to top, rgba(255,255,255,.0), rgba(255,255,255,.86));
+  pointer-events:none;
+}
+
+/* =========================================
+   LISTINGS TYPE CARDS (NeighbourhoodTypeCards)
+   Make them feel like refined link-cards, not "buttons"
+   Scoped to: .nt-cards--no-accent wrapper
+========================================= */
+
+/* layout: keep your current grid if component already has one,
+   but ensure consistent spacing */
+.nt-cards--no-accent{
+  margin-top: 10px;
+}
+
+/* target the clickable card element (anchor is most likely) */
+.nt-cards--no-accent a{
+  position: relative;
+  display: grid;
+  gap: 6px;
+
+  padding: 12px 14px;
+  border-radius: 16px;
+
+  background: #fff;
+  border: 1px solid #e8eaee;
+  box-shadow: 0 10px 22px rgba(0,0,0,.05);
+
+  text-decoration: none;
+  color: inherit;
+
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
+}
+
+/* subtle hover - less "button" */
+.nt-cards--no-accent a:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 14px 32px rgba(0,0,0,.07);
+  border-color: color-mix(in srgb, var(--accent) 18%, #e8eaee);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfbfc 100%);
+}
+
+/* add a quiet chevron hint */
+.nt-cards--no-accent a::after{
+  content:"›";
+  position:absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color:#94a3b8;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* main title line (first line) */
+.nt-cards--no-accent a :where(h3, h4, .title, .nt-title, strong, b):first-child{
+  margin: 0;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+  line-height: 1.15;
+  font-size: 1.0rem;
+  padding-right: 22px; /* chevron space */
+}
+
+/* second line label becomes a small "category tag" */
+.nt-cards--no-accent a :where(.kicker, .tag, .label, .nt-sub, small, span):last-child{
+  display: inline-flex;
+  width: fit-content;
+
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+
+  color: #64748b;
+  padding: 5px 9px;
+  border-radius: 999px;
+
+  background: #f1f5f9;
+  border: 1px solid #e8eaee;
+}
+
+/* If the component uses <p> for the second line, catch that too */
+.nt-cards--no-accent a p{
+  margin: 0;
+}
+.nt-cards--no-accent a p:last-child{
+  display: inline-flex;
+  width: fit-content;
+
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+
+  color: #64748b;
+  padding: 5px 9px;
+  border-radius: 999px;
+
+  background: #f1f5f9;
+  border: 1px solid #e8eaee;
+}
+
+/* Kill any underlines / "button" vibes */
+.nt-cards--no-accent a *{
+  text-decoration: none !important;
+}
+
+/* If the label was underlined / link-styled (your screenshot shows underline) */
+.nt-cards--no-accent a :where(small, span, p) {
+  text-decoration: none !important;
+}
+
+/* Remove any accent strip pseudo elements inside the cards (keep your intent) */
+.nt-cards--no-accent a::before,
+.nt-cards--no-accent a *::before,
+.nt-cards--no-accent a *::after{
+  /* do NOT nuke all after, we use a::after for chevron - so only inside children */
+}
+
 
   </style>
 </Site>
