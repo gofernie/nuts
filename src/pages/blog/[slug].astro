@@ -574,15 +574,20 @@ const debug = Astro.url?.searchParams?.get("debug") === "1";
       />
     </div>
 
-    {/* OPTIONAL LISTINGS ACCORDION */}
-    {listingsMode !== "off" && (
-      <ListingsAccordion
-        label={listingsLabel}
-        subline={listingsSub}
-        cta1={cta1Raw}
-        block={blockId}
-      />
-    )}
+   {/* LISTINGS (Living-style wrapper + open support) */}
+{listingsMode !== "off" && (
+  <div class="living-accordion">
+    <ListingsAccordion
+      container={false}
+      label={listingsLabel}
+      subline={listingsSub}
+      cta1={cta1Raw}
+      block={blockId}
+      open={listingsMode === "open"}
+    />
+  </div>
+)}
+
   </div>
 
   <style>

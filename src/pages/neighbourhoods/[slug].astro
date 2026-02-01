@@ -2711,6 +2711,151 @@ const tradeoffs = row ? stripScripts(get(row, "tradeoffs") || "") : "";
 .nt-cards--no-accent a *::after{
   /* do NOT nuke all after, we use a::after for chevron - so only inside children */
 }
+/* =========================================================
+   QUICK LINKS: desktop = sticky cards (keep)
+   mobile = sticky pill row (smaller, less intrusive)
+========================================================= */
+
+/* keep your existing sticky behaviour */
+.quick-cards-wrap{
+  position: sticky;
+  top: 64px;       /* adjust if your header height differs */
+  z-index: 50;
+}
+
+/* MOBILE: convert cards -> pills */
+@media (max-width: 900px){
+
+  /* make the sticky bar feel like a slim toolbar */
+  .quick-cards-wrap{
+    padding-top: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(226,232,240,.85);
+    background: rgba(255,255,255,.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  /* horizontal pill row */
+  .quick-cards{
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+
+    padding: 0 2px;
+    scrollbar-width: none;
+  }
+  .quick-cards::-webkit-scrollbar{ display:none; }
+
+  /* each “card” becomes a compact pill */
+  .qc{
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+
+    padding: 8px 10px;
+    border-radius: 999px;
+
+    box-shadow: 0 10px 22px rgba(0,0,0,.05);
+    border: 1px solid rgba(226,232,240,.95);
+
+    /* stop the big-card vibe */
+    transform: none !important;
+  }
+
+  .qc:hover{
+    transform: none !important;
+  }
+
+  /* smaller icon bubble */
+  .qc-ico{
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    font-size: 14px;
+    background: #f1f5f9;
+  }
+
+  /* title only - hide subtext on mobile */
+  .qc-sub{ display: none !important; }
+
+  .qc-title{
+    font-weight: 950;
+    font-size: .86rem;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  /* tighten body spacing */
+  .qc-body{ display: flex; align-items: center; }
+}
+/* =========================================================
+   QUICK LINKS
+   Desktop: sticky cards (unchanged)
+   Mobile: smaller stacked pills (no horizontal scroll)
+========================================================= */
+
+@media (max-width: 900px){
+
+  /* keep sticky but slim it down */
+  .quick-cards-wrap{
+    padding: 6px 0;
+    background: rgba(255,255,255,.94);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* stack vertically, no scroll */
+  .quick-cards{
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    max-width: 100%;
+  }
+
+  /* compact pill-style links */
+  .qc{
+    align-items: center;
+    gap: 10px;
+
+    padding: 8px 12px;
+    border-radius: 999px;
+
+    box-shadow: 0 6px 14px rgba(0,0,0,.05);
+    border: 1px solid rgba(226,232,240,.95);
+
+    transform: none !important;
+  }
+
+  /* shrink icon */
+  .qc-ico{
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+    border-radius: 999px;
+  }
+
+  /* title only */
+  .qc-title{
+    font-size: .85rem;
+    font-weight: 900;
+    line-height: 1.1;
+  }
+
+  .qc-sub{
+    display: none !important;
+  }
+
+  /* tighten body */
+  .qc-body{
+    display: flex;
+    align-items: center;
+  }
+}
 
 
   </style>

@@ -740,31 +740,34 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
 
           // -------- Hard reload on RV pages (and fix back button blank RV) --------
           (function bindHardNav() {
-            var RV_PATH = [
-              /^\/$/i,
-              /^\/browse\/?$/i,
+           var RV_PATH = [
+  /^\/$/i,
+  /^\/browse\/?$/i,
 
-              // Neighbourhoods
-              
-              /^\/neighbourhoods\/[^\/]+(?:\/.*)?$/i,
+  // Neighbourhoods
+  /^\/neighbourhoods\/[^\/]+(?:\/.*)?$/i,
 
-              // Neighbourhood types
-              /^\/neighbourhood_type\/[^\/]+\/?$/i,
+  // Neighbourhood types
+  /^\/neighbourhood_type\/[^\/]+\/?$/i,
 
-              // Types + Areas
-              /^\/types\/[^\/]+\/?$/i,
-              /^\/areas\/[^\/]+\/?$/i,
+  // Types + Areas
+  /^\/types\/[^\/]+\/?$/i,
+  /^\/areas\/[^\/]+\/?$/i,
 
-              // Living (index + all subpages)
-              /^\/living\/?$/i,
-              /^\/living\/[^\/]+(?:\/.*)?$/i,
+  // Living
+  /^\/living\/?$/i,
+  /^\/living\/[^\/]+(?:\/.*)?$/i,
 
-              // To-do (both slug styles, index + subpages)
-              /^\/to-do\/?$/i,
-              /^\/to-do\/[^\/]+\/?$/i,
-              /^\/to_do\/?$/i,
-              /^\/to_do\/[^\/]+\/?$/i,
-            ];
+  // Blog detail ✅ add this
+  /^\/blog\/[^\/]+\/?$/i,
+ 
+  // To-do
+  /^\/to-do\/?$/i,
+  /^\/to-do\/[^\/]+\/?$/i,
+  /^\/to_do\/?$/i,
+  /^\/to_do\/[^\/]+\/?$/i,
+];
+
 
             function shouldHardNav(pathname) {
               return RV_PATH.some(function (re) { return re.test(pathname); });
