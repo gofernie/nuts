@@ -287,144 +287,113 @@ const homeNeighItems = neighItems.slice(0, MAX_NEIGH_HOME);
       </section>
     )}
 
-  {/* RANDOM-ON-LOAD HERO CARD (smart de-dupe) */}
-<section class="home-hero-card" aria-label="Start here">
-  <div class="hero-card" data-hero-root>
+    {/* HERO CARD (fixed - no random shuffle) */}
+    <section class="home-hero-card" aria-label="Start here">
+      {/* force spotlight so your hub swap stays consistent */}
+      <script is:inline>
+        document.documentElement.setAttribute("data-hero-spotlight", "neigh");
+      </script>
 
-    <div class="hero-card-bars" aria-hidden="true">
-      <span class="bar primary"></span>
-      <span class="bar secondary"></span>
-    </div>
-
-    <div class="hero-variants">
-
-      {/* Neighbourhoods */}
-      <article class="hero-variant" data-variant data-spotlight="neigh" style={`--v-accent:${CATEGORY_COLOURS.neighbourhoods ?? DEFAULT_ACCENT};`}>
-        <p class="hero-kicker">Start with neighbourhoods</p>
-        <h2 class="hero-title">Find your place in Fernie</h2>
-        <p class="hero-copy">
-          Compare ski hill, valley, and in-town neighbourhoods to understand access,
-          day-to-day living, and long-term fit.
-        </p>
-
-        <div class="hero-actions">
-          <a href="/neighbourhoods" class="hero-btn primary" data-astro-prefetch="hover">Compare neighbourhoods</a>
-          <a href="/browse" class="hero-btn ghost" data-astro-prefetch="hover">Search listings</a>
+      <div
+  class="hero-card"
+  data-hero-root
+  style={`--active-accent:${CATEGORY_COLOURS.neighbourhoods ?? DEFAULT_ACCENT};`}
+>
+        <div class="hero-card-bars" aria-hidden="true">
+          <span class="bar primary"></span>
+          <span class="bar secondary"></span>
         </div>
 
-        <div class="hero-feature">
-          <span class="feature-label">Featured</span>
-          <a href="/neighbourhoods/skihill" class="feature-link">Ski Hill Area - layout & access</a>
+        <div class="hero-variants">
+
+          {/* Neighbourhoods (default shown) */}
+          <article
+            class="hero-variant is-active"
+            data-variant
+            data-spotlight="neigh"
+            style={`--v-accent:${CATEGORY_COLOURS.neighbourhoods ?? DEFAULT_ACCENT};`}
+          >
+            <p class="hero-kicker">Start with neighbourhoods</p>
+            <h2 class="hero-title">Find your place in Fernie</h2>
+            <p class="hero-copy">
+              Compare ski hill, valley, and in-town neighbourhoods to understand access,
+              day-to-day living, and long-term fit.
+            </p>
+
+            <div class="hero-actions">
+              <a href="/neighbourhoods" class="hero-btn primary" data-astro-prefetch="hover">Compare neighbourhoods</a>
+              <a href="/browse" class="hero-btn ghost" data-astro-prefetch="hover">Search listings</a>
+            </div>
+
+            <div class="hero-feature">
+              <span class="feature-label">Featured</span>
+              <a href="/neighbourhoods/skihill" class="feature-link">Ski Hill Area - layout & access</a>
+            </div>
+          </article>
+
+          {/* Types */}
+          <article class="hero-variant" data-variant data-spotlight="types" style={`--v-accent:${CATEGORY_COLOURS.types ?? DEFAULT_ACCENT};`}>
+            <p class="hero-kicker">Start with property type</p>
+            <h2 class="hero-title">Homes, condos, townhomes, and lots</h2>
+            <p class="hero-copy">
+              Narrow the market fast by property type, then refine by neighbourhood once
+              you know what you’re optimizing for.
+            </p>
+
+            <div class="hero-actions">
+              <a href="/types" class="hero-btn primary" data-astro-prefetch="hover">Browse property types</a>
+              <a href="/neighbourhoods" class="hero-btn ghost" data-astro-prefetch="hover">Compare areas</a>
+            </div>
+
+            <div class="hero-feature">
+              <span class="feature-label">Featured</span>
+              <a href="/blog" class="feature-link">Which Fernie homes perform best</a>
+            </div>
+          </article>
+
+          {/* New Listings */}
+          <article class="hero-variant" data-variant data-spotlight="new" style={`--v-accent:${CATEGORY_COLOURS.home ?? DEFAULT_ACCENT};`}>
+            <p class="hero-kicker">What’s new</p>
+            <h2 class="hero-title">Latest Fernie listings</h2>
+            <p class="hero-copy">
+              See the newest homes and condos as they hit the market,
+              updated automatically across all neighbourhoods.
+            </p>
+
+            <div class="hero-actions">
+              <a href="/types/new-listings-fernie/" class="hero-btn primary">View new listings</a>
+              <a href="/browse" class="hero-btn ghost">Open full search</a>
+            </div>
+
+            <div class="hero-feature">
+              <span class="feature-label">Featured</span>
+              <a href="/living" class="feature-link">Seasonality & buying timing</a>
+            </div>
+          </article>
+
+          {/* Home Match */}
+          <article class="hero-variant" data-variant data-spotlight="match" style={`--v-accent:${CATEGORY_COLOURS.blog ?? DEFAULT_ACCENT};`}>
+            <p class="hero-kicker">Not sure where to start?</p>
+            <h2 class="hero-title">Get matched to the right homes</h2>
+            <p class="hero-copy">
+              Share your budget, timing, and must-haves and get a curated shortlist —
+              including smart alternatives you may not have found.
+            </p>
+
+            <div class="hero-actions">
+              <a href="/home-match/" class="hero-btn primary">Get matched</a>
+              <a href="/browse" class="hero-btn ghost">Browse listings</a>
+            </div>
+
+            <div class="hero-feature">
+              <span class="feature-label">Featured</span>
+              <a href="/living" class="feature-link">Living in Fernie - daily essentials</a>
+            </div>
+          </article>
+
         </div>
-      </article>
-
-      {/* Types */}
-      <article class="hero-variant" data-variant data-spotlight="types" style={`--v-accent:${CATEGORY_COLOURS.types ?? DEFAULT_ACCENT};`}>
-        <p class="hero-kicker">Start with property type</p>
-        <h2 class="hero-title">Homes, condos, townhomes, and lots</h2>
-        <p class="hero-copy">
-          Narrow the market fast by property type, then refine by neighbourhood once
-          you know what you’re optimizing for.
-        </p>
-
-        <div class="hero-actions">
-          <a href="/types" class="hero-btn primary" data-astro-prefetch="hover">Browse property types</a>
-          <a href="/neighbourhoods" class="hero-btn ghost" data-astro-prefetch="hover">Compare areas</a>
-        </div>
-
-        <div class="hero-feature">
-          <span class="feature-label">Featured</span>
-          <a href="/blog" class="feature-link">Which Fernie homes perform best</a>
-        </div>
-      </article>
-
-      {/* New Listings */}
-      <article class="hero-variant" data-variant data-spotlight="new" style={`--v-accent:${CATEGORY_COLOURS.home ?? DEFAULT_ACCENT};`}>
-        <p class="hero-kicker">What’s new</p>
-        <h2 class="hero-title">Latest Fernie listings</h2>
-        <p class="hero-copy">
-          See the newest homes and condos as they hit the market,
-          updated automatically across all neighbourhoods.
-        </p>
-
-        <div class="hero-actions">
-          <a href="/types/new-listings-fernie/" class="hero-btn primary">View new listings</a>
-          <a href="/browse" class="hero-btn ghost">Open full search</a>
-        </div>
-
-        <div class="hero-feature">
-          <span class="feature-label">Featured</span>
-          <a href="/living" class="feature-link">Seasonality & buying timing</a>
-        </div>
-      </article>
-
-      {/* Home Match */}
-      <article class="hero-variant" data-variant data-spotlight="match" style={`--v-accent:${CATEGORY_COLOURS.blog ?? DEFAULT_ACCENT};`}>
-        <p class="hero-kicker">Not sure where to start?</p>
-        <h2 class="hero-title">Get matched to the right homes</h2>
-        <p class="hero-copy">
-          Share your budget, timing, and must-haves and get a curated shortlist —
-          including smart alternatives you may not have found.
-        </p>
-
-        <div class="hero-actions">
-          <a href="/home-match/" class="hero-btn primary">Get matched</a>
-          <a href="/browse" class="hero-btn ghost">Browse listings</a>
-        </div>
-
-        <div class="hero-feature">
-          <span class="feature-label">Featured</span>
-          <a href="/living" class="feature-link">Living in Fernie - daily essentials</a>
-        </div>
-      </article>
-
-    </div>
-  </div>
-
-  <script is:inline>
-(() => {
-  function initHero() {
-    const root = document.querySelector("[data-hero-root]");
-    if (!root) return;
-
-    const variants = Array.from(root.querySelectorAll("[data-variant]"));
-    if (!variants.length) return;
-
-    const pick = Math.floor(Math.random() * variants.length);
-    const active = variants[pick];
-
-    variants.forEach(v => v.classList.remove("is-active"));
-    active.classList.add("is-active");
-
-    const accent = getComputedStyle(active).getPropertyValue("--v-accent").trim();
-    if (accent) root.style.setProperty("--active-accent", accent);
-
-    const spotlight = active.getAttribute("data-spotlight");
-    if (spotlight) {
-      document.documentElement.setAttribute("data-hero-spotlight", spotlight);
-    }
-  }
-
-  // Initial load
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initHero, { once: true });
-  } else {
-    initHero();
-  }
-
-  // Astro soft navigation
-  document.addEventListener("astro:page-load", initHero);
-
-  // ✅ Back / forward cache restore
-  window.addEventListener("pageshow", (e) => {
-    if (e.persisted) initHero();
-  });
-})();
-</script>
-
-</section>
-
-
+      </div>
+    </section>
 
     {/* intro block: 4 feature cards */}
     <section class="home-intro">
@@ -434,7 +403,7 @@ const homeNeighItems = neighItems.slice(0, MAX_NEIGH_HOME);
             <div class="hub-card-inner">
               <div class="hub-icon">🗺️</div>
               <h2 class="hub-title">Neighbourhoods in Fernie</h2>
-            
+
               <span class="hub-cta">Browse neighbourhoods</span>
             </div>
           </a>
@@ -443,7 +412,7 @@ const homeNeighItems = neighItems.slice(0, MAX_NEIGH_HOME);
             <div class="hub-card-inner">
               <div class="hub-icon">🏘️</div>
               <h2 class="hub-title">Homes &amp; Property Types</h2>
-            
+
               <span class="hub-cta">Browse homes &amp; types</span>
             </div>
           </a>
@@ -452,7 +421,7 @@ const homeNeighItems = neighItems.slice(0, MAX_NEIGH_HOME);
             <div class="hub-card-inner">
               <div class="hub-icon">🆕</div>
               <h2 class="hub-title">Latest Fernie Listings</h2>
-             
+
               <span class="hub-cta">View latest listings</span>
             </div>
           </a>
@@ -461,19 +430,19 @@ const homeNeighItems = neighItems.slice(0, MAX_NEIGH_HOME);
             <div class="hub-card-inner">
               <div class="hub-icon">🎯</div>
               <h2 class="hub-title">Home Match</h2>
-             
+
               <span class="hub-cta">Get matched</span>
             </div>
           </a>
 
           <a href="/browse" class="hub-card hub-card--fallback" data-hub="fallback" data-astro-prefetch="hover">
-  <div class="hub-card-inner">
-    <div class="hub-icon">🔎</div>
-    <h2 class="hub-title">Search Fernie Listings</h2>
-   
-    <span class="hub-cta">Open full search</span>
-  </div>
-</a>
+            <div class="hub-card-inner">
+              <div class="hub-icon">🔎</div>
+              <h2 class="hub-title">Search Fernie Listings</h2>
+
+              <span class="hub-cta">Open full search</span>
+            </div>
+          </a>
 
         </div>
       </section>
@@ -755,191 +724,171 @@ const homeNeighItems = neighItems.slice(0, MAX_NEIGH_HOME);
   </script>
 
   <style>
-
     /* HERO VARIANTS — default hidden */
-.hero-variant {
-  display: none;
-}
+    .hero-variant { display: none; }
 
-/* JS will explicitly show one */
-.hero-variant.is-active {
-  display: block;
-}
-
+    /* fixed default shown */
+    .hero-variant.is-active { display: block; }
 
     /* Hide matching hub card when spotlight is active */
-/* Swap the duplicate hub card to a fallback, so grid always stays 4 */
-html[data-hero-spotlight="neigh"] .hub-card[data-hub="neigh"],
-html[data-hero-spotlight="types"] .hub-card[data-hub="types"],
-html[data-hero-spotlight="new"] .hub-card[data-hub="new"],
-html[data-hero-spotlight="match"] .hub-card[data-hub="match"]{
-  display:none;
-}
+    html[data-hero-spotlight="neigh"] .hub-card[data-hub="neigh"],
+    html[data-hero-spotlight="types"] .hub-card[data-hub="types"],
+    html[data-hero-spotlight="new"] .hub-card[data-hub="new"],
+    html[data-hero-spotlight="match"] .hub-card[data-hub="match"]{
+      display:none;
+    }
 
-html[data-hero-spotlight] .hub-card--fallback{
-  display:block;
-}
+    html[data-hero-spotlight] .hub-card--fallback{ display:block; }
 
-/* default: hide fallback unless spotlight active */
-.hub-card--fallback{
-  display:none;
-}
+    /* default: hide fallback unless spotlight active */
+    .hub-card--fallback{ display:none; }
 
-/* RANDOM HERO CARD */
-.home-hero-card{
-  margin: 10px 0 30px;
-}
+    /* HERO CARD */
+    .home-hero-card{ margin: 10px 0 30px; }
 
-.hero-card{
-  --active-accent: var(--accent);
-  position: relative;
-  z-index: 0; /* stacking context */
-  border-radius: 18px;
-  border: 1px solid #e2e4e8;
+    .hero-card{
+      /* ✅ make accent deterministic (matches the default "neigh" hero) */
+      
+      position: relative;
+      z-index: 0; /* stacking context */
+      border-radius: 18px;
+      border: 1px solid #e2e4e8;
 
-  /* Base surface */
-  background:
-    linear-gradient(0deg, #ffffff, #ffffff),
-    radial-gradient(
-      circle at 85% 30%,                  /* 👈 lives on the right */
-      color-mix(in srgb, var(--active-accent) 6%, #ffffff 94%),
-      transparent 65%
-    );
+      /* Base surface */
+      background:
+        linear-gradient(0deg, #ffffff, #ffffff),
+        radial-gradient(
+          circle at 85% 30%,
+          color-mix(in srgb, var(--active-accent) 6%, #ffffff 94%),
+          transparent 65%
+        );
 
-  box-shadow: 0 10px 26px rgba(0,0,0,0.08);
-  overflow: hidden;
-}
+      box-shadow: 0 10px 26px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
 
+    .hero-card::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      z-index: 0;
+      background: radial-gradient(
+        circle at 0 0,
+        color-mix(in srgb, var(--active-accent) 14%, #ffffff 86%),
+        transparent 70%
+      );
+      pointer-events:none;
+    }
 
-.hero-card::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  z-index: 0;          /* 👈 gradient layer */
-  background: radial-gradient(
-    circle at 0 0,
-    color-mix(in srgb, var(--active-accent) 14%, #ffffff 86%),
-    transparent 70%
-  );
-  pointer-events:none;
-}
+    .hero-card-bars,
+    .hero-variants{
+      position: relative;
+      z-index: 1;
+    }
 
-/* 👇 ensure actual content is above the gradient */
-.hero-card-bars,
-.hero-variants{
-  position: relative;
-  z-index: 1;
-}
+    .hero-card-bars{
+      display:flex;
+      gap:0.25rem;
+      padding:16px 18px 0;
+    }
 
+    .hero-card-bars .bar{
+      height:4px;
+      border-radius:999px;
+      background:var(--active-accent);
+    }
+    .hero-card-bars .primary{ width:88px; opacity:.9; }
+    .hero-card-bars .secondary{ width:42px; opacity:.45; }
 
-.hero-card-bars{
-  display:flex;
-  gap:0.25rem;
-  padding:16px 18px 0;
-}
+    .hero-variants{ padding:16px 18px 18px; }
 
-.hero-card-bars .bar{
-  height:4px;
-  border-radius:999px;
-  background:var(--active-accent);
-}
-.hero-card-bars .primary{ width:88px; opacity:.9; }
-.hero-card-bars .secondary{ width:42px; opacity:.45; }
+    .hero-kicker{
+      margin:0 0 6px;
+      font-size:.8rem;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.09em;
+      color:var(--active-accent);
+    }
 
-.hero-variants{
-  padding:16px 18px 18px;
-}
+    .hero-title{
+      margin:0 0 10px;
+      font-size:clamp(1.4rem,2.3vw,1.8rem);
+      line-height:1.12;
+      letter-spacing:-0.01em;
+      color:#111827;
+    }
 
-.hero-kicker{
-  margin:0 0 6px;
-  font-size:.8rem;
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.09em;
-  color:var(--active-accent);
-}
+    .hero-copy{
+      margin:0 0 14px;
+      color:#4b5563;
+      line-height:1.55;
+      max-width:70ch;
+    }
 
-.hero-title{
-  margin:0 0 10px;
-  font-size:clamp(1.4rem,2.3vw,1.8rem);
-  line-height:1.12;
-  letter-spacing:-0.01em;
-  color:#111827;
-}
+    .hero-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-bottom:12px;
+    }
 
-.hero-copy{
-  margin:0 0 14px;
-  color:#4b5563;
-  line-height:1.55;
-  max-width:70ch;
-}
+    .hero-btn{
+      display:inline-flex;
+      align-items:center;
+      padding:8px 14px;
+      border-radius:999px;
+      font-size:.9rem;
+      font-weight:600;
+      text-decoration:none;
+      transition:transform .15s ease, box-shadow .15s ease;
+    }
 
-.hero-actions{
-  display:flex;
-  flex-wrap:wrap;
-  gap:10px;
-  margin-bottom:12px;
-}
+    .hero-btn.primary{
+      background:#111827;
+      color:#fff;
+    }
+    .hero-btn.primary:hover{
+      transform:translateY(-1px);
+      box-shadow:0 10px 18px rgba(0,0,0,.14);
+    }
 
-.hero-btn{
-  display:inline-flex;
-  align-items:center;
-  padding:8px 14px;
-  border-radius:999px;
-  font-size:.9rem;
-  font-weight:600;
-  text-decoration:none;
-  transition:transform .15s ease, box-shadow .15s ease;
-}
+    .hero-btn.ghost{
+      background:rgba(255,255,255,.85);
+      border:1px solid #e5e7eb;
+      color:#111827;
+    }
+    .hero-btn.ghost:hover{
+      transform:translateY(-1px);
+      box-shadow:0 10px 18px rgba(0,0,0,.1);
+    }
 
-.hero-btn.primary{
-  background:#111827;
-  color:#fff;
-}
-.hero-btn.primary:hover{
-  transform:translateY(-1px);
-  box-shadow:0 10px 18px rgba(0,0,0,.14);
-}
+    .hero-feature{
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding-top: 10px;
+      border-top: 1px solid #e5e7eb;
+    }
 
-.hero-btn.ghost{
-  background:rgba(255,255,255,.85);
-  border:1px solid #e5e7eb;
-  color:#111827;
-}
-.hero-btn.ghost:hover{
-  transform:translateY(-1px);
-  box-shadow:0 10px 18px rgba(0,0,0,.1);
-}
+    .feature-label{
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      line-height: 1;
+      color: #6b7280;
+    }
 
-.hero-feature{
-  display: flex;
-  align-items: baseline;   /* 👈 key fix */
-  gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid #e5e7eb;
-}
+    .feature-link{
+      font-size: .9rem;
+      font-weight: 600;
+      line-height: 1.2;
+      color: #111827;
+      text-decoration: none;
+    }
 
-.feature-label{
-  font-size: .72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  line-height: 1;          /* 👈 remove extra vertical slack */
-  color: #6b7280;
-}
-
-.feature-link{
-  font-size: .9rem;
-  font-weight: 600;
-  line-height: 1.2;        /* 👈 align visually with label */
-  color: #111827;
-  text-decoration: none;
-}
-
-.feature-link:hover{
-  text-decoration:underline;
-}
-
+    .feature-link:hover{ text-decoration:underline; }
 
     .home-page.page-shell{ max-width:1280px; margin-inline:auto; margin-top:14px; margin-bottom:40px; }
     .home-page.pad-x{ padding-inline:var(--edge-pad) !important; }
@@ -1061,26 +1010,21 @@ html[data-hero-spotlight] .hub-card--fallback{
     .hub{ margin-top:4px; }
 
     /* HUB GRID - 4 across on desktop */
-.hub-grid{
-  display:grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap:22px;
-}
+    .hub-grid{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap:22px;
+    }
 
-/* Tablet */
-@media (max-width: 1100px){
-  .hub-grid{
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
+    /* Tablet */
+    @media (max-width: 1100px){
+      .hub-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
 
-/* Mobile */
-@media (max-width: 640px){
-  .hub-grid{
-    grid-template-columns: 1fr;
-  }
-}
-
+    /* Mobile */
+    @media (max-width: 640px){
+      .hub-grid{ grid-template-columns: 1fr; }
+    }
 
     .hub-card{
       text-decoration:none;
@@ -1098,7 +1042,7 @@ html[data-hero-spotlight] .hub-card--fallback{
       box-shadow:0 12px 26px rgba(0,0,0,0.12);
     }
     .hub-card-inner{
-  padding: 20px 20px 22px;
+      padding: 20px 20px 22px;
       display:flex;
       flex-direction:column;
       gap:10px;
@@ -1114,9 +1058,8 @@ html[data-hero-spotlight] .hub-card--fallback{
       transform:translateY(0);
       transition:transform 0.16s ease;
     }
-    .hub-card:hover .hub-icon{
-      transform:translateY(-2px);
-    }
+    .hub-card:hover .hub-icon{ transform:translateY(-2px); }
+
     .hub-title{
       font-size:1.25rem;
       font-weight:600;
@@ -1134,7 +1077,7 @@ html[data-hero-spotlight] .hub-card--fallback{
       font-size:.92rem;
       font-weight:600;
       color:#0f172a;
-       margin-top: 2px;
+      margin-top: 2px;
     }
     .hub-cta::after{
       content:"↗";
