@@ -264,7 +264,8 @@ const pageKicker = area ? `${niceTitle(area)} - ${parentLabel}` : parentLabel;
 ---
 
 <Site title={seoTitle} seo_title={seoTitle} seo_description={seoDesc} wrapContent={false}>
-  <div class="page-shell pad-x">
+  {/* ✅ add a page-specific class so we can force single column */}
+  <div class="page-shell pad-x building-detail">
     <section class="page-intro" style={`--accent:${headerAccent};`}>
       <nav class="types-breadcrumb">
         <a href="/">Home</a>
@@ -336,240 +337,235 @@ const pageKicker = area ? `${niceTitle(area)} - ${parentLabel}` : parentLabel;
             )}
 
             {/* ✅ LISTINGS (map + results) + Formspree micro-form (in-page success message) */}
-<section class="card" id="listings" data-listings-card>
-  <h2 class="h2">{name} listings</h2>
+            <section class="card" id="listings" data-listings-card>
+              <h2 class="h2">{name} listings</h2>
 
-  {listingsId ? (
-    <>
-      <p class="muted">
-        Active listings in {name}. If nothing appears, there may be no current inventory.
-      </p>
+              {listingsId ? (
+                <>
+                  <p class="muted">
+                    Active listings in {name}. If nothing appears, there may be no current inventory.
+                  </p>
 
-      <div class="rv-wrap" data-rv-wrap>
-        <RVEmbed block={listingsId} />
-      </div>
+                  <div class="rv-wrap" data-rv-wrap>
+                    <RVEmbed block={listingsId} />
+                  </div>
 
-      {/* CTA area (message swaps based on results) */}
-      <div class="listings-fallback" data-cta data-has-listings="1">
-        {/* When RESULTS exist */}
-        <div data-msg="has">
-          <p class="fallback-title">Not seeing the right one?</p>
-          <p class="fallback-text">
-            If you like {name} but don’t see a layout, view, or price point that fits, leave your details and I’ll send options when a better match shows up.
-          </p>
-        </div>
+                  {/* CTA area (message swaps based on results) */}
+                  <div class="listings-fallback" data-cta data-has-listings="1">
+                    {/* When RESULTS exist */}
+                    <div data-msg="has">
+                      <p class="fallback-title">Not seeing the right one?</p>
+                      <p class="fallback-text">
+                        If you like {name} but don’t see a layout, view, or price point that fits, leave your details and I’ll send options when a better match shows up.
+                      </p>
+                    </div>
 
-        {/* When NO RESULTS exist */}
-        <div data-msg="none" hidden>
-          <p class="fallback-title">No active listings right now</p>
-          <p class="fallback-text">
-            {name} comes up infrequently. Leave your details and I’ll let you know when something hits the market here.
-          </p>
-        </div>
+                    {/* When NO RESULTS exist */}
+                    <div data-msg="none" hidden>
+                      <p class="fallback-title">No active listings right now</p>
+                      <p class="fallback-text">
+                        {name} comes up infrequently. Leave your details and I’ll let you know when something hits the market here.
+                      </p>
+                    </div>
 
-        <form
-          class="inline-alert-form"
-          method="POST"
-          action="https://formspree.io/f/xaqnlnar"
-          data-alert-form
-        >
-          {/* context sent to you */}
-          <input type="hidden" name="Building" value={name} />
-          <input type="hidden" name="Building slug" value={buildingSlug} />
-          <input type="hidden" name="Neighbourhood" value={parentSlug} />
-          <input type="hidden" name="_subject" value={`Building alert - ${name}`} />
+                    <form
+                      class="inline-alert-form"
+                      method="POST"
+                      action="https://formspree.io/f/xaqnlnar"
+                      data-alert-form
+                    >
+                      {/* context sent to you */}
+                      <input type="hidden" name="Building" value={name} />
+                      <input type="hidden" name="Building slug" value={buildingSlug} />
+                      <input type="hidden" name="Neighbourhood" value={parentSlug} />
+                      <input type="hidden" name="_subject" value={`Building alert - ${name}`} />
 
-          <div class="inline-fields">
-            <input
-              type="text"
-              name="First name"
-              placeholder="First name"
-              aria-label="First name"
-              autocomplete="given-name"
-            />
+                      <div class="inline-fields">
+                        <input
+                          type="text"
+                          name="First name"
+                          placeholder="First name"
+                          aria-label="First name"
+                          autocomplete="given-name"
+                        />
 
-            <input
-              type="email"
-              name="Email"
-              placeholder="Email address"
-              aria-label="Email address"
-              autocomplete="email"
-              required
-            />
+                        <input
+                          type="email"
+                          name="Email"
+                          placeholder="Email address"
+                          aria-label="Email address"
+                          autocomplete="email"
+                          required
+                        />
 
-            <button type="submit" class="btn btn-primary" data-submit>
-              Get options
-            </button>
-          </div>
+                        <button type="submit" class="btn btn-primary" data-submit>
+                          Get options
+                        </button>
+                      </div>
 
-          {/* ✅ in-page success/error message */}
-          <p class="form-note" data-note aria-live="polite"></p>
-        </form>
-      </div>
-    </>
-  ) : (
-    <>
-      <p class="muted">
-        There are no active listings in {name} right now.
-      </p>
+                      {/* ✅ in-page success/error message */}
+                      <p class="form-note" data-note aria-live="polite"></p>
+                    </form>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p class="muted">
+                    There are no active listings in {name} right now.
+                  </p>
 
-      <div class="listings-fallback" data-cta data-has-listings="0">
-        <p class="fallback-title">No active listings right now</p>
-        <p class="fallback-text">
-          {name} comes up infrequently. Leave your details and I’ll let you know when something hits the market here.
-        </p>
+                  <div class="listings-fallback" data-cta data-has-listings="0">
+                    <p class="fallback-title">No active listings right now</p>
+                    <p class="fallback-text">
+                      {name} comes up infrequently. Leave your details and I’ll let you know when something hits the market here.
+                    </p>
 
-        <form
-          class="inline-alert-form"
-          method="POST"
-          action="https://formspree.io/f/xaqnlnar"
-          data-alert-form
-        >
-          <input type="hidden" name="Building" value={name} />
-          <input type="hidden" name="Building slug" value={buildingSlug} />
-          <input type="hidden" name="Neighbourhood" value={parentSlug} />
-          <input type="hidden" name="_subject" value={`Building alert - ${name}`} />
+                    <form
+                      class="inline-alert-form"
+                      method="POST"
+                      action="https://formspree.io/f/xaqnlnar"
+                      data-alert-form
+                    >
+                      <input type="hidden" name="Building" value={name} />
+                      <input type="hidden" name="Building slug" value={buildingSlug} />
+                      <input type="hidden" name="Neighbourhood" value={parentSlug} />
+                      <input type="hidden" name="_subject" value={`Building alert - ${name}`} />
 
-          <div class="inline-fields">
-            <input
-              type="text"
-              name="First name"
-              placeholder="First name"
-              aria-label="First name"
-              autocomplete="given-name"
-            />
+                      <div class="inline-fields">
+                        <input
+                          type="text"
+                          name="First name"
+                          placeholder="First name"
+                          aria-label="First name"
+                          autocomplete="given-name"
+                        />
 
-            <input
-              type="email"
-              name="Email"
-              placeholder="Email address"
-              aria-label="Email address"
-              autocomplete="email"
-              required
-            />
+                        <input
+                          type="email"
+                          name="Email"
+                          placeholder="Email address"
+                          aria-label="Email address"
+                          autocomplete="email"
+                          required
+                        />
 
-            <button type="submit" class="btn btn-primary" data-submit>
-              Get options
-            </button>
-          </div>
+                        <button type="submit" class="btn btn-primary" data-submit>
+                          Get options
+                        </button>
+                      </div>
 
-          <p class="form-note" data-note aria-live="polite"></p>
-        </form>
-      </div>
-    </>
-  )}
+                      <p class="form-note" data-note aria-live="polite"></p>
+                    </form>
+                  </div>
+                </>
+              )}
 
-  {/* ✅ 1) Detect “No results found” inside RV embed and swap the message */}
-  {/* ✅ 2) Bind Formspree submit so it DOES NOT redirect */}
-  <script is:inline>
-    (() => {
-      const root = document.querySelector("[data-listings-card]");
-      if (!root) return;
+              {/* ✅ 1) Detect “No results found” inside RV embed and swap the message */}
+              {/* ✅ 2) Bind Formspree submit so it DOES NOT redirect */}
+              <script is:inline>
+                (() => {
+                  const root = document.querySelector("[data-listings-card]");
+                  if (!root) return;
 
-      // ----- swap CTA copy if RV says "No results found"
-      const cta = root.querySelector("[data-cta]");
-      const wrap = root.querySelector("[data-rv-wrap]");
+                  // ----- swap CTA copy if RV says "No results found"
+                  const cta = root.querySelector("[data-cta]");
+                  const wrap = root.querySelector("[data-rv-wrap]");
 
-      const showNoResultsCopy = () => {
-        if (!cta) return;
-        const has = cta.querySelector('[data-msg="has"]');
-        const none = cta.querySelector('[data-msg="none"]');
-        if (has) has.hidden = true;
-        if (none) none.hidden = false;
-      };
+                  const showNoResultsCopy = () => {
+                    if (!cta) return;
+                    const has = cta.querySelector('[data-msg="has"]');
+                    const none = cta.querySelector('[data-msg="none"]');
+                    if (has) has.hidden = true;
+                    if (none) none.hidden = false;
+                  };
 
-      const showHasResultsCopy = () => {
-        if (!cta) return;
-        const has = cta.querySelector('[data-msg="has"]');
-        const none = cta.querySelector('[data-msg="none"]');
-        if (has) has.hidden = false;
-        if (none) none.hidden = true;
-      };
+                  const showHasResultsCopy = () => {
+                    if (!cta) return;
+                    const has = cta.querySelector('[data-msg="has"]');
+                    const none = cta.querySelector('[data-msg="none"]');
+                    if (has) has.hidden = false;
+                    if (none) none.hidden = true;
+                  };
 
-      // if page doesn't have listingsId, we already render "no listings" copy
-      // if it DOES, watch the embed for its empty-state text
-      if (wrap && cta && cta.getAttribute("data-has-listings") === "1") {
-        const check = () => {
-          const txt = (wrap.innerText || "").trim();
-          // RealityVis empty state usually contains this exact phrase
-          if (/no results found/i.test(txt)) showNoResultsCopy();
-          else showHasResultsCopy();
-        };
+                  if (wrap && cta && cta.getAttribute("data-has-listings") === "1") {
+                    const check = () => {
+                      const txt = (wrap.innerText || "").trim();
+                      if (/no results found/i.test(txt)) showNoResultsCopy();
+                      else showHasResultsCopy();
+                    };
 
-        // initial check + observe changes as RV loads
-        check();
-        const mo = new MutationObserver(check);
-        mo.observe(wrap, { childList: true, subtree: true, characterData: true });
-        setTimeout(check, 1200);
-        setTimeout(check, 2500);
-      }
+                    check();
+                    const mo = new MutationObserver(check);
+                    mo.observe(wrap, { childList: true, subtree: true, characterData: true });
+                    setTimeout(check, 1200);
+                    setTimeout(check, 2500);
+                  }
 
-      // ----- in-page Formspree submit (no redirect)
-      const forms = Array.from(root.querySelectorAll("[data-alert-form]"));
+                  // ----- in-page Formspree submit (no redirect)
+                  const forms = Array.from(root.querySelectorAll("[data-alert-form]"));
 
-      const bind = (form) => {
-        if (!form || form.dataset.bound === "1") return;
-        form.dataset.bound = "1";
+                  const bind = (form) => {
+                    if (!form || form.dataset.bound === "1") return;
+                    form.dataset.bound = "1";
 
-        const note = form.querySelector("[data-note]");
-        const btn = form.querySelector("[data-submit]");
-        const email = form.querySelector('input[type="email"]');
+                    const note = form.querySelector("[data-note]");
+                    const btn = form.querySelector("[data-submit]");
+                    const email = form.querySelector('input[type="email"]');
 
-        const setNote = (msg, ok) => {
-          if (!note) return;
-          note.textContent = msg;
-          note.classList.toggle("ok", !!ok);
-          note.classList.toggle("err", !ok);
-        };
+                    const setNote = (msg, ok) => {
+                      if (!note) return;
+                      note.textContent = msg;
+                      note.classList.toggle("ok", !!ok);
+                      note.classList.toggle("err", !ok);
+                    };
 
-        form.addEventListener("submit", async (e) => {
-          e.preventDefault();
+                    form.addEventListener("submit", async (e) => {
+                      e.preventDefault();
 
-          if (email && !email.checkValidity()) {
-            email.reportValidity();
-            return;
-          }
+                      if (email && !email.checkValidity()) {
+                        email.reportValidity();
+                        return;
+                      }
 
-          if (btn) {
-            btn.disabled = true;
-            btn.dataset.label = btn.textContent || "";
-            btn.textContent = "Sending...";
-          }
+                      if (btn) {
+                        btn.disabled = true;
+                        btn.dataset.label = btn.textContent || "";
+                        btn.textContent = "Sending...";
+                      }
 
-          setNote("", true);
+                      setNote("", true);
 
-          try {
-            const res = await fetch(form.action, {
-              method: "POST",
-              body: new FormData(form),
-              headers: { Accept: "application/json" },
-            });
+                      try {
+                        const res = await fetch(form.action, {
+                          method: "POST",
+                          body: new FormData(form),
+                          headers: { Accept: "application/json" },
+                        });
 
-            if (res.ok) {
-              setNote(
-                "Thanks - I’ve got your details and I’ll follow up with a few options that fit.",
-                true
-              );
-              form.reset();
-            } else {
-              setNote("Sorry - something didn’t work. Please try again.", false);
-            }
-          } catch {
-            setNote("Network issue - please try again.", false);
-          } finally {
-            if (btn) {
-              btn.disabled = false;
-              btn.textContent = btn.dataset.label || "Get options";
-            }
-          }
-        });
-      };
+                        if (res.ok) {
+                          setNote(
+                            "Thanks - I’ve got your details and I’ll follow up with a few options that fit.",
+                            true
+                          );
+                          form.reset();
+                        } else {
+                          setNote("Sorry - something didn’t work. Please try again.", false);
+                        }
+                      } catch {
+                        setNote("Network issue - please try again.", false);
+                      } finally {
+                        if (btn) {
+                          btn.disabled = false;
+                          btn.textContent = btn.dataset.label || "Get options";
+                        }
+                      }
+                    });
+                  };
 
-      forms.forEach(bind);
-    })();
-  </script>
-</section>
-
+                  forms.forEach(bind);
+                })();
+              </script>
+            </section>
 
             {sections.map(([title, html]) => (
               <section class="card">

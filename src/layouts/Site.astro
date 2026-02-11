@@ -19,7 +19,6 @@ const {
   containerMax = 1280, // allows per-page overrides if needed
 } = Astro.props;
 
-import { ViewTransitions } from "astro:transitions";
 import { getJson } from "../lib/fetchJson";
 import Footer from "../components/Footer.astro";
 import HomeMatchChatWidget from "../components/HomeMatchChatWidget.astro";
@@ -91,14 +90,10 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
 
 <html lang="en">
   <head>
-    <ViewTransitions />
-
- <!-- Favicons -->
-<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/img/android-chrome-192.png">
-
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
-
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/img/android-chrome-192.png">
+    <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 
     <!-- Google Analytics 4 -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-FQ1LMJR15W"></script>
@@ -109,18 +104,6 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       gtag("config", "G-FQ1LMJR15W", {
         anonymize_ip: true,
         send_page_view: true
-      });
-    </script>
-
-    <!-- Astro page-change tracking -->
-    <script is:inline>
-      document.addEventListener("astro:page-load", () => {
-        if (typeof gtag === "function") {
-          gtag("event", "page_view", {
-            page_path: location.pathname,
-            page_title: document.title
-          });
-        }
       });
     </script>
 
@@ -152,9 +135,8 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       />
     )}
 
-    <!-- ✅ RealtyVis embed (loads once) -->
+    <!-- ✅ RealtyVis embed (loads once per page load) -->
     <script src="https://cdn.realtyvis.com/js/embed.js" defer></script>
-
 
     <!-- GLOBAL -->
     <style is:global>
@@ -313,12 +295,17 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       }
 
       .nav-inner {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        align-items: center;
-        height: 100%;
-        padding-inline: var(--edge-pad);
-      }
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  height: 100%;
+  padding-inline: var(--edge-pad);
+
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+}
+
       @media (min-width: 900px) {
         .nav-inner { padding-inline: var(--edge-pad-lg); }
       }
@@ -622,11 +609,9 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
         .map-embed__frame { aspect-ratio: 4 / 5; border-radius: 16px; }
       }
       .map-embed__caption { margin-top: 0.5rem; font-size: 0.95rem; opacity: 0.8; }
-
-      html.is-swapping body { cursor: progress; }
     </style>
 
-    <!-- ✅ ONE Site UI binder (works with ViewTransitions) -->
+    <!-- ✅ ONE Site UI binder (normal full-page loads) -->
     <script is:inline>
       (function () {
         function rebindSiteUI() {
@@ -707,151 +692,17 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
             window.addEventListener("resize", setSBW, { passive: true, signal });
             document.addEventListener("visibilitychange", setSBW, { signal });
           })();
-
-          // -------- Prefetch on hover/touch for internal links --------
-          (function bindPrefetch() {
-            var prefetched = new Set();
-            function prefetch(href) {
-              if (!href || prefetched.has(href)) return;
-              prefetched.add(href);
-              var l = document.createElement("link");
-              l.rel = "prefetch";
-              l.as = "document";
-              l.href = href;
-              document.head.appendChild(l);
-            }
-
-            function handle(e) {
-              var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
-              if (!a) return;
-              if (a.target === "_blank" || a.hasAttribute("download")) return;
-
-              var url;
-              try { url = new URL(a.href, location.href); } catch { return; }
-              if (url.origin !== location.origin) return;
-              if (url.pathname === location.pathname && url.hash) return;
-
-              prefetch(url.pathname + url.search);
-            }
-
-            document.addEventListener("mouseover", handle, { passive: true, signal });
-            document.addEventListener("touchstart", handle, { passive: true, signal });
-          })();
-
-          // -------- Hard reload on RV pages (and fix back button blank RV) --------
-          (function bindHardNav() {
-           var RV_PATH = [
-  /^\/$/i,
-  /^\/browse\/?$/i,
-
-  // Neighbourhoods
-  /^\/neighbourhoods\/[^\/]+(?:\/.*)?$/i,
-
-  // Neighbourhood types
-  /^\/neighbourhood_type\/[^\/]+\/?$/i,
-
-  // Types + Areas
-  /^\/types\/[^\/]+\/?$/i,
-  /^\/areas\/[^\/]+\/?$/i,
-
-  // Living
-  /^\/living\/?$/i,
-  /^\/living\/[^\/]+(?:\/.*)?$/i,
-
-  // Blog detail ✅ add this
-  /^\/blog\/[^\/]+\/?$/i,
- 
-  // To-do
-  /^\/to-do\/?$/i,
-  /^\/to-do\/[^\/]+\/?$/i,
-  /^\/to_do\/?$/i,
-  /^\/to_do\/[^\/]+\/?$/i,
-];
-
-
-            function shouldHardNav(pathname) {
-              return RV_PATH.some(function (re) { return re.test(pathname); });
-            }
-
-            // If RV embed exists but cards are missing, treat as "blank"
-            function rvLooksEmpty() {
-              var hasRvMarker =
-                !!document.querySelector("[data-rv-insert-root]") ||
-                !!document.querySelector(".rv-host") ||
-                !!document.querySelector(".rv-block");
-
-              // If there's no RV marker on this page, don't force reload
-              if (!hasRvMarker) return false;
-
-              var hasCards =
-                !!document.querySelector(".rv-listingCard") ||
-                !!document.querySelector(".rv-block .rv-listingCard") ||
-                !!document.querySelector(".rv-block a.rv-listingCard");
-
-              return !hasCards;
-            }
-
-            // Reload once per URL (prevents loops) - but give RV time to rehydrate
-            function reloadOnceIfStillBlank(reason) {
-              if (!shouldHardNav(location.pathname)) return;
-
-              var key = "rv-blank-reload:" + location.pathname + location.search;
-              var last = +sessionStorage.getItem(key) || 0;
-              if (Date.now() - last < 15000) return; // 15s cooldown
-              sessionStorage.setItem(key, String(Date.now()));
-
-              var tries = 0;
-              var maxTries = 8;   // ~ 8 * 300ms = 2.4s
-              var interval = 300;
-
-              var t = setInterval(function () {
-                tries++;
-
-                // If RV recovered, stop checking
-                if (!rvLooksEmpty()) {
-                  clearInterval(t);
-                  return;
-                }
-
-                // Still blank after several tries -> reload once
-                if (tries >= maxTries) {
-                  clearInterval(t);
-                  console.warn("[RV] Still blank after " + reason + " - reloading");
-                  location.reload();
-                }
-              }, interval);
-            }
-
-         
-
-            // Force hard navigation whenever leaving OR entering an RV-ish page
-            document.addEventListener("click", function (e) {
-              var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
-              if (!a) return;
-
-              if (e.defaultPrevented) return;
-              if (e.button !== 0) return;
-              if (a.target === "_blank") return;
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-
-              var u;
-              try { u = new URL(a.href, location.href); } catch { return; }
-              if (u.origin !== location.origin) return;
-
-              var fromIsRv = shouldHardNav(location.pathname);
-              var toIsRv = shouldHardNav(u.pathname);
-
-              if (fromIsRv || toIsRv) {
-                e.preventDefault();
-                location.assign(u.href);
-              }
-            }, { capture: true, signal: signal });
-          })();
         }
 
-        // run now + after every ViewTransition swap
-        rebindSiteUI();
-        document.addEventListener("astro:page-load", rebindSiteUI);
+        // Normal full-page load
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", rebindSiteUI, { once: true });
+        } else {
+          rebindSiteUI();
+        }
+
+        // Back/forward cache restores
+        window.addEventListener("pageshow", rebindSiteUI, { passive: true });
       })();
     </script>
 
@@ -864,6 +715,25 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       .page-title{margin:0;font-size:clamp(2.4rem,3.8vw,3.05rem);line-height:1.08;font-weight:750;letter-spacing:-.015em;color:#111827}
       .mountain-strip{margin:10px auto 22px;height:48px;border-radius:6px;overflow:hidden}
     </style>
+
+    <!-- Meta Pixel -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '925469067559115');
+      fbq('track', 'PageView');
+    </script>
+
+    <noscript>
+      <img height="1" width="1" style="display:none"
+        src="https://www.facebook.com/tr?id=925469067559115&ev=PageView&noscript=1"/>
+    </noscript>
   </head>
 
   <body class={bodyClass} style={`--container-max:${containerMax}px`}>
@@ -872,8 +742,8 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
     {showHeader && (
       <header role="banner">
         <div class="nav-inner">
-          {/* ✅ CHANGED: force hard reload on the brand/home click */}
-          <a class="brand" href="/" data-astro-reload>Fernie.Homes</a>
+          {/* Removed data-astro-reload */}
+          <a class="brand" href="/">Fernie.Homes</a>
 
           <button class="hamburger" type="button" aria-label="Open menu" aria-expanded="false">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -924,38 +794,37 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       </div>
     </main>
 
-        <Footer />
+    <Footer />
     {false && <HomeMatchChatWidget />}
 
     <script src="/js/home-match-chat-widget.js" defer></script>
-  <script>
-(() => {
-  const form = document.getElementById("hoodForm");
-  const thanks = document.getElementById("hoodThanks");
 
-  if (!form || !thanks) return;
+    <script>
+      (() => {
+        const form = document.getElementById("hoodForm");
+        const thanks = document.getElementById("hoodThanks");
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
+        if (!form || !thanks) return;
 
-    const data = new FormData(form);
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
 
-    const res = await fetch(form.action, {
-      method: "POST",
-      body: data,
-      headers: { Accept: "application/json" },
-    });
+          const data = new FormData(form);
 
-    if (res.ok) {
-      form.style.display = "none";
-      thanks.hidden = false;
-    } else {
-      alert("Something went wrong. Please try again.");
-    }
-  });
-})();
-</script>
+          const res = await fetch(form.action, {
+            method: "POST",
+            body: data,
+            headers: { Accept: "application/json" },
+          });
 
+          if (res.ok) {
+            form.style.display = "none";
+            thanks.hidden = false;
+          } else {
+            alert("Something went wrong. Please try again.");
+          }
+        });
+      })();
+    </script>
   </body>
 </html>
-

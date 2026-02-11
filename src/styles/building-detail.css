@@ -670,3 +670,43 @@
 .neighbourhood-buildings .bld-card a:last-child {
   margin-top: 12px !important;
 }
+/* ==========================================
+   Building detail page: FORCE single column
+   ========================================== */
+
+/* base */
+.page-shell.building-detail .grid{
+  grid-template-columns: 1fr !important;
+}
+
+/* override your desktop breakpoints */
+@media (min-width: 980px){
+  .page-shell.building-detail .grid{
+    grid-template-columns: 1fr !important;
+  }
+}
+@media (min-width: 1200px){
+  .page-shell.building-detail .grid{
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* optional: keep aside from acting like a sidebar */
+.page-shell.building-detail .aside{
+  width: 100%;
+  max-width: none;
+}
+/* ==========================================
+   Building detail: single column BUT show ASIDE first
+   (so "Who it suits" stays visible)
+   ========================================== */
+
+.page-shell.building-detail .stack { grid-area: main; }
+.page-shell.building-detail .aside { grid-area: aside; }
+
+.page-shell.building-detail .grid{
+  grid-template-columns: 1fr !important;
+  grid-template-areas:
+    "aside"
+    "main";
+}

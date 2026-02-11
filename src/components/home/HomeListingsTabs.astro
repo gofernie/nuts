@@ -1,0 +1,269 @@
+---
+// File: src/components/home/HomeListingsTabs.astro
+import { Fragment } from "astro/jsx-runtime";
+
+type ListingTab = {
+  id: string;
+  label: string;
+  payload: string;
+};
+
+const {
+  error = null,
+  tabs = [],
+  singlePayload = "",
+} = Astro.props as {
+  error?: string | null;
+  tabs?: ListingTab[];
+  singlePayload?: string;
+};
+
+const hasTabs = Array.isArray(tabs) && tabs.length > 0;
+const hasSingle = !!singlePayload && !hasTabs;
+---
+
+<section class="listings-section" id="home-listings">
+  <div class="listings-head">
+    <h2>Fernie Listings</h2>
+    <a class="listings-link" href="/browse" data-astro-prefetch="hover">
+      Open full search →
+    </a>
+  </div>
+
+  {error ? (
+    <p class="err">{error}</p>
+  ) : hasTabs ? (
+    <div class="listing-wrap listing-wrap--tabs">
+      <div class="listing-tabs" role="tablist" aria-label="Listing sets">
+        {tabs.map((tab, idx) => (
+          <button
+            type="button"
+            class={`listing-tab ${idx === 0 ? "is-active" : ""}`}
+            role="tab"
+            aria-selected={idx === 0 ? "true" : "false"}
+            aria-controls={`panel-${tab.id}`}
+            id={`tab-${tab.id}`}
+            data-tab={tab.id}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div class="listing-panels">
+        {tabs.map((tab, idx) => (
+          <div
+            class={`listing-panel ${idx === 0 ? "is-active" : ""}`}
+            role="tabpanel"
+            id={`panel-${tab.id}`}
+            aria-labelledby={`tab-${tab.id}`}
+            data-panel={tab.id}
+            aria-hidden={idx === 0 ? "false" : "true"}
+            hidden={idx === 0 ? undefined : true}
+          >
+            <div class="rv-host">
+              {
+                /[<>]/.test(tab.payload)
+                  ? <Fragment set:html={tab.payload}></Fragment>
+                  : <div data-rv-block={tab.payload}></div>
+              }
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <script is:inline>
+        {String.raw`
+(() => {
+  const ROOT_ID = "home-listings";
+  const SRC = "https://cdn.realtyvis.com/js/embed.js";
+
+  function getRoot() {
+    return document.getElementById(ROOT_ID);
+  }
+
+  // Remove + re-add embed.js (cache-busted) to force a fresh DOM scan.
+  // This is the reliable way to make "other tabs" render iframes.
+  function forceReloadEmbedScript() {
+    return new Promise((resolve) => {
+      // Remove any prior RealtyVis embed scripts
+      document.querySelectorAll('script[src^="' + SRC + '"]').forEach((n) => n.remove());
+
+      const s = document.createElement("script");
+      s.src = SRC + "?cb=" + Date.now();
+      s.defer = true;
+      s.async = true;
+      s.addEventListener("load", () => resolve(true), { once: true });
+      s.addEventListener("error", () => resolve(false), { once: true });
+      document.head.appendChild(s);
+    });
+  }
+
+  function setActive(rootEl, id) {
+    const tabEls = Array.from(rootEl.querySelectorAll(".listing-tab"));
+    const panelEls = Array.from(rootEl.querySelectorAll(".listing-panel"));
+    if (!tabEls.length || !panelEls.length) return;
+
+    tabEls.forEach((t) => {
+      const active = t.getAttribute("data-tab") === id;
+      t.classList.toggle("is-active", active);
+      t.setAttribute("aria-selected", active ? "true" : "false");
+    });
+
+    panelEls.forEach((p) => {
+      const match = p.getAttribute("data-panel") === id;
+      p.classList.toggle("is-active", match);
+      p.setAttribute("aria-hidden", match ? "false" : "true");
+      if (match) p.removeAttribute("hidden");
+      else p.setAttribute("hidden", "true");
+    });
+  }
+
+  function getActivePanel(rootEl) {
+    return rootEl.querySelector('.listing-panel.is-active');
+  }
+
+  function panelHasEmbed(panelEl) {
+    // RealtyVis typically injects an iframe. Be generous in detection.
+    return !!panelEl.querySelector("iframe");
+  }
+
+  async function ensurePanelRendered(rootEl) {
+    const panel = getActivePanel(rootEl);
+    if (!panel) return;
+
+    const hasBlock = panel.querySelector("[data-rv-block]");
+    if (!hasBlock) return;
+
+    // If it already rendered once, don't thrash.
+    if (panelHasEmbed(panel)) return;
+
+    // Force a fresh scan by reloading embed.js
+    await forceReloadEmbedScript();
+  }
+
+  function bind(root) {
+    if (root.dataset.tabsBound === "1") return;
+    root.dataset.tabsBound = "1";
+
+    const buttons = Array.from(root.querySelectorAll(".listing-tab"));
+    if (!buttons.length) return;
+
+    // default active = first
+    const firstId = buttons[0].getAttribute("data-tab");
+    if (firstId) setActive(root, firstId);
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const b = e.currentTarget;
+        const id = b && b.getAttribute ? b.getAttribute("data-tab") : null;
+        if (!id) return;
+
+        setActive(root, id);
+
+        // Let the panel unhide before embed scans
+        setTimeout(() => { ensurePanelRendered(root); }, 50);
+      });
+    });
+  }
+
+  async function init() {
+    const root = getRoot();
+    if (!root) return;
+    bind(root);
+    // Render the default (first) tab too
+    ensurePanelRendered(root);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+
+  document.addEventListener("astro:page-load", init);
+  window.addEventListener("pageshow", () => setTimeout(init, 80));
+})();
+        `}
+      </script>
+
+      <script is:inline>
+        {String.raw`
+(function () {
+  var warmed = false;
+  function warm() {
+    if (warmed) return; warmed = true;
+    new Image().src = "https://app.realtyvis.com/favicon.ico";
+    new Image().src = "https://cdn.realtyvis.com/favicon.ico";
+    try {
+      fetch("https://app.realtyvis.com/css/site.min.css", { mode: "no-cors" }).catch(function(){});
+      fetch("https://app.realtyvis.com/js/site.min.js", { mode: "no-cors" }).catch(function(){});
+    } catch (e) {}
+  }
+  var root = document.getElementById("home-listings");
+  if (!root) return;
+  var hosts = root.querySelectorAll(".listing-wrap--tabs, .rv-host");
+  ["pointerover","touchstart","focusin"].forEach(function (ev) {
+    hosts.forEach(function (host) {
+      host.addEventListener(ev, warm, { once: true, passive: true });
+    });
+  });
+})();
+        `}
+      </script>
+    </div>
+  ) : hasSingle ? (
+    <div class="listing-wrap">
+      <div class="rv-host">
+        {
+          /[<>]/.test(singlePayload)
+            ? <Fragment set:html={singlePayload}></Fragment>
+            : <div data-rv-block={singlePayload}></div>
+        }
+      </div>
+
+      <script is:inline>
+        {String.raw`
+(() => {
+  const SRC = "https://cdn.realtyvis.com/js/embed.js";
+
+  function forceReloadEmbedScript() {
+    return new Promise((resolve) => {
+      document.querySelectorAll('script[src^="' + SRC + '"]').forEach((n) => n.remove());
+      const s = document.createElement("script");
+      s.src = SRC + "?cb=" + Date.now();
+      s.defer = true;
+      s.async = true;
+      s.addEventListener("load", () => resolve(true), { once: true });
+      s.addEventListener("error", () => resolve(false), { once: true });
+      document.head.appendChild(s);
+    });
+  }
+
+  async function init() {
+    const root = document.getElementById("home-listings");
+    if (!root) return;
+    const block = root.querySelector("[data-rv-block]");
+    if (!block) return;
+    if (root.querySelector("iframe")) return;
+    await forceReloadEmbedScript();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+
+  document.addEventListener("astro:page-load", init);
+  window.addEventListener("pageshow", () => setTimeout(init, 80));
+})();
+        `}
+      </script>
+    </div>
+  ) : (
+    <p class="muted">
+      Add RealtyVis block IDs (in the <code>category</code> column) to extra HOME rows to power the listings tabs.
+    </p>
+  )}
+</section>
