@@ -1,0 +1,24 @@
+---
+// File: src/pages/thanks.astro
+export const prerender = true;
+
+import Site from "../layouts/Site.astro";
+
+const GO_TO = "/types/new-listings-fernie/";
+---
+
+<Site
+  title="Thanks - Fernie Homes"
+  seo_title="Thanks - Fernie Homes"
+  seo_description="Redirecting..."
+  showHeader={false}
+  minimalFooter={true}
+>
+  <meta http-equiv="refresh" content={`0;url=${GO_TO}`} />
+
+  <div style="max-width:780px;margin:80px auto;padding:0 16px;">
+    <h1 style="margin:0 0 10px;font-size:2rem;">You’re in.</h1>
+    <p style="margin:0 0 18px;">Redirecting you to the newest listings…</p>
+    <p><a href={GO_TO}>Continue</a></p>
+  </div>
+</Site>

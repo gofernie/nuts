@@ -1,0 +1,290 @@
+---
+const title = "Fernie Insider";
+const description =
+  "Local perspective on homes, ski-hill shifts, and what I'd actually watch.";
+
+const HERO_IMG =
+  "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/21f2751e-d252-4d16-6d43-238fd3708e00/hero";
+---
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style is:global>
+  :root{
+    --bg:#f3f1ec;
+    --ink:#1f1f1f;
+    --muted:#6a6a6a;
+    --accent:#4f6d63;
+    --accent-strong:#5f766e;
+    --card:#ffffff;
+    --line:rgba(0,0,0,0.10);
+    --radius:16px;
+  }
+
+  *{ box-sizing:border-box; }
+
+  /* HARD isolate Insider from site-wide typography & form resets */
+  .insider, .insider *{
+    font-family:"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  }
+
+  .insider{
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--ink);
+    line-height:1.7;
+    font-size:17px; /* ✅ slightly larger for readability */
+  }
+
+  /* HERO */
+  .insHero{
+    position:relative;
+    height:42vh;        /* ✅ less cinematic, more masthead */
+    min-height:320px;   /* ✅ title shows sooner */
+    display:grid;
+    place-items:center;
+    text-align:center;
+    overflow:hidden;
+  }
+
+  .insHeroImg{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    object-position:center;
+    filter:saturate(0.95) contrast(1.05);
+  }
+
+ .insHeroOverlay{
+  position:absolute;
+  inset:0;
+  background:linear-gradient(
+    rgba(0,0,0,0.22),
+    rgba(0,0,0,0.35)
+  );
+}
+
+.insHeroInner{
+  position:relative;
+  z-index:2;
+  color:#fff;
+  max-width:980px;
+  margin:0 24px;
+}
+
+    /* ✅ readable “glass” backing for text */
+    background: rgba(0,0,0,0.18);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    padding: 22px 26px;
+    backdrop-filter: blur(6px);
+
+    margin: 0 24px;
+  }
+
+  .insBrand{
+    margin:0;
+    font-size: clamp(2.6rem, 7vw, 4.2rem); /* ✅ bigger */
+    font-weight:700;
+    letter-spacing:2px;
+    text-shadow: 0 2px 18px rgba(0,0,0,0.55); /* ✅ contrast */
+  }
+
+  .insTagline{
+    margin:14px auto 0;
+    max-width:720px;
+    font-size:1.05rem;
+    opacity:0.94;
+    text-shadow: 0 2px 18px rgba(0,0,0,0.55); /* ✅ contrast */
+  }
+
+  /* CONTENT */
+  .insIntro{
+    padding:64px 24px 90px;
+  }
+
+  .insInner{
+    max-width:760px;
+    margin:0 auto;
+  }
+
+  .insHeadline{
+    margin:0 0 12px;
+    font-size:clamp(1.75rem, 4.8vw, 2.2rem); /* ✅ slightly larger */
+    font-weight:650;
+  }
+
+  .insLead{
+    margin:0 0 24px;
+    color:var(--muted);
+  }
+
+  .insList{
+    margin:0 0 34px;
+    padding-left:20px;
+  }
+  .insList li{ margin:10px 0; }
+
+  /* SIGNUP CARD */
+  .insCard{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:26px;
+    box-shadow:0 12px 35px rgba(0,0,0,0.04);
+  }
+
+  .insCardTitle{
+    margin:0 0 14px;
+    font-weight:650;
+  }
+
+  .insRow{
+    display:flex;
+    gap:14px;
+    flex-wrap:wrap;
+    margin:0 0 10px;
+  }
+
+  /* force form styling to win against global input/button rules */
+  .insider .insRow input{
+    flex:1;
+    min-width:240px;
+    padding:16px 18px !important;
+    font-size:16px !important;
+    border:1px solid var(--line) !important;
+    border-radius:14px !important;
+    background:#fafafa !important;
+    outline:none !important;
+    appearance:none !important;
+    -webkit-appearance:none !important;
+  }
+
+  .insider .insRow input:focus{
+    border-color:rgba(79,109,99,0.65) !important;
+    box-shadow:0 0 0 4px rgba(79,109,99,0.14) !important;
+  }
+
+  .insider .insRow button{
+    padding:16px 26px !important;
+    font-size:16px !important;
+    border-radius:14px !important;
+    border:0 !important;
+    background:var(--accent-strong) !important;
+    color:#fff !important;
+    font-weight:650 !important;
+    cursor:pointer !important;
+    transition:transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  }
+
+  .insider .insRow button:hover{
+    transform:translateY(-1px);
+    box-shadow:0 10px 22px rgba(0,0,0,0.14);
+    opacity:0.98;
+  }
+
+  .insFine{
+    margin-top:10px;
+    font-size:0.92rem;
+    color:var(--muted);
+  }
+
+  /* POST */
+  .insPost{
+    margin-top:56px;
+    padding-top:42px;
+    border-top:1px solid var(--line);
+  }
+
+  .insPost h3{
+    margin:0 0 14px;
+    font-size:1.35rem;
+    font-weight:650;
+  }
+
+  .insPost p{
+    margin:0 0 1.1rem;
+  }
+
+  .insFooter{
+    margin-top:18px;
+    font-size:0.95rem;
+    color:var(--muted);
+  }
+
+  .insFooter a{
+    color:var(--accent);
+    text-decoration:none;
+    border-bottom:1px solid rgba(79,109,99,0.25);
+    padding-bottom:2px;
+  }
+
+  @media (max-width:520px){
+    .insHero{ height:46vh; min-height:360px; }
+    .insHeroInner{ padding: 18px 18px; border-radius: 16px; }
+    .insCard{ padding:20px; }
+    .insIntro{ padding:48px 18px 70px; }
+  }
+</style>
+
+<div class="insider">
+  <section class="insHero">
+    <img class="insHeroImg" src={HERO_IMG} alt="Fernie skyline" />
+    <div class="insHeroOverlay"></div>
+    <div class="insHeroInner">
+      <h1 class="insBrand">FERNIE INSIDER</h1>
+      <div class="insTagline">
+        Local perspective on homes, ski-hill shifts, and what I'd actually watch.
+      </div>
+    </div>
+  </section>
+
+  <section class="insIntro">
+    <div class="insInner">
+      <h2 class="insHeadline">Before you buy in Fernie - read this first.</h2>
+      <p class="insLead">
+        A short weekly signal on what's actually happening in the local housing market.
+      </p>
+
+      <ul class="insList">
+        <li>New listings - price drops</li>
+        <li>Ski-hill shifts - STR reality</li>
+        <li>What I'd watch if I were buying</li>
+      </ul>
+
+      <div class="insCard">
+        <div class="insCardTitle">Get the weekly update by text</div>
+        <div class="insRow">
+          <input type="tel" placeholder="Your phone number..." inputmode="tel" />
+          <button type="button">Get Weekly Update</button>
+        </div>
+        <div class="insFine">1 text per week. No spam. Unsubscribe anytime.</div>
+      </div>
+
+      <article class="insPost">
+        <h3>Week of March 3</h3>
+        <p>
+          Inventory ticked up slightly this week. Nothing dramatic, but enough that buyers under $900k have breathing room again.
+        </p>
+        <p>
+          Two ski-hill condos reduced after ambitious pricing. STR buyers are still active, but they're running tighter math than last year.
+        </p>
+        <p>
+          If I were buying right now, I'd focus on well-priced homes in established neighbourhoods rather than chasing hill premiums.
+        </p>
+
+        <div class="insFooter">
+          Powered by Chris Crump - Fernie local. <a href="https://fernie.homes">fernie.homes</a>
+        </div>
+      </article>
+    </div>
+  </section>
+</div>

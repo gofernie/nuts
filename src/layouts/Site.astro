@@ -6,8 +6,12 @@ const {
   seo_description = "",
   summary = "",
   showHeader = true,
+  hideNav = false,         // hides nav
+  hideBrand = false,       // hides brand
+  minimalFooter = false,   // minimal footer on landing pages only
+
   class: bodyClass = "",
-  wrapContent = false, // default to no card wrapper
+  wrapContent = false,
   heroPreload = null as null | {
     href: string;
     imagesrcset?: string;
@@ -16,16 +20,15 @@ const {
     type?: string;
     crossorigin?: "" | "anonymous" | "use-credentials";
   },
-  containerMax = 1280, // allows per-page overrides if needed
+
+  containerMax = 1120,
 } = Astro.props;
 
 import { getJson } from "../lib/fetchJson";
 import Footer from "../components/Footer.astro";
 import HomeMatchChatWidget from "../components/HomeMatchChatWidget.astro";
 
-import "../styles/building-detail.css"; // contains both buildings index + building detail shared rules
-// import "../styles/realtyvis.css";
-// import "../styles/realtyvis.css";
+import "../styles/building-detail.css";
 
 /* helpers */
 const RESERVED = new Set(["index", "page", "pages", "all", "view", "list"]);
@@ -86,14 +89,20 @@ const metaDescription =
 /* active path helper */
 const pathname = Astro.url.pathname;
 const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
+
+/* minimal footer assets (use your Cloudflare URLs) */
+const MF_HEADSHOT =
+  "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/14049f7d-00ff-47de-4730-73cc06e5c600/hero";
+const MF_LOGO =
+  "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/b32ac00d-d02f-4572-581a-dbc08940f200/hero";
 ---
 
 <html lang="en">
   <head>
     <!-- Favicons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/img/android-chrome-192.png">
-    <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/img/android-chrome-192.png" />
+    <link rel="apple-touch-icon" href="/img/apple-touch-icon.png" />
 
     <!-- Google Analytics 4 -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-FQ1LMJR15W"></script>
@@ -135,16 +144,17 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       />
     )}
 
-    <!-- ✅ RealtyVis embed (loads once per page load) -->
+    <!-- RealtyVis embed -->
     <script src="https://cdn.realtyvis.com/js/embed.js" defer></script>
 
-    <!-- GLOBAL -->
     <style is:global>
       :root {
         --header-h: 52px;
         --edge-pad: 12px;
-        --edge-pad-lg: 30px;
-        --container-max: 1280px;
+        --edge-pad-lg: 24px;
+
+        --container-max: 1120px;
+
         --bg: #ffffff;
         --ink: #271f11;
         --ink-muted: #1f2937;
@@ -280,7 +290,6 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
         backdrop-filter: blur(10px);
         z-index: 1000;
         border: 0 !important;
-        border-bottom: 0 !important;
         box-shadow: none !important;
         transition:
           background-color .35s ease,
@@ -295,16 +304,15 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       }
 
       .nav-inner {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  height: 100%;
-  padding-inline: var(--edge-pad);
-
-  width: 100%;
-  max-width: var(--container-max);
-  margin-inline: auto;
-}
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        height: 100%;
+        padding-inline: var(--edge-pad);
+        width: 100%;
+        max-width: var(--container-max);
+        margin-inline: auto;
+      }
 
       @media (min-width: 900px) {
         .nav-inner { padding-inline: var(--edge-pad-lg); }
@@ -499,9 +507,7 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
 
       @media (prefers-reduced-motion: reduce) {
         header nav,
-        header nav.open {
-          transition: none !important;
-        }
+        header nav.open { transition: none !important; }
         .hamburger:active { transform: none; }
       }
 
@@ -520,6 +526,7 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
         padding-top: 1.6rem;
         padding-bottom: 1.6rem;
       }
+
       @media (min-width: 900px) {
         .page-content {
           padding-left: var(--edge-pad-lg);
@@ -528,6 +535,7 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
           padding-bottom: 2rem;
         }
       }
+
       @media (max-width: 900px) {
         .page-content {
           margin: 0 auto;
@@ -571,7 +579,7 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       }
 
       @media (min-width: 900px) {
-        :root { --h1-size: 2.6rem; --h2-size: 1.8rem; --h3-size: 1.35rem; --body-size: 1.05rem; }
+        :root { --h1-size: 2.45rem; --h2-size: 1.7rem; --h3-size: 1.28rem; --body-size: 1.0rem; }
       }
 
       @media (max-width: 599px) {
@@ -609,9 +617,88 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
         .map-embed__frame { aspect-ratio: 4 / 5; border-radius: 16px; }
       }
       .map-embed__caption { margin-top: 0.5rem; font-size: 0.95rem; opacity: 0.8; }
+
+      /* ---------------- Minimal footer (landing pages only) ---------------- */
+      .mf{
+        background:#020c26;
+        color:#fff;
+        padding:52px 16px;
+      }
+      .mf__inner{
+        max-width: 1100px;
+        margin: 0 auto;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        gap:34px;
+        flex-wrap:wrap;
+        text-align:center;
+      }
+
+      .mf__photo,
+      .mf__logo{
+        width: 128px;
+        height: 128px;
+        border-radius: 14px;
+        background: rgba(255,255,255,.10);
+        overflow: hidden;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+      }
+
+      /* Headshot - crop nicely but avoid chopping the head */
+      .mf__photo img{
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: 50% 18%;
+        display: block;
+      }
+
+      /* Logo - fill box, never crop */
+      .mf__logo{ padding: 10px; }
+      .mf__logo img{
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+
+      .mf__name{
+        font-size: 2.15rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin: 0 0 6px;
+      }
+      .mf__sub{
+        opacity:.75;
+        margin: 0 0 10px;
+      }
+      .mf__broker{
+        font-weight: 700;
+        margin: 0 0 10px;
+      }
+      .mf__contact{
+        font-weight: 650;
+      }
+      .mf__contact a{
+        color:#fff;
+        text-decoration:none;
+      }
+      .mf__contact a:hover{
+        text-decoration:underline;
+      }
+      .mf__dot{ opacity:.65; }
+
+      @media (max-width: 520px){
+        .mf__name{ font-size: 1.7rem; }
+        .mf__photo, .mf__logo{ width: 96px; height: 96px; }
+        .mf__logo{ padding: 8px; }
+      }
     </style>
 
-    <!-- ✅ ONE Site UI binder (normal full-page loads) -->
+    <!-- Site UI binder -->
     <script is:inline>
       (function () {
         function rebindSiteUI() {
@@ -620,7 +707,6 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
           window.__siteAbort = ac;
           var signal = ac.signal;
 
-          // -------- Nav bind --------
           (function bindNav() {
             var btn = document.querySelector(".hamburger");
             var nav = document.querySelector("header nav");
@@ -669,7 +755,6 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
             openNav(false);
           })();
 
-          // -------- Header scroll "glass" toggle --------
           (function bindHeaderScroll() {
             function updateHeader() {
               var h = document.querySelector("header[role='banner']");
@@ -681,7 +766,6 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
             window.addEventListener("scroll", updateHeader, { passive: true, signal });
           })();
 
-          // -------- Scrollbar width measurer --------
           (function bindSBW() {
             var root = document.documentElement;
             function setSBW() {
@@ -694,14 +778,12 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
           })();
         }
 
-        // Normal full-page load
         if (document.readyState === "loading") {
           document.addEventListener("DOMContentLoaded", rebindSiteUI, { once: true });
         } else {
           rebindSiteUI();
         }
 
-        // Back/forward cache restores
         window.addEventListener("pageshow", rebindSiteUI, { passive: true });
       })();
     </script>
@@ -709,11 +791,47 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
     <script src="/js/smooth-anchors.js?v=5" defer></script>
 
     <style is:inline>
-      .page-shell{max-width:1280px;margin-inline:auto;margin-top:14px;margin-bottom:40px}
-      .page-intro{max-width:var(--container-max);margin:0 auto 10px;padding-top:28px}
-      .kicker{margin:0;font-size:.85rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.75}
-      .page-title{margin:0;font-size:clamp(2.4rem,3.8vw,3.05rem);line-height:1.08;font-weight:750;letter-spacing:-.015em;color:#111827}
+      .page-shell{
+        max-width: var(--container-max);
+        margin-inline:auto;
+        margin-top:14px;
+        margin-bottom:40px
+      }
+      .page-intro{
+        max-width:var(--container-max);
+        margin:0 auto 10px;
+        padding-top:28px
+      }
+      .kicker{
+        margin:0;
+        font-size:.85rem;
+        font-weight:700;
+        letter-spacing:.08em;
+        text-transform:uppercase;
+        opacity:.75
+      }
+      .page-title{
+        margin:0;
+        font-size:clamp(2.1rem,3.2vw,2.7rem);
+        line-height:1.08;
+        font-weight:750;
+        letter-spacing:-.015em;
+        color:#111827
+      }
       .mountain-strip{margin:10px auto 22px;height:48px;border-radius:6px;overflow:hidden}
+
+      .page-shell,
+      .wrap-1280,
+      .wrap-1200,
+      .wrap-1100,
+      .page-intro,
+      .page-header,
+      .longcopy,
+      .long-copy{
+        max-width: var(--container-max) !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+      }
     </style>
 
     <!-- Meta Pixel -->
@@ -742,38 +860,43 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
     {showHeader && (
       <header role="banner">
         <div class="nav-inner">
-          {/* Removed data-astro-reload */}
-          <a class="brand" href="/">Fernie.Homes</a>
+          {!hideBrand && (
+            <a class="brand" href="/">Fernie.Homes</a>
+          )}
 
-          <button class="hamburger" type="button" aria-label="Open menu" aria-expanded="false">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </button>
+          {!hideNav && (
+            <>
+              <button class="hamburger" type="button" aria-label="Open menu" aria-expanded="false">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </button>
 
-          <nav aria-label="Primary">
-            <a href="/browse" class={`navlink ${isActive("/browse") ? "active" : ""}`}>Browse Listings</a>
-            <a href="/neighbourhoods" class={`navlink ${isActive("/neighbourhoods") ? "active" : ""}`}>Neighbourhoods</a>
-            <a href="/types" class={`navlink ${isActive("/types") ? "active" : ""}`}>Property Types</a>
-            <a href="/areas" class={`navlink ${isActive("/areas") ? "active" : ""}`}>Areas</a>
-            <a
-              href="/living-in-fernie"
-              class={`navlink ${
-                isActive("/living-in-fernie") ||
-                pathname.startsWith("/living/") ||
-                pathname.startsWith("/to_do") ||
-                pathname.startsWith("/stay")
-                  ? "active"
-                  : ""
-              }`}
-            >
-              Living in Fernie
-            </a>
-            <a href="/blog" class={`navlink ${isActive("/blog") ? "active" : ""}`}>Blog</a>
-            <a href="/contact" class={`navlink ${isActive("/contact") ? "active" : ""}`}>Contact</a>
-          </nav>
+              <nav aria-label="Primary">
+                <a href="/browse" class={`navlink ${isActive("/browse") ? "active" : ""}`}>Browse Listings</a>
+                <a href="/neighbourhoods" class={`navlink ${isActive("/neighbourhoods") ? "active" : ""}`}>Neighbourhoods</a>
+                <a href="/types" class={`navlink ${isActive("/types") ? "active" : ""}`}>Property Types</a>
+                <a href="/areas" class={`navlink ${isActive("/areas") ? "active" : ""}`}>Areas</a>
+                <a
+                  href="/living-in-fernie"
+                  class={`navlink ${
+                    isActive("/living-in-fernie") ||
+                    pathname.startsWith("/living/") ||
+                    pathname.startsWith("/to_do") ||
+                    pathname.startsWith("/stay")
+                      ? "active"
+                      : ""
+                  }`}
+                >
+                  Living in Fernie
+                </a>
+                <a href="/blog" class={`navlink ${isActive("/blog") ? "active" : ""}`}>Blog</a>
+                <a href="/contact" class={`navlink ${isActive("/contact") ? "active" : ""}`}>Contact</a>
+              </nav>
 
-          <div class="nav-overlay" hidden></div>
+              <div class="nav-overlay" hidden></div>
+            </>
+          )}
         </div>
       </header>
     )}
@@ -794,9 +917,34 @@ const isActive = (p: string) => pathname === p || pathname.startsWith(p + "/");
       </div>
     </main>
 
-    <Footer />
-    {false && <HomeMatchChatWidget />}
+    {minimalFooter ? (
+      <footer class="mf">
+        <div class="mf__inner">
+          <div class="mf__photo">
+            <img src={MF_HEADSHOT} alt="Chris Crump" loading="lazy" decoding="async" />
+          </div>
 
+          <div class="mf__info">
+            <div class="mf__name">Chris Crump</div>
+            <div class="mf__sub">Personal Real Estate Corp.</div>
+            <div class="mf__broker">460 Realty</div>
+            <div class="mf__contact">
+              <a href="tel:+12506190390">250 619 0390</a>
+              <span class="mf__dot"> · </span>
+              <a href="mailto:chris@crump.ca">chris@crump.ca</a>
+            </div>
+          </div>
+
+          <div class="mf__logo">
+            <img src={MF_LOGO} alt="460 Realty" loading="lazy" decoding="async" />
+          </div>
+        </div>
+      </footer>
+    ) : (
+      <Footer />
+    )}
+
+    {false && <HomeMatchChatWidget />}
     <script src="/js/home-match-chat-widget.js" defer></script>
 
     <script>

@@ -1,0 +1,2 @@
+# Serve Insider as homepage on insider subdomain
+/  /insider  200!  Conditions: {Host=insider.fernie.homes}

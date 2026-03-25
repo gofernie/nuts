@@ -1,0 +1,404 @@
+---
+// File: src/pages/fernie-homes-for-sale.astro
+export const prerender = true;
+
+import Site from "../layouts/Site.astro";
+import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../lib/categoryColours";
+import MountainStrip from "../components/MountainStrip.astro";
+
+const seoTitle = "Fernie Homes for Sale - See New Listings First";
+const seoDesc =
+  "Get first access to every new Fernie listing. New listings, price drops, ski hill properties.";
+
+const headerAccent = CATEGORY_COLOURS.browse ?? DEFAULT_ACCENT;
+
+const heroImg =
+  "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/bd399b93-90ac-4859-de40-80f4fdcef800/hero";
+
+const PHONE_TEL = "tel:+12506190390";
+---
+
+<Site
+  title={seoTitle}
+  seo_title={seoTitle}
+  seo_description={seoDesc}
+  hideNav={true}
+  hideBrand={true}
+  showHeader={false}
+  minimalFooter={true}
+>
+  <div class="lp-shell pad-x" style={`--accent:${headerAccent};`}>
+
+    <!-- INTRO -->
+    <section class="lp-intro">
+      <div class="title-block">
+        <div class="accent-bars">
+          <span class="accent-bar primary"></span>
+          <span class="accent-bar secondary"></span>
+        </div>
+
+        <h1 class="lp-h1">See New Fernie Listings Before Most Buyers Do</h1>
+
+        <p class="lp-sub">
+          Browse every Fernie home for sale - plus get instant alerts for new listings and price drops.
+        </p>
+      </div>
+    </section>
+
+    <MountainStrip preset="default" opacity={0.11} />
+
+    <!-- HERO GRID -->
+    <section class="lp-hero">
+
+      <!-- LEFT -->
+      <div class="lp-left">
+        <div class="left-card">
+          <div class="lp-image">
+            <img
+              src={heroImg}
+              alt="Fernie mountain town"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+
+          <div class="lp-trust">
+            <div class="trust-top">
+              <div class="badge">Local expertise</div>
+              <div class="who">
+                <strong>Chris Crump</strong>
+                <span>Fernie Realtor</span>
+              </div>
+            </div>
+
+            <p class="trust-copy">
+              In a fast market like Fernie, timing matters.
+              I help buyers move quickly on the right properties.
+            </p>
+
+            <div class="trust-actions">
+              <a class="mini-btn" href={PHONE_TEL}>Call or text</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="lp-right">
+        <div class="form-card">
+
+          <header class="form-head">
+            <h2 class="form-title">Get Instant Alerts</h2>
+            <p class="form-sub">Free alerts. No spam. Cancel anytime.</p>
+          </header>
+
+          <form
+            id="fernieLeadForm"
+            name="fernie-lead"
+            method="POST"
+            action="/"
+            data-netlify="true"
+            netlify-honeypot="bot-field"
+            class="lp-form"
+          >
+            <!-- Netlify required -->
+            <input type="hidden" name="form-name" value="fernie-lead" />
+
+            <p class="hp">
+              <label>
+                Don’t fill this out:
+                <input name="bot-field" tabindex="-1" autocomplete="off" />
+              </label>
+            </p>
+
+            <input
+              name="first_name"
+              type="text"
+              placeholder="First name"
+              autocomplete="given-name"
+              required
+            />
+
+            <input
+              name="email"
+              type="email"
+              placeholder="Email address"
+              autocomplete="email"
+              required
+            />
+
+            <input
+              name="phone"
+              type="tel"
+              placeholder="Phone (optional)"
+              autocomplete="tel"
+            />
+
+            <button type="submit">🔔 Send Me New Listings</button>
+
+            <small>
+              I only send new listings and price drops. No junk.
+            </small>
+          </form>
+
+          <div class="lp-benefits">
+            <span>✔ New listings</span>
+            <span>✔ Price drops</span>
+            <span>✔ Ski hill inventory</span>
+          </div>
+
+          <div class="lp-micro-proof" aria-hidden="true">
+            <span>✓ Updated daily</span>
+            <span>✓ Used by 100+ Fernie buyers</span>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script is:inline>
+    (function () {
+      const form = document.getElementById("fernieLeadForm");
+      if (!form) return;
+
+      const REDIRECT_TO = "/types/new-listings-fernie/";
+
+      function encode(formEl) {
+        const data = new FormData(formEl);
+        const params = new URLSearchParams();
+        for (const [k, v] of data.entries()) params.append(k, String(v));
+        return params.toString();
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const btn = form.querySelector("button[type='submit']");
+        const prev = btn ? btn.textContent : "";
+        if (btn) { btn.disabled = true; btn.textContent = "Submitting…"; }
+
+        try {
+          await fetch("/", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: encode(form),
+          });
+
+          window.location.href = REDIRECT_TO;
+        } catch (err) {
+          if (btn) { btn.disabled = false; btn.textContent = prev || "🔔 Get New Listings"; }
+          alert("Something went wrong. Please try again.");
+        }
+      });
+    })();
+  </script>
+
+  <!-- STYLES -->
+  <style>
+    .lp-shell {
+      max-width: 1180px;
+      margin: 20px auto 60px;
+    }
+
+    .title-block {
+      max-width: 58rem;
+      padding-top: 0;
+    }
+
+    .accent-bars {
+      display: flex;
+      gap: .25rem;
+      margin-bottom: .75rem;
+    }
+
+    .accent-bar {
+      height: 4px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .accent-bar.primary { width: 80px; }
+    .accent-bar.secondary { width: 40px; opacity: .5; }
+
+    .lp-h1 {
+      font-size: clamp(2.3rem, 3.8vw, 3.1rem);
+      font-weight: 800;
+      margin: 0 0 10px;
+      letter-spacing: -.02em;
+      color: #111827;
+    }
+
+    .lp-sub {
+      margin: 0 0 16px;
+      font-size: 1.1rem;
+      color: #111827;
+    }
+
+    /* ✅ even up heights across both columns */
+    .lp-hero {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 24px;
+      margin-top: 10px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 960px) {
+      .lp-hero { grid-template-columns: 1fr; }
+    }
+
+    .lp-left,
+    .lp-right {
+      display: flex;
+    }
+
+    .left-card,
+    .form-card {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    .left-card {
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,.06);
+      box-shadow: 0 20px 50px rgba(0,0,0,.14);
+      background: #fff;
+    }
+
+    /* ✅ make image grow to match right column height */
+    .lp-image {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    .lp-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .lp-trust {
+      padding: 16px;
+      border-top: 1px solid rgba(0,0,0,.06);
+    }
+
+    .badge {
+      background: #f2f2f2;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: .8rem;
+      font-weight: 700;
+      border: 1px solid rgba(0,0,0,.06);
+      display:inline-block;
+      margin-bottom:8px;
+    }
+
+    .mini-btn {
+      padding: 9px 14px;
+      border-radius: 12px;
+      background: #f3f4f6;
+      font-weight: 700;
+      text-decoration: none;
+      border: 1px solid rgba(0,0,0,.08);
+      color: #111827;
+    }
+
+    .form-card {
+      background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+      border-radius: 18px;
+      padding: 26px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.12);
+      border: 1px solid rgba(0,0,0,.08);
+    }
+
+    .form-head { margin-bottom: 6px; }
+    .form-title { margin: 0 0 4px; font-size: 1.65rem; font-weight: 800; }
+    .form-sub { margin: 0; color: #111827; opacity: .8; }
+
+    .lp-form {
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+      margin-top:10px;
+    }
+
+    .lp-form input,
+    .lp-form button {
+      width:100%;
+    }
+
+    .lp-form input {
+      height: 46px;
+      border-radius: 12px;
+      border: 1px solid rgba(0,0,0,.14);
+      padding: 0 14px;
+      font-size: 1rem;
+      outline:none;
+      background: #fff;
+      box-shadow: 0 1px 0 rgba(0,0,0,.02);
+    }
+
+    .lp-form input:focus {
+      border-color: rgba(15,118,110,.45);
+      box-shadow: 0 0 0 4px rgba(15,118,110,.12);
+    }
+
+    .lp-form button {
+      height: 48px;
+      border-radius: 14px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(0,0,0,.10);
+      transition: transform .15s ease;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap: 8px;
+    }
+
+    .lp-form button:hover {
+      transform: translateY(-1px);
+    }
+
+    .lp-form button:disabled{
+      opacity: .75;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .lp-form small {
+      opacity:.75;
+      font-size:.85rem;
+      line-height: 1.35;
+    }
+
+    .lp-benefits {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: .92rem;
+      font-weight: 700;
+      opacity: .95;
+    }
+
+    .lp-micro-proof{
+      margin-top:6px;
+      font-size:.85rem;
+      opacity:.7;
+      display:flex;
+      gap:14px;
+      flex-wrap:wrap;
+    }
+
+    .hp { display: none !important; }
+  </style>
+</Site>

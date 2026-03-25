@@ -11,6 +11,9 @@ import { Fragment } from "astro/jsx-runtime";
 import { CATEGORY_COLOURS, DEFAULT_ACCENT } from "../lib/categoryColours";
 
 const PATH_BASE_NEIGH = "/neighbourhoods";
+const HERO_RIGHT_IMAGE =
+  "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/bd399b93-90ac-4859-de40-80f4fdcef800/hero";
+
 
 /* ---------- helpers ---------- */
 const RESERVED = new Set(["index","page","pages","all","view","list"]);
@@ -297,10 +300,10 @@ const homeNeighItems = neighItems.slice(0, MAX_NEIGH_HOME);
       </script>
 
       <div
-  class="hero-card"
-  data-hero-root
-  style={`--active-accent:${CATEGORY_COLOURS.neighbourhoods ?? DEFAULT_ACCENT};`}
->
+        class="hero-card"
+        data-hero-root
+        style={`--active-accent:${CATEGORY_COLOURS.neighbourhoods ?? DEFAULT_ACCENT};`}
+      >
         <div class="hero-card-bars" aria-hidden="true">
           <span class="bar primary"></span>
           <span class="bar secondary"></span>
@@ -315,23 +318,45 @@ const homeNeighItems = neighItems.slice(0, MAX_NEIGH_HOME);
             data-spotlight="neigh"
             style={`--v-accent:${CATEGORY_COLOURS.neighbourhoods ?? DEFAULT_ACCENT};`}
           >
-            <p class="hero-kicker">Start with neighbourhoods</p>
-            <h2 class="hero-title">Find your place in Fernie</h2>
-            <p class="hero-copy">
-              Compare ski hill, valley, and in-town neighbourhoods to understand access,
-              day-to-day living, and long-term fit.
-            </p>
+            <div class="hero-variant-inner">
 
-            <div class="hero-actions">
-              <a href="/neighbourhoods" class="hero-btn primary" data-astro-prefetch="hover">Compare neighbourhoods</a>
-              <a href="/browse" class="hero-btn ghost" data-astro-prefetch="hover">Search listings</a>
-            </div>
+              <div class="hero-content">
+                <p class="hero-kicker">Start with neighbourhoods</p>
+                <h2 class="hero-title">Find your place in Fernie</h2>
+                <p class="hero-copy">
+                  Compare ski hill, valley, and in-town neighbourhoods to understand access,
+                  day-to-day living, and long-term fit.
+                </p>
 
-            <div class="hero-feature">
-              <span class="feature-label">Featured</span>
-              <a href="/neighbourhoods/skihill" class="feature-link">Ski Hill Area - layout & access</a>
+                <div class="hero-actions">
+                  <a href="/neighbourhoods" class="hero-btn primary" data-astro-prefetch="hover">
+                    Compare neighbourhoods
+                  </a>
+                  <a href="/browse" class="hero-btn ghost" data-astro-prefetch="hover">
+                    Search listings
+                  </a>
+                </div>
+
+                <div class="hero-feature">
+                  <span class="feature-label">Featured</span>
+                  <a href="/neighbourhoods/skihill" class="feature-link">
+                    Ski Hill Area - layout & access
+                  </a>
+                </div>
+              </div>
+
+              <div class="hero-media">
+                <img
+                  src={HERO_RIGHT_IMAGE}
+                  alt="Fernie neighbourhood overview"
+                  loading="eager"
+                  decoding="async"
+                />
+              </div>
+
             </div>
           </article>
+
 
           {/* Types */}
           <article class="hero-variant" data-variant data-spotlight="types" style={`--v-accent:${CATEGORY_COLOURS.types ?? DEFAULT_ACCENT};`}>
@@ -725,5 +750,32 @@ const homeNeighItems = neighItems.slice(0, MAX_NEIGH_HOME);
     });
   </script>
 
- 
+  <!-- HARD REFRESH GUARD (fixed - no infinite loop) -->
+  <script is:inline>
+    (() => {
+      const KEY = "homeHardReloadedAt";
+      const COOLDOWN_MS = 60_000; // 1 minute safety window
+
+      function shouldReload() {
+        // If we have rv blocks but no iframe yet, it likely failed to init
+        const block = document.querySelector("[data-rv-block]");
+        const iframe = document.querySelector(".rv-host iframe");
+        return !!block && !iframe;
+      }
+
+      window.addEventListener("load", () => {
+        const last = Number(sessionStorage.getItem(KEY) || "0");
+        const now = Date.now();
+
+        // prevent loops / repeated reloads
+        if (now - last < COOLDOWN_MS) return;
+
+        if (shouldReload()) {
+          sessionStorage.setItem(KEY, String(now));
+          window.location.reload(); // `reload(true)` is deprecated
+        }
+      });
+    })();
+  </script>
+
 </Site>
