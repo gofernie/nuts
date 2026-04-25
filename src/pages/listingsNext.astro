@@ -1,0 +1,42 @@
+---
+// src/pages/listings.astro
+import FernieHomesTemplate from "../templates/FernieHomesTemplate.astro";
+---
+
+<FernieHomesTemplate
+  title="Fernie New Listings 2026 | Latest Homes for Sale"
+  description="Track new listings, fresh supply, and the latest homes for sale in Fernie."
+  hero={{
+    ariaLabel: "Fernie listings hero",
+    image: "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/02834f0c-1b74-4090-7ef9-85a062980400/hero",
+    imageAlt: "Fernie mountain town scene",
+    kicker: "Fernie real estate - listings",
+    title: "Fernie New Listings 3026",
+    description: "Track fresh supply, new homes for sale, and what incoming listings are telling us about the Fernie market.",
+    primaryCta: { href: "#snapshot", label: "Start with the snapshot" },
+    secondaryCta: { href: "#fresh-board", label: "See fresh listings" }
+  }}
+  snapshot={{
+    id: "snapshot",
+    eyebrow: "New listings snapshot",
+    title: "What new listings are telling us in Fernie",
+    lead: "A cleaner way to watch fresh inventory, seller confidence, and the level of competition buyers are about to face.",
+    summary: "Fresh supply is running a little ahead of last year.",
+    howToUse: "Use this page to see what is coming on.",
+    stats: [
+      { label: "Fresh supply", value: "8", note: "Current smoothed weekly listing pace." },
+      { label: "4-week direction", value: "rising", note: "Short-term new listing direction." },
+      { label: "12-week direction", value: "rising", note: "Medium-term new listing direction." }
+    ]
+  }}
+  listings={[
+    {
+      address: "47 Example Street, Fernie",
+      price: 879000,
+      beds: 3,
+      baths: 2,
+      propertyType: "House",
+      href: "/search/?id=example-1"
+    }
+  ]}
+/>

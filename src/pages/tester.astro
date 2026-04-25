@@ -1,0 +1,111 @@
+---
+import Layout from "../layouts/LayoutNext.astro";
+import HeroFull from "../components/HeroFull.astro";
+import SectionIntro from "../components/SectionIntro.astro";
+import StatGrid from "../components/StatGrid.astro";
+import CardGrid from "../components/CardGrid.astro";
+import Header from "../components/HeaderNext.astro";
+import "../styles/tokens.css";
+import "../styles/base.css";
+
+export const prerender = true;
+
+
+
+const siteTitle = "Homes Rebuild Tester";
+const description = "Test page for the new reusable fernie.homes template.";
+
+const HERO_IMG =
+  "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/4fec0091-caee-4b51-0ebb-b08fbfeb0500/hero";
+
+const stats = [
+  {
+    label: "Active homes",
+    value: 84,
+    note: "Example stat only for layout testing.",
+  },
+  {
+    label: "New this week",
+    value: 11,
+    note: "Placeholder data while rebuilding the site.",
+  },
+  {
+    label: "Median price",
+    value: "$789K",
+    note: "Use real data later once the structure is settled.",
+  },
+];
+
+const cards = [
+  {
+    href: "#",
+    metaLeft: "Featured search",
+    metaRight: "Homes",
+    title: "Ski Hill properties",
+    dek: "Browse homes and condos around Fernie Alpine Resort.",
+  },
+  {
+    href: "#",
+    metaLeft: "Featured search",
+    metaRight: "Homes",
+    title: "Downtown Fernie",
+    dek: "See walkable homes, character properties, and central condos.",
+  },
+  {
+    href: "#",
+    metaLeft: "Featured search",
+    metaRight: "Homes",
+    title: "New listings",
+    dek: "A place for the freshest homes to hit the market.",
+  },
+  {
+    href: "#",
+    metaLeft: "Neighbourhood",
+    metaRight: "Guide",
+    title: "Alpine Trails",
+    dek: "Test how neighbourhood pages might look in the new template.",
+  },
+];
+---
+
+<Layout title={siteTitle} description={description}>
+  <HeroFull
+    image={HERO_IMG}
+    imageAlt="Fernie homes rebuild hero"
+    kicker="Fernie homes rebuild"
+    title="A reusable template for the next homes site"
+    dek="This is a static test page to shape the new fernie.homes layout before wiring in real listings or market data."
+    primaryHref="#start"
+    primaryLabel="Start here"
+    secondaryHref="#browse"
+    secondaryLabel="Browse sections"
+  />
+
+  <SectionIntro
+    eyebrow="Template test"
+    title="Shared structure, different personality"
+    lead="This page tests the shell, hero, stat grid, and card grid you can reuse across fernie.homes while keeping the current live site untouched."
+  >
+    <p class="summaryLine">
+      For now, this uses placeholder content only - no Google Sheets, no live data,
+      and no dependency on the Insider pipeline.
+    </p>
+
+    <p class="howToUse">
+      Once the structure feels right, you can swap the placeholder content for real
+      homes data, neighbourhood links, and market intelligence.
+    </p>
+
+    <StatGrid items={stats} />
+  </SectionIntro>
+
+  <section class="shell" id="browse" style="padding: 24px 0 40px;">
+    <p class="eyebrow">Browse</p>
+    <h2 class="sectionTitle">Starter content blocks</h2>
+    <p class="lead" style="margin-bottom:18px;">
+      These cards are just placeholders to test the reusable template system.
+    </p>
+
+    <CardGrid items={cards} columns={2} />
+  </section>
+</Layout>

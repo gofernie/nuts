@@ -1,0 +1,17 @@
+---
+const { items = [] } = Astro.props;
+---
+
+{items?.length > 0 && (
+  <div class="statsGrid">
+    {items.map((item) => (
+      <div class="stat">
+        {item.label && <p class="statLabel">{item.label}</p>}
+        {item.value !== undefined && item.value !== null && (
+          <p class="statValue">{item.value}</p>
+        )}
+        {item.note && <p class="statNote">{item.note}</p>}
+      </div>
+    ))}
+  </div>
+)}

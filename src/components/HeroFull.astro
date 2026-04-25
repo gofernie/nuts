@@ -1,0 +1,40 @@
+---
+const {
+  image,
+  imageAlt = "",
+  kicker = "",
+  title = "",
+  dek = "",
+  primaryHref = "",
+  primaryLabel = "",
+  secondaryHref = "",
+  secondaryLabel = "",
+  minHeight = "clamp(440px, 62vw, 760px)",
+} = Astro.props;
+---
+
+<section class="heroFull" aria-label={title || "Page hero"} style={`--hero-min-height:${minHeight};`}>
+  {image && <img src={image} alt={imageAlt} loading="eager" />}
+
+  <div class="heroOverlay">
+    <div class="heroShell">
+      <div class="heroInner">
+        {kicker && <p class="heroKicker">{kicker}</p>}
+        {title && <h1 class="heroH1">{title}</h1>}
+        {dek && <p class="heroDek">{dek}</p>}
+
+        {(primaryHref || secondaryHref) && (
+          <div class="heroActions">
+            {primaryHref && primaryLabel && (
+              <a class="heroBtn" href={primaryHref}>{primaryLabel}</a>
+            )}
+
+            {secondaryHref && secondaryLabel && (
+              <a class="heroBtnGhost" href={secondaryHref}>{secondaryLabel}</a>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</section>

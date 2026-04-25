@@ -1,0 +1,131 @@
+---
+import Header from "../components/Header.astro";
+
+const {
+  title = "Fernie Insider",
+  description = "Local perspective on homes, solds, pricing shifts, and what actually matters in Fernie real estate."
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="generator" content={Astro.generator} />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+
+    <slot name="head" />
+
+    <style is:global>
+
+      
+      :root{
+        --ink: rgba(26,24,22,.92);
+        --muted: rgba(26,24,22,.68);
+        --bg: #f3f1ec;
+        --line: rgba(0,0,0,.12);
+        --card: #ffffff;
+        --radius: 16px;
+        --max: 1180px;
+        --gutter: 18px;
+        --shadow: 0 10px 30px rgba(0,0,0,.03);
+      }
+
+      *{ box-sizing:border-box; }
+
+      html, body{
+        margin:0;
+        width:100%;
+        height:100%;
+      }
+
+      body{
+        background: var(--bg);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        display:flex;
+        flex-direction:column;
+        min-height:100vh;
+      }
+
+      main{
+        flex:1;
+      }
+
+      a{ color:inherit; text-decoration:none; }
+      a:hover{ text-decoration: underline; text-underline-offset: 3px; }
+
+      .container{
+        max-width: var(--max);
+        margin: 0 auto;
+        padding: 0 var(--gutter);
+      }
+
+      .page{
+        margin: 34px auto 80px;
+      }
+
+      footer{
+        margin-top:80px;
+        padding:40px 0 50px;
+        border-top:1px solid var(--line);
+        color:var(--muted);
+        font-size:.9rem;
+      }
+
+      .footerInner{
+        display:flex;
+        justify-content:space-between;
+        flex-wrap:wrap;
+        gap:10px;
+      }
+
+      @media (max-width: 700px){
+        :root{
+          --gutter: 10px;
+          --radius: 12px;
+          --shadow: 0 6px 18px rgba(0,0,0,.025);
+        }
+
+        .page{
+          margin: 18px auto 48px;
+        }
+
+        footer{
+          margin-top:48px;
+          padding:28px 0 34px;
+        }
+
+        .footerInner{
+          gap:6px;
+        }
+      }
+      
+      html{
+  scrollbar-gutter: stable;
+}
+    </style>
+  </head>
+
+  <body>
+    <Header />
+
+    <main>
+      <slot />
+    </main>
+
+    <footer>
+      <div class="container footerInner">
+        <div>Fernie Insider</div>
+        <div>Local market perspective - Powered by Chris Crump</div>
+      </div>
+    </footer>
+  </body>
+</html>

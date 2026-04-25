@@ -1,0 +1,38 @@
+---
+const { items = [], columns = 2 } = Astro.props;
+const colsClass = columns === 1 ? "list cols1" : columns === 3 ? "list cols3" : "list cols2";
+---
+
+{items?.length > 0 && (
+  <div class={colsClass}>
+    {items.map((item) => {
+      const Tag = item.href ? "a" : "div";
+
+      return (
+        <Tag
+          class="card"
+          href={item.href}
+          style={item.style || ""}
+        >
+          {(item.metaLeft || item.metaRight) && (
+            <div class="metaRow">
+              <div>{item.metaLeft}</div>
+              <div>{item.metaRight}</div>
+            </div>
+          )}
+
+          {item.pill && (
+            <span class:list={["statusPill", item.pillClass || ""]}>
+              {item.pill}
+            </span>
+          )}
+
+          {item.title && <div class="title">{item.title}</div>}
+          {item.dek && <p class="dek">{item.dek}</p>}
+
+          {item.body && <div class="cardBody" set:html={item.body}></div>}
+        </Tag>
+      );
+    })}
+  </div>
+)}

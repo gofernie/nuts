@@ -1,0 +1,202 @@
+---
+const currentPath = (value => {
+  const v = String(value || "/");
+  return v.length > 1 ? v.replace(/\/+$/, "") : v;
+})(Astro.url.pathname);
+
+const nav = [
+  { href: "/", label: "Latest" },
+  { href: "/market-trends", label: "Market Trends" },
+  { href: "/listingsNext", label: "Listings" },
+  { href: "/price-cuts", label: "Price Cuts" },
+  { href: "/sales", label: "Sales" },
+  { href: "/archive", label: "Archive" },
+  { href: "/tester", label: "Tester" },
+];
+
+const cleanPath = (value) => {
+  const v = String(value || "/");
+  return v.length > 1 ? v.replace(/\/+$/, "") : v;
+};
+
+const isActive = (href) => currentPath === cleanPath(href);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Header Test</title>
+
+    <style is:global>
+      :root{
+        --ink: rgba(26,24,22,.92);
+        --muted: rgba(26,24,22,.68);
+        --bg: #f3f1ec;
+        --line: rgba(0,0,0,.12);
+      }
+
+      *{ box-sizing:border-box; }
+
+      html, body{
+        margin:0;
+        width:100%;
+        height:100%;
+        scrollbar-gutter: stable;
+      }
+
+      body{
+        background: var(--bg);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      a{
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .site-header{
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(243,241,236,.88);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(0,0,0,.05);
+      }
+
+      .topbar{
+        min-height: 72px;
+        width: min(1180px, calc(100% - 36px));
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        align-items: center;
+        column-gap: 24px;
+      }
+
+      .site-brand{
+        display: flex;
+        align-items: center;
+        justify-self: start;
+        height: 16px;
+        margin: 0;
+        padding: 0;
+      }
+
+      .site-brand img{
+        display: block;
+        width: 108px;
+        height: 16px;
+      }
+
+      .nav{
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 18px;
+        white-space: nowrap;
+        min-width: 0;
+      }
+
+      .link{
+        position: relative;
+        font-size: 14px;
+        color: var(--muted);
+        padding: 8px 0;
+        font-weight: 600;
+      }
+
+      .link:hover{
+        color: var(--ink);
+      }
+
+      .link.is-active{
+        color: var(--ink);
+      }
+
+      .link.is-active::after{
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -2px;
+        height: 2px;
+        background: currentColor;
+        border-radius: 2px;
+      }
+
+      .page{
+        width: min(1180px, calc(100% - 36px));
+        margin: 0 auto;
+        padding: 36px 0 80px;
+      }
+
+      .test-block{
+        border: 1px solid rgba(0,0,0,.08);
+        background: rgba(255,255,255,.55);
+        border-radius: 16px;
+        padding: 24px;
+      }
+
+      .test-line{
+        height: 16px;
+        border-radius: 999px;
+        background: rgba(0,0,0,.08);
+        margin: 14px 0;
+      }
+
+      .test-line.short{ width: 28%; }
+      .test-line.med{ width: 52%; }
+      .test-line.long{ width: 74%; }
+
+      @media (max-width: 900px){
+        .topbar{
+          min-height: 64px;
+          width: calc(100% - 20px);
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+        }
+
+        .nav{
+          display: none;
+        }
+
+        .page{
+          width: calc(100% - 20px);
+          padding: 24px 0 56px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="site-header">
+      <div class="topbar">
+        <a class="site-brand" href="/" aria-label="Fernie Insider">
+          <img src="/cclogo.svg" alt="Fernie Insider" />
+        </a>
+
+        <nav class="nav" aria-label="Primary">
+          {nav.map((item) => (
+            <a class:list={["link", isActive(item.href) && "is-active"]} href={item.href}>
+              {item.label}
+            </a>
+          ))}
+        </nav>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="test-block">
+        <div class="test-line short"></div>
+        <div class="test-line long"></div>
+        <div class="test-line med"></div>
+      </div>
+    </main>
+  </body>
+</html>

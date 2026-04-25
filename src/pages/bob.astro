@@ -1,0 +1,333 @@
+---
+const currentPath = (value => {
+  const v = String(value || "/");
+  return v.length > 1 ? v.replace(/\/+$/, "") : v;
+})(Astro.url.pathname);
+
+const nav = [
+  { href: "/", label: "Latest" },
+  { href: "/market-trends", label: "Market Trends" },
+  { href: "/listingsNext", label: "Listings" },
+  { href: "/price-cuts", label: "Price Cuts" },
+  { href: "/sales", label: "Sales" },
+  { href: "/archive", label: "Archive" },
+  { href: "/tester", label: "Tester" },
+];
+
+const cleanPath = (value) => {
+  const v = String(value || "/");
+  return v.length > 1 ? v.replace(/\/+$/, "") : v;
+};
+
+const isActive = (href) => currentPath === cleanPath(href);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Shell Test</title>
+
+    <style is:global>
+      :root{
+        --ink: rgba(26,24,22,.92);
+        --muted: rgba(26,24,22,.68);
+        --bg: #f3f1ec;
+        --line: rgba(0,0,0,.12);
+        --card: rgba(255,255,255,.68);
+      }
+
+      *{ box-sizing:border-box; }
+
+      html, body{
+        margin:0;
+        width:100%;
+        height:100%;
+        scrollbar-gutter: stable;
+      }
+
+      body{
+        background: var(--bg);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      a{
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .site-header{
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(243,241,236,.88);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(0,0,0,.05);
+      }
+
+      .topbar{
+        min-height: 72px;
+        width: min(1180px, calc(100% - 36px));
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        align-items: center;
+        column-gap: 24px;
+      }
+
+      .site-brand{
+        display: flex;
+        align-items: center;
+        justify-self: start;
+        height: 16px;
+        margin: 0;
+        padding: 0;
+      }
+
+      .site-brand img{
+        display: block;
+        width: 108px;
+        height: 16px;
+      }
+
+      .nav{
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 18px;
+        white-space: nowrap;
+        min-width: 0;
+      }
+
+      .link{
+        position: relative;
+        font-size: 14px;
+        color: var(--muted);
+        padding: 8px 0;
+        font-weight: 600;
+      }
+
+      .link:hover{
+        color: var(--ink);
+      }
+
+      .link.is-active{
+        color: var(--ink);
+      }
+
+      .link.is-active::after{
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -2px;
+        height: 2px;
+        background: currentColor;
+        border-radius: 2px;
+      }
+
+      .page{
+        width: min(1180px, calc(100% - 36px));
+        margin: 0 auto;
+        padding: 36px 0 80px;
+      }
+
+      .eyebrow{
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+
+      h1{
+        margin: 0 0 14px;
+        font-size: clamp(2rem, 4vw, 3.2rem);
+        line-height: 1.02;
+        letter-spacing: -0.03em;
+        max-width: 9ch;
+      }
+
+      .lead{
+        max-width: 720px;
+        margin: 0 0 28px;
+        font-size: 1.05rem;
+        line-height: 1.65;
+        color: var(--muted);
+      }
+
+      .copy-grid{
+        display: grid;
+        grid-template-columns: 1.15fr .85fr;
+        gap: 22px;
+        align-items: start;
+      }
+
+      .card{
+        background: var(--card);
+        border: 1px solid rgba(0,0,0,.08);
+        border-radius: 18px;
+        padding: 24px;
+      }
+
+      .card h2{
+        margin: 0 0 12px;
+        font-size: 1.25rem;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+      }
+
+      .card p{
+        margin: 0 0 14px;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .card p:last-child{
+        margin-bottom: 0;
+      }
+
+      .mini-list{
+        display: grid;
+        gap: 12px;
+        margin-top: 4px;
+      }
+
+      .mini-item{
+        padding: 14px 0;
+        border-top: 1px solid rgba(0,0,0,.08);
+      }
+
+      .mini-item:first-child{
+        border-top: 0;
+        padding-top: 0;
+      }
+
+      .mini-kicker{
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      footer{
+        width: min(1180px, calc(100% - 36px));
+        margin: 0 auto;
+        padding: 28px 0 40px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: .92rem;
+      }
+
+      .footer-inner{
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      @media (max-width: 900px){
+        .topbar{
+          min-height: 64px;
+          width: calc(100% - 20px);
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+        }
+
+        .nav{
+          display: none;
+        }
+
+        .page{
+          width: calc(100% - 20px);
+          padding: 24px 0 56px;
+        }
+
+        .copy-grid{
+          grid-template-columns: 1fr;
+        }
+
+        footer{
+          width: calc(100% - 20px);
+          padding: 22px 0 30px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="site-header">
+      <div class="topbar">
+        <a class="site-brand" href="/" aria-label="Fernie Insider">
+          <img src="/cclogo.svg" alt="Fernie Insider" />
+        </a>
+
+        <nav class="nav" aria-label="Primary">
+          {nav.map((item) => (
+            <a class:list={["link", isActive(item.href) && "is-active"]} href={item.href}>
+              {item.label}
+            </a>
+          ))}
+        </nav>
+      </div>
+    </header>
+
+    <main class="page">
+      <p class="eyebrow">Shell test</p>
+      <h1>A clean baseline page with working header and normal copy.</h1>
+      <p class="lead">
+        This page is meant to bridge the gap between the stripped-back header test and a real site page.
+        It keeps the working header, adds regular content width, and introduces simple editorial copy
+        without any hero image, full-bleed section, or layout tricks.
+      </p>
+
+      <section class="copy-grid">
+        <article class="card">
+          <h2>Why this page matters</h2>
+          <p>
+            If this page deploys cleanly on both sites, you have a reliable shell to build from. That means
+            your next step is not more debugging - it is adding complexity in stages and testing each one.
+          </p>
+          <p>
+            The goal is to make sure standard page content does not disturb the header alignment or introduce
+            layout drift that only appears after deploy.
+          </p>
+        </article>
+
+        <aside class="card">
+          <h2>What comes next</h2>
+          <div class="mini-list">
+            <div class="mini-item">
+              <span class="mini-kicker">Step 1</span>
+              Confirm this page matches after deploy.
+            </div>
+            <div class="mini-item">
+              <span class="mini-kicker">Step 2</span>
+              Add one real page template using the same shell.
+            </div>
+            <div class="mini-item">
+              <span class="mini-kicker">Step 3</span>
+              Introduce the hero only after the shell stays stable.
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-inner">
+        <div>Fernie Insider</div>
+        <div>Shell test baseline</div>
+      </div>
+    </footer>
+  </body>
+</html>

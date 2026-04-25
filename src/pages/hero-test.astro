@@ -1,0 +1,443 @@
+---
+const currentPath = (value => {
+  const v = String(value || "/");
+  return v.length > 1 ? v.replace(/\/+$/, "") : v;
+})(Astro.url.pathname);
+
+const nav = [
+  { href: "/", label: "Latest" },
+  { href: "/market-trends", label: "Market Trends" },
+  { href: "/listingsNext", label: "Listings" },
+  { href: "/price-cuts", label: "Price Cuts" },
+  { href: "/sales", label: "Sales" },
+  { href: "/archive", label: "Archive" },
+  { href: "/tester", label: "Tester" },
+];
+
+const cleanPath = (value) => {
+  const v = String(value || "/");
+  return v.length > 1 ? v.replace(/\/+$/, "") : v;
+};
+
+const isActive = (href) => currentPath === cleanPath(href);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Hero Test</title>
+
+    <style is:global>
+      :root{
+        --ink: rgba(26,24,22,.92);
+        --muted: rgba(26,24,22,.68);
+        --bg: #f3f1ec;
+        --line: rgba(0,0,0,.12);
+        --card: rgba(255,255,255,.72);
+      }
+
+      *{ box-sizing:border-box; }
+
+      html, body{
+        margin:0;
+        width:100%;
+        height:100%;
+        scrollbar-gutter: stable;
+      }
+
+      body{
+        background: var(--bg);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      a{
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .site-header{
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(243,241,236,.88);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(0,0,0,.05);
+      }
+
+      .topbar{
+        min-height: 72px;
+        width: min(1180px, calc(100% - 36px));
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        align-items: center;
+        column-gap: 24px;
+      }
+
+      .site-brand{
+        display: flex;
+        align-items: center;
+        justify-self: start;
+        height: 16px;
+        margin: 0;
+        padding: 0;
+      }
+
+      .site-brand img{
+        display: block;
+        width: 108px;
+        height: 16px;
+      }
+
+      .nav{
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 18px;
+        white-space: nowrap;
+        min-width: 0;
+      }
+
+      .link{
+        position: relative;
+        font-size: 14px;
+        color: var(--muted);
+        padding: 8px 0;
+        font-weight: 600;
+      }
+
+      .link:hover{
+        color: var(--ink);
+      }
+
+      .link.is-active{
+        color: var(--ink);
+      }
+
+      .link.is-active::after{
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -2px;
+        height: 2px;
+        background: currentColor;
+        border-radius: 2px;
+      }
+
+      .page{
+        width: min(1180px, calc(100% - 36px));
+        margin: 0 auto;
+        padding: 22px 0 80px;
+      }
+
+      .hero{
+        position: relative;
+        width: 100%;
+        max-width: 100%;
+        min-height: 430px;
+        border-radius: 28px;
+        overflow: hidden;
+        background:
+          linear-gradient(to top, rgba(0,0,0,.70), rgba(0,0,0,.18) 48%, rgba(0,0,0,0) 78%),
+          url("https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/02834f0c-1b74-4090-7ef9-85a062980400/hero") center/cover no-repeat;
+        border: 1px solid rgba(0,0,0,.06);
+        margin-bottom: 26px;
+        display: flex;
+        align-items: flex-end;
+      }
+
+      .hero-inner{
+        width: 100%;
+        padding: 30px;
+        color: white;
+      }
+
+      .hero-kicker{
+        margin: 0 0 10px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,.82);
+      }
+
+      .hero h1{
+        margin: 0 0 12px;
+        max-width: 9ch;
+        font-size: clamp(2.6rem, 5vw, 4.8rem);
+        line-height: .95;
+        letter-spacing: -0.04em;
+      }
+
+      .hero p{
+        margin: 0;
+        max-width: 760px;
+        font-size: 1.05rem;
+        line-height: 1.68;
+        color: rgba(255,255,255,.88);
+      }
+
+      .stats{
+        display:grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin: 0 0 26px;
+      }
+
+      .stat{
+        background: rgba(255,255,255,.62);
+        border: 1px solid rgba(0,0,0,.08);
+        border-radius: 18px;
+        padding: 18px;
+      }
+
+      .stat-label{
+        display:block;
+        margin-bottom: 10px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .stat-value{
+        display:block;
+        margin-bottom: 8px;
+        font-size: 2rem;
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+
+      .stat-note{
+        font-size: .95rem;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+
+      .content-grid{
+        display:grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr);
+        gap: 22px;
+        align-items: start;
+      }
+
+      .card{
+        background: var(--card);
+        border: 1px solid rgba(0,0,0,.08);
+        border-radius: 20px;
+        padding: 24px;
+      }
+
+      .card h2{
+        margin: 0 0 14px;
+        font-size: 1.4rem;
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+      }
+
+      .card p{
+        margin: 0 0 14px;
+        color: var(--muted);
+        line-height: 1.72;
+      }
+
+      .card p:last-child{
+        margin-bottom: 0;
+      }
+
+      .side-list{
+        display:grid;
+        gap: 14px;
+      }
+
+      .side-item{
+        padding-top: 14px;
+        border-top: 1px solid rgba(0,0,0,.08);
+      }
+
+      .side-item:first-child{
+        padding-top: 0;
+        border-top: 0;
+      }
+
+      .side-kicker{
+        display:block;
+        margin-bottom: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      footer{
+        width: min(1180px, calc(100% - 36px));
+        margin: 0 auto;
+        padding: 28px 0 40px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: .92rem;
+      }
+
+      .footer-inner{
+        display:flex;
+        justify-content:space-between;
+        gap:14px;
+        flex-wrap:wrap;
+      }
+
+      @media (max-width: 1000px){
+        .stats{
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .content-grid{
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 900px){
+        .topbar{
+          min-height: 64px;
+          width: calc(100% - 20px);
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+        }
+
+        .nav{
+          display: none;
+        }
+
+        .page{
+          width: calc(100% - 20px);
+          padding: 18px 0 56px;
+        }
+
+        .hero{
+          min-height: 340px;
+          border-radius: 22px;
+        }
+
+        .hero-inner{
+          padding: 22px;
+        }
+
+        .stats{
+          grid-template-columns: 1fr;
+        }
+
+        footer{
+          width: calc(100% - 20px);
+          padding: 22px 0 30px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="site-header">
+      <div class="topbar">
+        <a class="site-brand" href="/" aria-label="Fernie Insider">
+          <img src="/cclogo.svg" alt="Fernie Insider" />
+        </a>
+
+        <nav class="nav" aria-label="Primary">
+          {nav.map((item) => (
+            <a class:list={["link", isActive(item.href) && "is-active"]} href={item.href}>
+              {item.label}
+            </a>
+          ))}
+        </nav>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="hero">
+        <div class="hero-inner">
+          <p class="hero-kicker">Hero test</p>
+          <h1>Testing a safe hero inside the working shell.</h1>
+          <p>
+            This page adds a proper image hero without using any full-bleed tricks, viewport-width hacks,
+            or layout moves that can throw off alignment after deploy. If this stays matched on both sites,
+            you have a clean hero pattern to build from.
+          </p>
+        </div>
+      </section>
+
+      <section class="stats">
+        <article class="stat">
+          <span class="stat-label">Inventory</span>
+          <span class="stat-value">126</span>
+          <span class="stat-note">Supply is present, but still selective rather than loose.</span>
+        </article>
+
+        <article class="stat">
+          <span class="stat-label">Sales pace</span>
+          <span class="stat-value">5.2</span>
+          <span class="stat-note">Enough movement to keep the market feeling active underneath.</span>
+        </article>
+
+        <article class="stat">
+          <span class="stat-label">Absorption</span>
+          <span class="stat-value">6.1</span>
+          <span class="stat-note">More balanced than hot, with room for comparison.</span>
+        </article>
+
+        <article class="stat">
+          <span class="stat-label">Price cuts</span>
+          <span class="stat-value">3.4</span>
+          <span class="stat-note">Adjustments are showing up, but not in a disorderly way.</span>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="card">
+          <h2>What this test is checking</h2>
+          <p>
+            The main purpose here is simple: test whether adding a strong visual hero reintroduces the same
+            deploy-only alignment problems you were fighting earlier. The hero is contained within the same
+            site-width shell as the rest of the page, so it should not disturb the header if the pattern is safe.
+          </p>
+          <p>
+            This is the kind of page structure that starts to feel genuinely usable. It has the header, the
+            visual entry point, quick numbers, and editorial body copy - enough to behave like a real page
+            without yet dragging in charts, embeds, or more complicated modules.
+          </p>
+        </article>
+
+        <aside class="card">
+          <h2>What to watch</h2>
+          <div class="side-list">
+            <div class="side-item">
+              <span class="side-kicker">Header</span>
+              Does the nav still match across both deployed sites?
+            </div>
+            <div class="side-item">
+              <span class="side-kicker">Hero</span>
+              Does the image stay fully contained with no horizontal drift?
+            </div>
+            <div class="side-item">
+              <span class="side-kicker">Next step</span>
+              If this holds, you can build your first real page template from it.
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-inner">
+        <div>Fernie Insider</div>
+        <div>Hero test baseline</div>
+      </div>
+    </footer>
+  </body>
+</html>

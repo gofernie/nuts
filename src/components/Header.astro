@@ -1,0 +1,261 @@
+---
+const currentPath = (value => {
+  const v = String(value || "/");
+  return v.length > 1 ? v.replace(/\/+$/, "") : v;
+})(Astro.url.pathname);
+
+const nav = [
+  { href: "/", label: "Latest" },
+  { href: "/market-trends", label: "Market Trends" },
+  { href: "https://fernie.homes/template-test", label: "Listings" },
+  { href: "/price-cuts", label: "Price Cuts" },
+  { href: "/sales", label: "Sales" },
+  { href: "/archive", label: "Archive" },
+  { href: "/tester", label: "Tester" },
+];
+
+const cleanPath = (value) => {
+  const v = String(value || "/");
+  return v.length > 1 ? v.replace(/\/+$/, "") : v;
+};
+
+const isActive = (href) => currentPath === cleanPath(href);
+---
+
+<header class="site-header">
+  <div class="container topbar">
+    <a class="site-brand" href="/" aria-label="Fernie Insider">
+      <img src="/cclogo.svg" alt="Fernie Insider" />
+    </a>
+
+    <nav class="nav" aria-label="Primary">
+      {nav.map((item) => (
+        <a class:list={["link", isActive(item.href) && "is-active"]} href={item.href}>
+          {item.label}
+        </a>
+      ))}
+    </nav>
+
+    <button
+      class="burger"
+      type="button"
+      aria-label="Toggle menu"
+      aria-controls="primary-menu"
+      aria-expanded="false"
+      data-burger
+    >
+      <span class="burger-lines" aria-hidden="true"></span>
+    </button>
+  </div>
+
+  <div class="container menu" id="primary-menu" hidden data-menu>
+    <nav class="menu-inner" aria-label="Primary mobile">
+      {nav.map((item) => (
+        <a class:list={["menu-link", isActive(item.href) && "is-active"]} href={item.href}>
+          {item.label}
+        </a>
+      ))}
+    </nav>
+  </div>
+
+  <script is:inline>
+    (() => {
+      const btn = document.querySelector("[data-burger]");
+      const menu = document.querySelector("[data-menu]");
+      if (!btn || !menu) return;
+
+      const close = () => {
+        btn.setAttribute("aria-expanded", "false");
+        menu.hidden = true;
+      };
+
+      const toggle = () => {
+        const open = btn.getAttribute("aria-expanded") === "true";
+        btn.setAttribute("aria-expanded", String(!open));
+        menu.hidden = open;
+      };
+
+      btn.addEventListener("click", toggle);
+
+      menu.addEventListener("click", (e) => {
+        const a = e.target.closest("a");
+        if (a) close();
+      });
+
+      window.addEventListener("resize", () => {
+        if (window.matchMedia("(min-width: 901px)").matches) close();
+      });
+    })();
+  </script>
+
+  <style is:global>
+    html{
+      scrollbar-gutter: stable;
+    }
+
+    .site-header{
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(243,241,236,.88);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(0,0,0,.05);
+    }
+
+    .topbar{
+      min-height: 72px;
+      width: min(1180px, calc(100% - 36px));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      align-items: center;
+      column-gap: 24px;
+    }
+
+    .site-brand{
+      display: inline-flex;
+      align-items: center;
+      justify-self: start;
+      width: 150px;
+      height: 16px;
+      margin: 0;
+      padding: 0;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .site-brand img{
+      display: block;
+      width: 108px;
+      height: 16px;
+    }
+
+    .nav{
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 18px;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .link{
+      position: relative;
+      font-size: 14px;
+      color: var(--muted);
+      padding: 8px 0;
+      font-weight: 600;
+    }
+
+    .link:hover{
+      text-decoration: none;
+      color: var(--ink);
+    }
+
+    .link.is-active{
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .link.is-active::after{
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -2px;
+      height: 2px;
+      background: currentColor;
+      border-radius: 2px;
+    }
+
+    .burger{
+      display: none;
+      background: transparent;
+      border: 0;
+      padding: 8px;
+      cursor: pointer;
+      border-radius: 12px;
+    }
+
+    .burger-lines{
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: var(--ink);
+      position: relative;
+      border-radius: 2px;
+    }
+
+    .burger-lines::before,
+    .burger-lines::after{
+      content: "";
+      position: absolute;
+      left: 0;
+      width: 22px;
+      height: 2px;
+      background: var(--ink);
+      border-radius: 2px;
+    }
+
+    .burger-lines::before{ top: -7px; }
+    .burger-lines::after{ top: 7px; }
+
+    .menu{
+      width: min(1180px, calc(100% - 36px));
+      margin: 0 auto;
+      padding: 0 0 14px;
+    }
+
+    .menu-inner{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-top: 8px;
+    }
+
+    .menu-link{
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.65);
+      border: 1px solid rgba(0,0,0,.08);
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .menu-link.is-active{
+      color: var(--ink);
+      background: rgba(255,255,255,.85);
+    }
+
+    @media (max-width: 900px){
+      .topbar{
+        min-height: 64px;
+        width: calc(100% - 20px);
+        padding: 12px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .site-brand{
+        width: auto;
+        height: auto;
+        flex: 0 1 auto;
+      }
+
+      .nav{
+        display: none;
+      }
+
+      .burger{
+        display: block;
+      }
+
+      .menu{
+        width: calc(100% - 20px);
+      }
+    }
+  </style>
+</header>

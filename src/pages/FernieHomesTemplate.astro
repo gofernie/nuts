@@ -1,0 +1,945 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+
+const {
+  title = "Fernie Homes",
+  description = "Fernie real estate page.",
+  hero = {},
+  snapshot = {},
+  insight = {},
+  compare = {},
+  trendChart = {},
+  listings = [],
+  interpretation = {},
+  links = [],
+} = Astro.props;
+
+function formatMoneyShort(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return `$${n.toLocaleString("en-CA")}`;
+}
+
+function subtleListingTone(seed) {
+  const str = String(seed ?? "");
+  let hash = 0;
+
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  }
+
+  const t = (Math.sin(hash || 1) + 1) / 2;
+  const lightnessTop = 98 - t * 0.8;
+  const lightnessBottom = 97.2 - t * 0.9;
+
+  return `linear-gradient(180deg, hsl(42, 22%, ${lightnessTop}%), hsl(40, 20%, ${lightnessBottom}%))`;
+}
+
+function subtleListingBorder(seed) {
+  const str = String(seed ?? "");
+  let hash = 0;
+
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  }
+
+  const t = (Math.sin(hash || 1) + 1) / 2;
+  const alpha = 0.055 + t * 0.025;
+
+  return `rgba(0,0,0,${alpha.toFixed(3)})`;
+}
+---
+
+<Layout title={title} description={description}>
+  <style>
+    :root{
+      --shell: 1120px;
+      --gutter: 24px;
+      --warm-1: #f7f4ee;
+      --warm-2: #f4efe7;
+      --paper: #fbf9f5;
+      --ink: #221b15;
+      --muted: rgba(47,36,27,.74);
+      --soft-line: rgba(0,0,0,.07);
+      --card: rgba(255,255,255,.94);
+      --line: rgba(0,0,0,.06);
+      --shadow: 0 8px 30px rgba(0,0,0,.04);
+    }
+
+    @media (max-width: 760px){
+      :root{
+        --gutter: 18px;
+      }
+    }
+
+    html,
+    body{
+      overflow-x: hidden;
+    }
+
+    .pageHybrid{
+      width:100%;
+    }
+
+    .shell{
+      width:min(var(--shell), calc(100% - (var(--gutter) * 2)));
+      margin:0 auto;
+    }
+
+    .band{
+      width:100%;
+      padding:18px 0;
+    }
+
+    .bandWarm{
+      background:linear-gradient(180deg, #f8f5ef 0%, #f5f1ea 100%);
+      border-top:1px solid rgba(0,0,0,.03);
+      border-bottom:1px solid rgba(0,0,0,.03);
+    }
+
+    .heroFull{
+      position:relative;
+      width:100%;
+      background:#000;
+      overflow:hidden;
+      min-height:clamp(440px, 62vw, 760px);
+    }
+
+    .heroFull img{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+
+    .heroOverlay{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:flex-end;
+      background:
+        linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,.22) 46%, rgba(0,0,0,0) 78%);
+    }
+
+    .heroShell{
+      width:min(var(--shell), calc(100% - (var(--gutter) * 2)));
+      margin:0 auto;
+      padding:32px 0 34px;
+    }
+
+    .heroInner{
+      max-width:780px;
+      color:white;
+    }
+
+    .heroKicker{
+      margin:0 0 12px;
+      font-size:.72rem;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      font-weight:800;
+      opacity:.92;
+    }
+
+    .heroH1{
+      margin:0 0 14px;
+      color:white;
+      font-size:clamp(2.75rem, 6vw, 5.25rem);
+      font-weight:800;
+      letter-spacing:-0.05em;
+      line-height:.93;
+      text-shadow:0 16px 42px rgba(0,0,0,.34);
+      max-width:10.5ch;
+    }
+
+    .heroDek{
+      margin:0;
+      max-width:58ch;
+      font-size:1.05rem;
+      line-height:1.66;
+      color:rgba(255,255,255,.95);
+    }
+
+    .heroActions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:20px;
+    }
+
+    .heroBtn,
+    .heroBtnGhost{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:46px;
+      padding:12px 15px;
+      border-radius:12px;
+      text-decoration:none;
+      font-size:.93rem;
+      font-weight:800;
+      transition:transform .16s ease, background .16s ease, border-color .16s ease, opacity .16s ease;
+    }
+
+    .heroBtn{
+      background:rgba(255,255,255,.96);
+      color:#111;
+      border:1px solid rgba(255,255,255,.25);
+    }
+
+    .heroBtnGhost{
+      background:rgba(255,255,255,.08);
+      color:white;
+      border:1px solid rgba(255,255,255,.20);
+      backdrop-filter:blur(8px);
+    }
+
+    .heroBtn:hover,
+    .heroBtnGhost:hover{
+      transform:translateY(-1px);
+      text-decoration:none;
+    }
+
+    .pageGrid{
+      display:grid;
+      grid-template-columns:minmax(0, 1fr);
+      gap:22px;
+    }
+
+    .mainCol{
+      display:grid;
+      gap:20px;
+      align-content:start;
+    }
+
+    .panel,
+    .panelSoft{
+      border:1px solid var(--line);
+      border-radius:22px;
+      box-shadow:var(--shadow);
+      padding:20px;
+    }
+
+    .panel{
+      background:var(--card);
+    }
+
+    .panelSoft{
+      background:linear-gradient(180deg, rgba(252,250,246,.92), rgba(247,243,236,.88));
+      border:1px solid rgba(0,0,0,.06);
+    }
+
+    .panelFlat{
+      border:none;
+      border-radius:0;
+      box-shadow:none;
+      background:transparent;
+      padding:18px 0;
+    }
+
+    .eyebrow{
+      margin:0 0 10px;
+      font-size:.68rem;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      color:rgba(85,68,49,.62);
+      font-weight:800;
+    }
+
+    .panel h2,
+    .panelSoft h2,
+    .panelFlat h2{
+      margin:0 0 9px;
+      font-size:clamp(1.35rem, 2vw, 1.65rem);
+      letter-spacing:-0.03em;
+      line-height:1.06;
+      font-weight:790;
+      color:#1f1812;
+      text-wrap:balance;
+    }
+
+    .lead{
+      margin:0;
+      max-width:74ch;
+      font-size:1rem;
+      line-height:1.72;
+      color:rgba(34,27,21,.80);
+    }
+
+    .summaryLine{
+      margin:16px 0 0;
+      padding:14px 16px;
+      border:1px solid rgba(108,88,56,.08);
+      border-radius:14px;
+      background:rgba(255,255,255,.58);
+      font-size:.94rem;
+      line-height:1.62;
+      color:rgba(48,38,28,.78);
+    }
+
+    .howToUse{
+      margin:15px 0 0;
+      font-size:.88rem;
+      line-height:1.58;
+      color:rgba(77,63,49,.66);
+    }
+
+    .statsGrid{
+      display:grid;
+      gap:14px;
+      margin-top:20px;
+    }
+
+    @media (min-width:640px){
+      .statsGrid{
+        grid-template-columns:repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    .stat{
+      height:100%;
+      padding:16px;
+      border:1px solid rgba(108,88,56,.11);
+      border-radius:18px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.84), rgba(246,242,235,.90));
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.72),
+        0 1px 0 rgba(0,0,0,.03);
+    }
+
+    .statLabel{
+      margin:0 0 8px;
+      font-size:.68rem;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      color:#6b5a46;
+      font-weight:700;
+    }
+
+    .statValue{
+      margin:0 0 8px;
+      font-size:2.3rem;
+      line-height:.95;
+      letter-spacing:-0.05em;
+      font-weight:790;
+      color:#2f241b;
+      text-transform:capitalize;
+    }
+
+    .statNote{
+      margin:0;
+      font-size:.91rem;
+      line-height:1.56;
+      color:rgba(47,36,27,.78);
+    }
+
+    .splitGrid{
+      display:grid;
+      gap:14px;
+      margin-top:14px;
+    }
+
+    @media (min-width:760px){
+      .splitGrid{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .textCard{
+      padding:18px;
+      border:1px solid rgba(108,88,56,.09);
+      border-radius:18px;
+      background:
+        linear-gradient(180deg, rgba(255,252,246,.92), rgba(245,240,232,.90));
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.68),
+        0 1px 0 rgba(0,0,0,.02);
+    }
+
+    .textCard h3{
+      margin:0 0 8px;
+      font-size:1rem;
+      line-height:1.22;
+      letter-spacing:-0.015em;
+      font-weight:780;
+      color:#231b14;
+    }
+
+    .textCard p{
+      margin:0;
+      font-size:.97rem;
+      line-height:1.7;
+      color:rgba(47,36,27,.8);
+    }
+
+    .chartSection{
+      background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(249,247,243,.94));
+      border:1px solid rgba(0,0,0,.06);
+    }
+
+    .chartCard{
+      margin-top:14px;
+    }
+
+    .comparePanel{
+      background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(249,247,243,.94));
+      border:1px solid rgba(0,0,0,.06);
+    }
+
+    .compareWrap{
+      margin-top:18px;
+      padding:18px 18px 16px;
+      border-radius:22px;
+      background:rgba(255,255,255,.72);
+      border:1px solid rgba(0,0,0,.05);
+      box-shadow:none;
+    }
+
+    .compareHeader{
+      margin-bottom:10px;
+      text-align:center;
+    }
+
+    .compareTitle{
+      margin:0;
+      font-size:clamp(1.55rem, 3vw, 2.1rem);
+      line-height:1.05;
+      letter-spacing:-0.04em;
+      color:#191614;
+      font-weight:790;
+    }
+
+    .compareTitle span{
+      color:rgba(25,22,20,.42);
+      font-weight:700;
+    }
+
+    .compareMeta{
+      margin:12px 0 0;
+      text-align:center;
+      font-size:.9rem;
+      line-height:1.5;
+      color:rgba(47,36,27,.68);
+    }
+
+    .listingsPanel{
+      background:transparent;
+      border:none;
+      border-radius:0;
+      box-shadow:none;
+      padding:10px 0 6px;
+    }
+
+    .listingGrid{
+      display:grid;
+      gap:14px;
+      margin-top:16px;
+    }
+
+    @media (min-width:760px){
+      .listingGrid{
+        grid-template-columns:repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .listingCard{
+      display:block;
+      padding:16px;
+      border:1px solid rgba(0,0,0,.07);
+      border-radius:18px;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.82),
+        0 1px 0 rgba(0,0,0,.025);
+      text-decoration:none;
+      color:inherit;
+      transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+
+    .listingCard:hover{
+      text-decoration:none;
+      transform:translateY(-1px);
+      border-color:rgba(0,0,0,.10);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.88),
+        0 6px 18px rgba(0,0,0,.04);
+    }
+
+    .listingTitle{
+      margin:0 0 8px;
+      font-size:1.03rem;
+      line-height:1.28;
+      letter-spacing:-0.018em;
+      font-weight:760;
+      color:#231b14;
+    }
+
+    .listingMeta{
+      margin:8px 0 0;
+      font-size:.92rem;
+      line-height:1.5;
+      color:rgba(47,36,27,.72);
+    }
+
+    .insightGrid{
+      display:grid;
+      gap:14px;
+      margin-top:14px;
+    }
+
+    @media (min-width:760px){
+      .insightGrid{
+        grid-template-columns:repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    .insightCard{
+      padding:0;
+      border:none;
+      background:transparent;
+      box-shadow:none;
+    }
+
+    .insightCard h3{
+      margin:0 0 5px;
+      font-size:.96rem;
+      font-weight:780;
+      letter-spacing:-0.012em;
+      color:#231b14;
+    }
+
+    .insightCard p{
+      margin:0;
+      font-size:.93rem;
+      line-height:1.58;
+      color:rgba(47,36,27,.75);
+    }
+
+    .finalInsight{
+      margin-top:20px;
+      padding:0;
+      border:none;
+      background:transparent;
+      box-shadow:none;
+    }
+
+    .finalInsight h3{
+      margin:0 0 7px;
+      font-size:1rem;
+      font-weight:780;
+      color:#231b14;
+    }
+
+    .finalInsight p{
+      margin:0;
+      padding:14px 16px;
+      border-radius:12px;
+      background:rgba(0,0,0,.035);
+      font-size:1rem;
+      line-height:1.65;
+      color:rgba(47,36,27,.82);
+    }
+
+    .strategyBlock{
+      margin-top:18px;
+      padding-top:16px;
+      border-top:1px solid rgba(0,0,0,.08);
+    }
+
+    .strategyBlock h3{
+      margin:0 0 12px;
+      font-size:1.05rem;
+      font-weight:760;
+      color:#221a13;
+    }
+
+    .strategyGrid{
+      display:grid;
+      gap:12px;
+    }
+
+    @media (min-width:760px){
+      .strategyGrid{
+        grid-template-columns:repeat(2, minmax(0,1fr));
+      }
+    }
+
+    .strategyCard{
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid rgba(0,0,0,.06);
+      background:rgba(255,255,255,.6);
+    }
+
+    .strategyCard:first-child{
+      border-color:rgba(47,125,87,.12);
+      background:rgba(47,125,87,.04);
+    }
+
+    .strategyCard:last-child{
+      border-color:rgba(161,75,66,.12);
+      background:rgba(161,75,66,.04);
+    }
+
+    .strategyKicker{
+      margin:0 0 6px;
+      font-size:.72rem;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-weight:800;
+      color:#6b5a46;
+    }
+
+    .strategyCard ul{
+      margin:0;
+      padding-left:16px;
+    }
+
+    .strategyCard li{
+      margin-bottom:6px;
+      font-size:.95rem;
+      line-height:1.55;
+      color:rgba(47,36,27,.82);
+    }
+
+    .strategyConclusion{
+      margin-top:16px;
+      padding-top:12px;
+      border-top:1px solid rgba(0,0,0,.08);
+    }
+
+    .strategyConclusion h4{
+      margin:0 0 4px;
+      font-size:.95rem;
+      font-weight:760;
+      color:#221a13;
+    }
+
+    .strategyConclusion p{
+      margin:0;
+      font-size:1rem;
+      line-height:1.65;
+      color:rgba(47,36,27,.82);
+    }
+
+    .linkStrip{
+      display:grid;
+      gap:12px;
+      margin-top:18px;
+      padding-top:14px;
+      border-top:1px solid rgba(0,0,0,.08);
+    }
+
+    @media (min-width:760px){
+      .linkStrip{
+        grid-template-columns:repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    .linkTile{
+      display:block;
+      padding:15px;
+      border:1px solid rgba(108,88,56,.09);
+      border-radius:16px;
+      background:linear-gradient(180deg, rgba(252,252,251,.92), rgba(244,242,238,.94));
+      text-decoration:none;
+      color:inherit;
+      transition:transform .16s ease, box-shadow .16s ease;
+    }
+
+    .linkTile:hover{
+      transform:translateY(-1px);
+      text-decoration:none;
+    }
+
+    .linkTileKicker{
+      margin:0 0 6px;
+      font-size:.68rem;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:rgba(84,66,49,.7);
+      font-weight:800;
+    }
+
+    .linkTileTitle{
+      margin:0 0 6px;
+      font-size:1rem;
+      line-height:1.22;
+      letter-spacing:-0.015em;
+      font-weight:780;
+      color:#231b14;
+    }
+
+    .linkTileCopy{
+      margin:0;
+      font-size:.92rem;
+      line-height:1.58;
+      color:rgba(47,36,27,.76);
+    }
+
+    .utilityLink{
+      display:inline-flex;
+      align-items:center;
+      margin-top:14px;
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid rgba(108,88,56,.16);
+      background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(246,241,233,.98));
+      color:inherit;
+      text-decoration:none;
+      font-size:.92rem;
+      font-weight:800;
+    }
+  </style>
+
+  <main class="pageHybrid">
+    <section class="heroFull" aria-label={hero?.ariaLabel || "Fernie homes hero"}>
+      {hero?.image ? <img src={hero.image} alt={hero?.imageAlt || ""} loading="eager" /> : null}
+
+      <div class="heroOverlay">
+        <div class="heroShell">
+          <div class="heroInner">
+            {hero?.kicker ? <p class="heroKicker">{hero.kicker}</p> : null}
+            {hero?.title ? <h1 class="heroH1">{hero.title}</h1> : null}
+            {hero?.description ? <p class="heroDek">{hero.description}</p> : null}
+
+            {(hero?.primaryCta?.href || hero?.secondaryCta?.href) ? (
+              <div class="heroActions">
+                {hero?.primaryCta?.href ? (
+                  <a class="heroBtn" href={hero.primaryCta.href}>{hero.primaryCta.label}</a>
+                ) : null}
+
+                {hero?.secondaryCta?.href ? (
+                  <a class="heroBtnGhost" href={hero.secondaryCta.href}>{hero.secondaryCta.label}</a>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="band bandWarm">
+      <div class="shell">
+        <section class="panelFlat" id={snapshot?.id || "snapshot"}>
+          {snapshot?.eyebrow ? <p class="eyebrow">{snapshot.eyebrow}</p> : null}
+          {snapshot?.title ? <h2>{snapshot.title}</h2> : null}
+          {snapshot?.lead ? <p class="lead">{snapshot.lead}</p> : null}
+          {snapshot?.summary ? <p class="summaryLine">{snapshot.summary}</p> : null}
+          {snapshot?.howToUse ? <p class="howToUse">{snapshot.howToUse}</p> : null}
+
+          {Array.isArray(snapshot?.stats) && snapshot.stats.length ? (
+            <div class="statsGrid">
+              {snapshot.stats.map((stat) => (
+                <div class="stat">
+                  <p class="statLabel">{stat.label}</p>
+                  <p class="statValue">{stat.value ?? "—"}</p>
+                  {stat.note ? <p class="statNote">{stat.note}</p> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="shell">
+        <div class="pageGrid">
+          <div class="mainCol">
+            {(insight?.title || insight?.cards?.length) ? (
+              <section class="panelFlat">
+                {insight?.eyebrow ? <p class="eyebrow">{insight.eyebrow}</p> : null}
+                {insight?.title ? <h2>{insight.title}</h2> : null}
+
+                {Array.isArray(insight?.cards) && insight.cards.length ? (
+                  <div class="splitGrid">
+                    {insight.cards.map((card) => (
+                      <div class="textCard">
+                        <h3>{card.title}</h3>
+                        <p>{card.copy}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+
+            {Array.isArray(compare?.labels) && compare.labels.length ? (
+              <section class="panelSoft comparePanel">
+                {compare?.eyebrow ? <p class="eyebrow">{compare.eyebrow}</p> : null}
+                {compare?.title ? <h2>{compare.title}</h2> : null}
+                {compare?.lead ? <p class="lead">{compare.lead}</p> : null}
+
+                <div class="compareWrap">
+                  <div class="compareHeader">
+                    <h3 class="compareTitle">
+                      {compare?.headline || "Compare"}
+                      {compare?.headlineMuted ? <span> {compare.headlineMuted}</span> : null}
+                    </h3>
+                  </div>
+
+                  <MarketChart
+                    chartId={compare?.chartId || "yearly-compare"}
+                    title=""
+                    chartType="bar"
+                    horizontal={true}
+                    hideRanges={true}
+                    minimal={true}
+                    showDataLabels={true}
+                    height={compare?.height || 340}
+                    labels={compare.labels}
+                    datasets={compare.datasets}
+                  />
+
+                  {compare?.meta ? <p class="compareMeta">{compare.meta}</p> : null}
+                </div>
+              </section>
+            ) : null}
+
+            {trendChart?.labels?.length ? (
+              <section class="panelSoft chartSection">
+                {trendChart?.eyebrow ? <p class="eyebrow">{trendChart.eyebrow}</p> : null}
+                {trendChart?.title ? <h2>{trendChart.title}</h2> : null}
+                {trendChart?.lead ? <p class="lead">{trendChart.lead}</p> : null}
+
+                <div class="chartCard">
+                  <MarketChart
+                    chartId={trendChart?.chartId || "trend-chart"}
+                    labels={trendChart.labels}
+                    datasets={trendChart.datasets}
+                    defaultRange={trendChart.defaultRange || "6M"}
+                    statMode={trendChart.statMode || "sales"}
+                    currentValue={trendChart.currentValue}
+                    highValue={trendChart.highValue}
+                    lowValue={trendChart.lowValue}
+                    yoyValue={trendChart.yoyValue}
+                  />
+                </div>
+              </section>
+            ) : null}
+
+            <section class="listingsPanel" id={hero?.secondaryCta?.href?.replace("#", "") || "listings"}>
+              <p class="eyebrow">{interpretation?.listingsEyebrow || "Listings"}</p>
+              <h2>{interpretation?.listingsTitle || "Homes worth watching"}</h2>
+              <p class="lead">
+                {interpretation?.listingsLead || "The newest listings shaping this part of the Fernie real estate market."}
+              </p>
+
+              {Array.isArray(listings) && listings.length ? (
+                <div class="listingGrid">
+                  {listings.map((item, i) => {
+                    const seed = `${item.address || item.title || "listing"}-${item.price || ""}-${i}`;
+                    return (
+                      <a
+                        class="listingCard"
+                        href={item.href || "/"}
+                        target={item.targetBlank === false ? undefined : "_blank"}
+                        rel={item.targetBlank === false ? undefined : "noreferrer"}
+                        style={`background:${subtleListingTone(seed)}; border-color:${subtleListingBorder(seed)};`}
+                      >
+                        <h3 class="listingTitle">{item.address || item.title || "Listing"}</h3>
+
+                        {(item.price || item.beds || item.baths || item.propertyType || item.meta) ? (
+                          <p class="listingMeta">
+                            {item.meta || [
+                              item.price ? formatMoneyShort(item.price) : "",
+                              item.beds ? `${item.beds} bed` : "",
+                              item.baths ? `${item.baths} bath` : "",
+                              item.propertyType || "",
+                            ].filter(Boolean).join(" · ")}
+                          </p>
+                        ) : null}
+                      </a>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p class="summaryLine">{interpretation?.emptyListingsCopy || "No listings loaded yet."}</p>
+              )}
+            </section>
+
+            {(interpretation?.points?.length || interpretation?.finalInsight || interpretation?.buyerLines?.length || interpretation?.sellerLines?.length) ? (
+              <section class="panelFlat">
+                {interpretation?.eyebrow ? <p class="eyebrow">{interpretation.eyebrow}</p> : null}
+                {interpretation?.title ? <h2>{interpretation.title}</h2> : null}
+
+                {Array.isArray(interpretation?.points) && interpretation.points.length ? (
+                  <div class="insightGrid">
+                    {interpretation.points.map((point) => (
+                      <div class="insightCard">
+                        <h3>{point.title}</h3>
+                        <p>{point.copy}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                {interpretation?.finalInsight ? (
+                  <div class="finalInsight">
+                    <h3>{interpretation?.finalInsightTitle || "What this is really saying"}</h3>
+                    <p>{interpretation.finalInsight}</p>
+                  </div>
+                ) : null}
+
+                {(interpretation?.buyerLines?.length || interpretation?.sellerLines?.length) ? (
+                  <div class="strategyBlock">
+                    <h3>{interpretation?.strategyTitle || "What this means for buyers and sellers"}</h3>
+
+                    <div class="strategyGrid">
+                      <div class="strategyCard">
+                        <p class="strategyKicker">{interpretation?.buyerKicker || "For buyers"}</p>
+                        <ul>
+                          {(interpretation?.buyerLines || []).map((line) => <li>{line}</li>)}
+                        </ul>
+                      </div>
+
+                      <div class="strategyCard">
+                        <p class="strategyKicker">{interpretation?.sellerKicker || "For sellers"}</p>
+                        <ul>
+                          {(interpretation?.sellerLines || []).map((line) => <li>{line}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {interpretation?.conclusion ? (
+                      <div class="strategyConclusion">
+                        <h4>{interpretation?.conclusionTitle || "Bottom line"}</h4>
+                        <p>{interpretation.conclusion}</p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+
+            {Array.isArray(links) && links.length ? (
+              <section class="panel">
+                <p class="eyebrow">Keep moving</p>
+                <h2>{interpretation?.linksTitle || "Explore further"}</h2>
+
+                <div class="linkStrip">
+                  {links.map((link) => (
+                    <a class="linkTile" href={link.href}>
+                      {link.kicker ? <p class="linkTileKicker">{link.kicker}</p> : null}
+                      <h3 class="linkTileTitle">{link.title}</h3>
+                      {link.copy ? <p class="linkTileCopy">{link.copy}</p> : null}
+                    </a>
+                  ))}
+                </div>
+
+                {interpretation?.utilityLink?.href ? (
+                  <a class="utilityLink" href={interpretation.utilityLink.href}>
+                    {interpretation.utilityLink.label}
+                  </a>
+                ) : null}
+              </section>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</Layout>

@@ -1,0 +1,412 @@
+---
+import Layout from "../layouts/LayoutNext.astro";
+
+export const prerender = true;
+
+const siteTitle = "Fernie Homes | Buying, Selling, and Living in Fernie";
+const description =
+  "Explore Fernie homes for sale, local neighbourhood insight, and practical guidance for buyers and sellers in Fernie.";
+
+const HERO_IMG =
+  "https://imagedelivery.net/Az3x6Ld2gouPPtikaqezkQ/273eddb6-f716-44fe-e9c0-13a57d1ca700/hero";
+---
+
+<Layout title={siteTitle} description={description}>
+  <style>
+  :root{
+    --ink: #221b15;
+    --muted: rgba(47,36,27,.74);
+    --soft-line: rgba(0,0,0,.07);
+  }
+
+  html,
+  body{
+    overflow-x:hidden;
+  }
+
+  .page{
+    width:100%;
+  }
+
+  /* ✅ MATCH HEADER EXACTLY */
+  .shell{
+    width:min(1180px, calc(100% - 36px));
+    margin:0 auto;
+  }
+
+  .band{
+    width:100%;
+    padding:18px 0;
+  }
+
+  .bandWarm{
+    background:linear-gradient(180deg, #f8f5ef 0%, #f5f1ea 100%);
+    border-top:1px solid rgba(0,0,0,.03);
+    border-bottom:1px solid rgba(0,0,0,.03);
+  }
+
+  .heroFull{
+    position:relative;
+    width:100%;
+    min-height:clamp(440px, 62vw, 760px);
+    overflow:hidden;
+    background-position:center;
+    background-size:cover;
+    background-repeat:no-repeat;
+    display:flex;
+    align-items:flex-end;
+  }
+
+  .heroOverlay{
+    width:100%;
+  }
+
+  /* ✅ MATCH HEADER EXACTLY */
+  .heroShell{
+    width:min(1180px, calc(100% - 36px));
+    margin:0 auto;
+    padding:32px 0 34px;
+  }
+
+  .heroInner{
+    max-width:780px;
+    color:white;
+  }
+
+  .heroKicker{
+    margin:0 0 12px;
+    font-size:.72rem;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    font-weight:800;
+    color:rgba(255,255,255,.9);
+  }
+
+  .heroH1{
+    margin:0 0 14px;
+    color:white;
+    font-size:clamp(2.75rem, 6vw, 5.25rem);
+    font-weight:800;
+    letter-spacing:-0.05em;
+    line-height:.93;
+    text-shadow:0 16px 42px rgba(0,0,0,.34);
+    max-width:11ch;
+  }
+
+  .heroDek{
+    margin:0;
+    max-width:58ch;
+    font-size:1.05rem;
+    line-height:1.66;
+    color:rgba(255,255,255,.95);
+  }
+
+  .heroActions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:20px;
+  }
+
+  .heroBtn,
+  .heroBtnGhost{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:46px;
+    padding:12px 15px;
+    border-radius:12px;
+    text-decoration:none;
+    font-size:.93rem;
+    font-weight:800;
+    transition:transform .16s ease, background .16s ease, border-color .16s ease;
+  }
+
+  .heroBtn{
+    background:rgba(255,255,255,.96);
+    color:#111;
+    border:1px solid rgba(255,255,255,.25);
+  }
+
+  .heroBtnGhost{
+    background:rgba(255,255,255,.08);
+    color:white;
+    border:1px solid rgba(255,255,255,.20);
+    backdrop-filter:blur(8px);
+  }
+
+  .heroBtn:hover,
+  .heroBtnGhost:hover{
+    transform:translateY(-1px);
+    text-decoration:none;
+  }
+
+  .mainCol{
+    display:grid;
+    gap:20px;
+    align-content:start;
+  }
+
+  .panel,
+  .panelSoft{
+    padding:20px;
+    border-radius:22px;
+  }
+
+  .panel{
+    background:rgba(255,255,255,.72);
+    border:1px solid rgba(0,0,0,.08);
+  }
+
+  .panelSoft{
+    background:linear-gradient(180deg, rgba(252,250,246,.92), rgba(247,243,236,.88));
+    border:1px solid rgba(0,0,0,.06);
+  }
+
+  .panelFlat{
+    border:none;
+    border-radius:0;
+    box-shadow:none;
+    background:transparent;
+    padding:18px 0;
+  }
+
+  .eyebrow{
+    margin:0 0 10px;
+    font-size:.68rem;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:rgba(85,68,49,.62);
+    font-weight:800;
+  }
+
+  .panel h2,
+  .panelSoft h2,
+  .panelFlat h2{
+    margin:0 0 9px;
+    font-size:clamp(1.35rem, 2vw, 1.8rem);
+    letter-spacing:-0.03em;
+    line-height:1.06;
+    font-weight:790;
+    color:#1f1812;
+    text-wrap:balance;
+  }
+
+  .lead{
+    margin:0;
+    max-width:74ch;
+    font-size:1rem;
+    line-height:1.72;
+    color:rgba(34,27,21,.80);
+  }
+
+  .summaryLine{
+    margin:16px 0 0;
+    padding:14px 16px;
+    border:1px solid rgba(108,88,56,.08);
+    border-radius:14px;
+    background:rgba(255,255,255,.58);
+    font-size:.94rem;
+    line-height:1.62;
+    color:rgba(48,38,28,.78);
+  }
+
+  .threeGrid{
+    display:grid;
+    gap:14px;
+    margin-top:16px;
+  }
+
+  @media (min-width:760px){
+    .threeGrid{
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .infoCard{
+    padding:18px;
+    border:1px solid rgba(108,88,56,.09);
+    border-radius:18px;
+    background:linear-gradient(180deg, rgba(255,252,246,.92), rgba(245,240,232,.90));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.68),
+      0 1px 0 rgba(0,0,0,.02);
+  }
+
+  .infoCard h3{
+    margin:0 0 8px;
+    font-size:1rem;
+    font-weight:780;
+  }
+
+  .infoCard p{
+    margin:0;
+    font-size:.97rem;
+    line-height:1.7;
+  }
+
+  /* ✅ MOBILE MATCH HEADER */
+  @media (max-width:760px){
+    .heroFull{
+      min-height:340px;
+    }
+
+    .heroShell,
+    .shell{
+      width:calc(100% - 20px);
+    }
+  }
+
+  .pageContent{
+    width:100%;
+  }
+
+  
+</style>
+
+  <section
+    class="heroFull"
+    aria-label="Fernie homes hero"
+    style={`background-image:
+      linear-gradient(to top, rgba(0,0,0,.68), rgba(0,0,0,.18) 46%, rgba(0,0,0,0) 78%),
+      url('${HERO_IMG}')`}
+  >
+    <div class="heroOverlay">
+      <div class="heroShell">
+        <div class="heroInner">
+          <p class="heroKicker">Fernie homes - local guidance</p>
+          <h1 class="heroH1">A cleaner way to browse Fernie homes</h1>
+          <p class="heroDek">
+            Search homes, explore neighbourhoods, and get practical local guidance for buying or selling in Fernie without the clutter.
+          </p>
+
+          <div class="heroActions">
+            <a class="heroBtn" href="#start-here">Start here</a>
+            <a class="heroBtnGhost" href="#contact">Ask a question</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="pageContent">
+    <section class="band bandWarm">
+      <div class="shell">
+        <section class="panelFlat" id="start-here">
+          <p class="eyebrow">Start here</p>
+          <h2>Fernie homes, with a bit more context</h2>
+          <p class="lead">
+            Fernie Homes can be the practical side of the experience - a clean place to browse listings, understand neighbourhoods, and get grounded guidance before you make a move.
+          </p>
+
+          <p class="summaryLine">
+            Think clean search, neighbourhood pages, and useful guidance for buyers and sellers - while Fernie Insider handles the deeper weekly market interpretation.
+          </p>
+
+          <div class="threeGrid">
+            <div class="infoCard">
+              <h3>For buyers</h3>
+              <p>
+                Get a clearer feel for neighbourhoods, home types, and what to pay attention to before booking showings.
+              </p>
+            </div>
+
+            <div class="infoCard">
+              <h3>For sellers</h3>
+              <p>
+                Position your home with better local context, cleaner presentation, and practical advice on what buyers are responding to.
+              </p>
+            </div>
+
+            <div class="infoCard">
+              <h3>For locals</h3>
+              <p>
+                Use the site as a simpler way to keep up with what is for sale in Fernie and how different areas compare.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="band">
+      <div class="shell">
+        <div class="mainCol">
+          <section class="panel">
+            <p class="eyebrow">What makes this useful</p>
+            <h2>A homes site that stays clean</h2>
+
+            <div class="splitGrid" style="margin-top:14px;">
+              <div class="textCard">
+                <h3>Neighbourhood-first</h3>
+                <p>
+                  Give people a better sense of where they want to be - whether that is Annex, Alpine Trails, West Fernie, Montane, or somewhere quieter.
+                </p>
+              </div>
+
+              <div class="textCard">
+                <h3>Search without distraction</h3>
+                <p>
+                  Let listings do their job. The homes site should feel easy to browse, with just enough local guidance to be helpful.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section class="panelSoft">
+            <p class="eyebrow">Popular next steps</p>
+            <h2>Useful places to go from here</h2>
+
+            <div class="linkStrip">
+              <a class="linkTile" href="/listings">
+                <p class="linkTileKicker">Browse</p>
+                <h3 class="linkTileTitle">Search Fernie homes</h3>
+                <p class="linkTileCopy">
+                  Browse homes for sale in Fernie with a cleaner, simpler listing experience.
+                </p>
+              </a>
+
+              <a class="linkTile" href="/neighbourhoods">
+                <p class="linkTileKicker">Explore</p>
+                <h3 class="linkTileTitle">Compare neighbourhoods</h3>
+                <p class="linkTileCopy">
+                  Get a feel for different parts of Fernie and which areas may suit your lifestyle best.
+                </p>
+              </a>
+
+              <a class="linkTile" href="https://fernie.realestate/market-trends/">
+                <p class="linkTileKicker">Go deeper</p>
+                <h3 class="linkTileTitle">See the market read</h3>
+                <p class="linkTileCopy">
+                  Jump to Fernie Insider for the more editorial, data-driven market perspective.
+                </p>
+              </a>
+            </div>
+          </section>
+
+          <section class="ctaPanel" id="contact">
+            <div class="ctaGrid">
+              <div class="ctaCopy">
+                <p class="eyebrow">Get in touch</p>
+                <h2>Need help narrowing things down?</h2>
+                <p>
+                  Whether you are just starting to look or already circling a few homes, a short conversation can save time and point you in the right direction.
+                </p>
+                <p>
+                  This block can later become your real contact form, Calendly embed, or lead capture.
+                </p>
+              </div>
+
+              <form class="formStub">
+                <input type="text" placeholder="Name" />
+                <input type="email" placeholder="Email" />
+                <textarea placeholder="What are you looking for in Fernie?"></textarea>
+                <button type="submit" class="submitBtn">Send inquiry</button>
+              </form>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+</Layout>

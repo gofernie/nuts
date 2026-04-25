@@ -1,0 +1,20 @@
+---
+const {
+  eyebrow = "",
+  title = "",
+  lead = "",
+  tone = "warm",
+  sectionClass = "",
+} = Astro.props;
+
+const toneClass = tone === "warm" ? "bandWarm" : "";
+---
+
+<section class:list={["band", toneClass, sectionClass]}>
+  <div class="shell">
+    {eyebrow && <p class="eyebrow">{eyebrow}</p>}
+    {title && <h2 class="sectionTitle">{title}</h2>}
+    {lead && <p class="lead">{lead}</p>}
+    <slot />
+  </div>
+</section>
